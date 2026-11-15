@@ -27,47 +27,35 @@ export async function triggerHaptic(type: HapticType = 'light'): Promise<void> {
     if (Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('Haptics')) {
       switch (type) {
         case 'light':
+        case 'selection':
+        case 'medium':
+        case 'heavy':
+        case 'warning':
+        case 'error':
           await Haptics.impact({ style: ImpactStyle.Light });
           break;
-        case 'medium':
-          await Haptics.impact({ style: ImpactStyle.Medium });
-          break;
-        case 'heavy':
-          await Haptics.impact({ style: ImpactStyle.Heavy });
-          break;
-        case 'selection':
-          await Haptics.selectionChanged();
-          break;
         case 'success':
-          await Haptics.notification({ type: NotificationType.Success });
-          break;
-        case 'warning':
-          await Haptics.notification({ type: NotificationType.Warning });
-          break;
-        case 'error':
-          await Haptics.notification({ type: NotificationType.Error });
+          await Haptics.impact({ style: ImpactStyle.Light });
           break;
       }
       return;
     }
 
-    // Web vibration fallback for Android mobile browsers (Chrome on Android)
+    // Gentle web vibration fallback for Android mobile browsers (Chrome on Android)
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       switch (type) {
         case 'light':
         case 'selection':
-          navigator.vibrate(8);
+          navigator.vibrate(5);
           break;
         case 'medium':
-          navigator.vibrate(18);
-          break;
         case 'heavy':
         case 'warning':
         case 'error':
-          navigator.vibrate(32);
+          navigator.vibrate(8);
           break;
         case 'success':
-          navigator.vibrate([12, 40, 16]);
+          navigator.vibrate([5, 25, 5]);
           break;
       }
     }

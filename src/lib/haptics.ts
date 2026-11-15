@@ -1,6 +1,6 @@
 'use client';
 
-import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Capacitor } from '@capacitor/core';
 
 const STORAGE_KEY = 'hapticsEnabled';
@@ -46,6 +46,7 @@ export function setHapticsEnabled(enabled: boolean): void {
 /**
  * Internal execution runner with try/catch wrapping so unsupported
  * desktop browsers or environments never throw unhandled errors.
+ * Uses small, gentle micro-haptics (ImpactStyle.Light) to prevent harsh motor buzzes.
  */
 async function runHaptic(
   nativeAction: () => Promise<void>,
@@ -54,7 +55,10 @@ async function runHaptic(
   if (!isHapticsEnabled()) return;
   if (typeof window === 'undefined') return;
 
-  lastHapticTime = Date.now();
+  // Throttle to prevent rapid-fire buzzing
+  const now = Date.now();
+  if (now - lastHapticTime < 60) return;
+  lastHapticTime = now;
 
   try {
     if (Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('Haptics')) {
@@ -74,9 +78,20 @@ async function runHaptic(
 
 /**
  * Light tap feedback: for tab switches, filter pills, dropdowns, and button clicks.
- * Calls Haptics.impact({ style: ImpactStyle.Light }) with fallback to navigator.vibrate?.(8)
+ * Very brief 5ms micro-pulse that feels like a subtle click.
  */
 export async function hapticTick(): Promise<void> {
+  await runHaptic(
+    () => Haptics.impact({ style: ImpactStyle.Light }),
+    5
+  );
+}
+
+/**
+ * Medium tactile feedback: for primary actions like Start/Pause/Reset timer, Add Task, Join Room.
+ * Short 8ms crisp tap.
+ */
+export async function hapticMedium(): Promise<void> {
   await runHaptic(
     () => Haptics.impact({ style: ImpactStyle.Light }),
     8
@@ -84,34 +99,23 @@ export async function hapticTick(): Promise<void> {
 }
 
 /**
- * Medium tactile feedback: for primary actions like Start/Pause/Reset timer, Add Task, Join Room.
- * Calls Haptics.impact({ style: ImpactStyle.Medium }) with fallback to navigator.vibrate?.(18)
- */
-export async function hapticMedium(): Promise<void> {
-  await runHaptic(
-    () => Haptics.impact({ style: ImpactStyle.Medium }),
-    18
-  );
-}
-
-/**
  * Success notification feedback: for completing a Pomodoro session or checking off a task.
- * Calls Haptics.notification({ type: NotificationType.Success }) with fallback to navigator.vibrate?.([15, 40, 25])
+ * Subtle double micro-tap [5, 25, 5].
  */
 export async function hapticSuccess(): Promise<void> {
   await runHaptic(
-    () => Haptics.notification({ type: NotificationType.Success }),
-    [15, 40, 25]
+    () => Haptics.impact({ style: ImpactStyle.Light }),
+    [5, 25, 5]
   );
 }
 
 /**
  * Warning / error feedback: for deleting a task or error state.
- * Calls Haptics.notification({ type: NotificationType.Warning }) with fallback to navigator.vibrate?.([30, 30, 30])
+ * Gentle 10ms tap.
  */
 export async function hapticWarning(): Promise<void> {
   await runHaptic(
-    () => Haptics.notification({ type: NotificationType.Warning }),
-    [30, 30, 30]
+    () => Haptics.impact({ style: ImpactStyle.Light }),
+    10
   );
 }
