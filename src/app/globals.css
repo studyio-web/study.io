@@ -1609,8 +1609,9 @@ html.light ::selection,
   will-change: opacity;
 }
 
-/* When window is hidden, pause all focus animations */
-.scene-hidden svg * {
+/* When window is hidden or animations paused, freeze all focus animations */
+.scene-hidden svg *,
+.scene-hidden * {
   animation-play-state: paused !important;
 }
 

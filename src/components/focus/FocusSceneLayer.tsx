@@ -7,6 +7,7 @@ interface FocusSceneLayerProps {
   sceneId: string;
   dim?: number; // 0 to 60 (default 20)
   speedMultiplier?: number;
+  isAnimated?: boolean;
 }
 
 function resolveSceneKey(id: string): string {
@@ -20,6 +21,7 @@ function resolveSceneKey(id: string): string {
 function FocusSceneLayerComponent({
   sceneId,
   dim = 20,
+  isAnimated = true,
 }: FocusSceneLayerProps) {
   // Track current scene and any previous scene being cross-faded over 900ms
   const [sceneState, setSceneState] = useState<{
@@ -79,7 +81,7 @@ function FocusSceneLayerComponent({
   return (
     <div
       className={`fixed inset-0 z-0 pointer-events-none select-none overflow-hidden bg-[#05060a] ${
-        isPageHidden ? 'scene-hidden' : ''
+        isPageHidden || !isAnimated ? 'scene-hidden' : ''
       }`}
       style={{
         contain: 'strict',
@@ -159,6 +161,9 @@ function FocusSceneLayerComponent({
 // React.memo prevents FocusSceneLayer from re-rendering every second when elapsedSeconds ticks in the parent modal
 export const FocusSceneLayer = React.memo(
   FocusSceneLayerComponent,
-  (prev, next) => prev.sceneId === next.sceneId && prev.dim === next.dim
+  (prev, next) =>
+    prev.sceneId === next.sceneId &&
+    prev.dim === next.dim &&
+    prev.isAnimated === next.isAnimated
 );
 

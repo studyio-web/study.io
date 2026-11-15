@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { formatSeconds } from '../../lib/utils';
-import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, RotateCw } from 'lucide-react';
+import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, Sparkles } from 'lucide-react';
 import { FocusSceneLayer } from '../focus/FocusSceneLayer';
 import { useFocusScene } from '../focus/useFocusScene';
 import { ScenePicker, ScenePreviewPill } from '../focus/ScenePicker';
@@ -96,7 +96,15 @@ export function FocusModeModal() {
   const isIdleRef = useRef(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isAtmosphereOpen, setIsAtmosphereOpen] = useState(false);
-  const [isLandscapeLocked, setIsLandscapeLocked] = useState(false);
+  const [isAnimated, setIsAnimated] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const saved = localStorage.getItem('studyio-focus-animated');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const atmosphereButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -105,28 +113,7 @@ export function FocusModeModal() {
   useEffect(() => {
     if (isFocusModeOpen) {
       enterFullscreenSafely();
-    } else {
-      setIsLandscapeLocked(false);
     }
-  }, [isFocusModeOpen]);
-
-  // Track orientation changes to stay in sync
-  useEffect(() => {
-    if (!isFocusModeOpen || typeof window === 'undefined') return;
-
-    const checkOrientation = () => {
-      const orientation = window.screen?.orientation as any;
-      if (orientation?.type) {
-        if (!orientation.type.includes('landscape')) {
-          setIsLandscapeLocked(false);
-        }
-      }
-    };
-
-    window.screen?.orientation?.addEventListener?.('change', checkOrientation);
-    return () => {
-      window.screen?.orientation?.removeEventListener?.('change', checkOrientation);
-    };
   }, [isFocusModeOpen]);
 
   const handlePause = () => {
@@ -145,30 +132,15 @@ export function FocusModeModal() {
     }
   };
 
-  const handleToggleOrientation = async () => {
+  const handleToggleAnimation = () => {
     hapticTick();
-    enterFullscreenSafely();
-
-    try {
-      const orientation = window.screen?.orientation as any;
-      if (!orientation) return;
-
-      if (isLandscapeLocked) {
-        if (orientation.unlock) {
-          orientation.unlock();
-        } else if (orientation.lock) {
-          await orientation.lock('portrait').catch(() => {});
-        }
-        setIsLandscapeLocked(false);
-      } else {
-        if (orientation.lock) {
-          await orientation.lock('landscape').catch(() => {});
-          setIsLandscapeLocked(true);
-        }
-      }
-    } catch (err) {
-      console.warn('Orientation lock error:', err);
-    }
+    setIsAnimated((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('studyio-focus-animated', String(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Focus scenes state & soft gating
@@ -339,7 +311,7 @@ export function FocusModeModal() {
       }`}
     >
       {/* 1. Animated / Living Focus Scene Layer (z-0, pointer-events none) */}
-      <FocusSceneLayer sceneId={activeSceneId} dim={dim} />
+      <FocusSceneLayer sceneId={activeSceneId} dim={dim} isAnimated={isAnimated} />
 
       {/* 2. Free User 8-Second Preview Toast / Pill */}
       {previewSceneId && previewSecondsLeft > 0 && (
@@ -569,19 +541,29 @@ export function FocusModeModal() {
             <span className="font-mono text-[11px] text-white/60">{dim}%</span>
           </button>
 
-          {/* Rotate Screen Toggle */}
+          {/* Background Animation Toggle Button */}
           <button
             type="button"
-            onClick={handleToggleOrientation}
+            onClick={handleToggleAnimation}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer ${
-              isLandscapeLocked
-                ? 'bg-white/20 text-white border-white/35 font-semibold'
-                : 'bg-[#090b14]/92 hover:bg-white/15 border-white/15 text-white/80 hover:text-white'
+              isAnimated
+                ? 'bg-[#090b14]/92 hover:bg-white/15 border-white/15 text-white/90 hover:text-white'
+                : 'bg-white/10 hover:bg-white/20 border-white/25 text-white/60 hover:text-white'
             }`}
-            title={isLandscapeLocked ? 'Unlock screen rotation' : 'Rotate to landscape desk clock'}
+            title={isAnimated ? 'Pause background animation' : 'Resume background animation'}
+            aria-label={isAnimated ? 'Pause background animation' : 'Resume background animation'}
           >
-            <RotateCw className={`w-3.5 h-3.5 ${isLandscapeLocked ? 'text-amber-400 rotate-90' : ''} transition-transform`} />
-            <span className="hidden sm:inline">Rotate</span>
+            <Sparkles className={`w-3.5 h-3.5 ${isAnimated ? 'text-amber-400' : 'text-zinc-500'}`} />
+            <span className="hidden sm:inline">Animation</span>
+            <span
+              className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
+                isAnimated
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-white/10 text-zinc-400 border border-white/10'
+              }`}
+            >
+              {isAnimated ? 'On' : 'Off'}
+            </span>
           </button>
 
           {/* Exit Fullscreen */}
