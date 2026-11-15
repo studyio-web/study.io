@@ -34,7 +34,6 @@ import {
   User,
   UserX,
   UserCheck,
-  MoreVertical,
   Loader2,
   Zap,
   Vibrate,
@@ -538,17 +537,6 @@ CREATE POLICY "Hosts can update their own study rooms"
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setActiveMenuUserId(null);
-    };
-    if (activeMenuUserId) {
-      window.addEventListener('click', handleClickOutside);
-      return () => window.removeEventListener('click', handleClickOutside);
-    }
-  }, [activeMenuUserId]);
 
   const isTimerRunning = isRunning;
 
@@ -2180,11 +2168,20 @@ CREATE POLICY "Hosts can update their own study rooms"
               return (
                 <div
                   key={u.user_id}
-                  className={`flex flex-col items-center gap-2 group relative transition-all duration-300 select-none ${
-                    activeMenuUserId === u.user_id ? 'z-30' : ''
-                  }`}
+                  className="flex flex-col items-center gap-2 group relative transition-all duration-300 select-none"
                 >
-                  <div className={`relative ${recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''}`}>
+                  <div
+                    onClick={() => {
+                      hapticTick();
+                      handleOpenScholarModal(u);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className={`relative cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 ${
+                      recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''
+                    }`}
+                    title={u.is_current_user ? 'View your profile' : `View ${u.username}'s profile & nudge`}
+                  >
                     {recentlyNudgedUsers[u.user_id] && (
                       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none whitespace-nowrap bg-amber-500 text-black font-mono font-black text-[9px] px-2.5 py-0.5 rounded-full shadow-[0_0_12px_#f59e0b] border border-amber-300 flex items-center justify-center animate-bounce">
                         <span>NUDGED!</span>
@@ -2200,109 +2197,9 @@ CREATE POLICY "Hosts can update their own study rooms"
                         src={u.avatar_url}
                         name={u.username}
                         size={64}
-                        className="transition-transform duration-300"
+                        className="transition-transform duration-300 pointer-events-none"
                       />
                     </ProAvatarRing>
-
-                    {/* 3-Dots Action Button on Top-Right of each profile */}
-                    <div className="absolute -top-1 -right-2 z-20">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuUserId(activeMenuUserId === u.user_id ? null : u.user_id);
-                        }}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center bg-[#0d121c]/90 border border-white/20 text-slate-300 hover:text-white hover:border-amber-400/60 hover:bg-black shadow-lg transition-all cursor-pointer ${
-                          activeMenuUserId === u.user_id
-                            ? 'opacity-100 ring-2 ring-amber-500/50 bg-black text-amber-300 scale-105'
-                            : 'opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
-                        }`}
-                        title="Profile Options"
-                        aria-label={`Options for ${u.username}`}
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Floating Dropdown Menu */}
-                      {activeMenuUserId === u.user_id && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-full mt-1.5 w-36 bg-[#0c1017]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.05)] p-1 z-40 animate-in fade-in zoom-in-95 duration-150"
-                        >
-                          {/* Option 1: View Profile */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuUserId(null);
-                              handleOpenScholarModal(u);
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-200 hover:text-white hover:bg-white/10 text-xs font-semibold transition-colors cursor-pointer text-left"
-                          >
-                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>View Profile</span>
-                          </button>
-
-                          {/* Option 2: Nudge */}
-                          {u.is_current_user ? (
-                            <button
-                              type="button"
-                              disabled
-                              className="w-full flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-50 text-left"
-                              title="You cannot nudge yourself"
-                            >
-                              <span>Nudge</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={(nudgeCooldowns[u.user_id] || 0) > 0}
-                              title={
-                                (nudgeCooldowns[u.user_id] || 0) > 0
-                                  ? `Nudge is on 3-hour cooldown (${formatNudgeCooldown(nudgeCooldowns[u.user_id])} remaining)`
-                                  : `Nudge ${u.username}`
-                              }
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if ((nudgeCooldowns[u.user_id] || 0) > 0) return;
-                                setActiveMenuUserId(null);
-                                handleSendNudge(u.user_id, u.username);
-                              }}
-                              className={`w-full flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
-                                (nudgeCooldowns[u.user_id] || 0) > 0
-                                  ? 'text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-60'
-                                  : 'text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer active:scale-95'
-                              }`}
-                            >
-                              <span className="truncate">
-                                {(nudgeCooldowns[u.user_id] || 0) > 0
-                                  ? `Nudged (${formatNudgeCooldown(nudgeCooldowns[u.user_id])})`
-                                  : 'Nudge'}
-                              </span>
-                            </button>
-                          )}
-
-                          {/* Host Extra Option: Ban */}
-                          {isHost && !u.is_host && !u.is_current_user && (
-                            <>
-                              <div className="h-px bg-white/10 my-1" />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuUserId(null);
-                                  setMemberToBan({ userId: u.user_id, username: u.username });
-                                }}
-                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-400 hover:text-white hover:bg-rose-500/20 text-xs font-semibold transition-colors cursor-pointer text-left active:scale-95"
-                              >
-                                <Ban className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                <span>Ban</span>
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   {/* Member Name, Total Time Studied Today (Adds up live when focusing) */}
@@ -3401,6 +3298,11 @@ CREATE POLICY "Hosts can update their own study rooms"
         onNudge={(uid, name) => handleSendNudge(uid, name)}
         nudgeCooldown={selectedScholar ? (nudgeCooldowns[selectedScholar.userId] || 0) : 0}
         isSelf={selectedScholar?.userId === user?.id}
+        isHost={isHost}
+        onBan={(uid, name) => {
+          setSelectedScholar(null);
+          setMemberToBan({ userId: uid, username: name });
+        }}
       />
 
 

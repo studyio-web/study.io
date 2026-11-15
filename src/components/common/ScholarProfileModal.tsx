@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Clock, Zap, Flame, Shield, Target } from 'lucide-react';
+import { X, Clock, Zap, Flame, Shield, Target, Ban } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
@@ -40,6 +40,8 @@ interface ScholarProfileModalProps {
   onNudge?: (userId: string, username: string) => void;
   nudgeCooldown?: number;
   isSelf?: boolean;
+  isHost?: boolean;
+  onBan?: (userId: string, username: string) => void;
 }
 
 function formatHoursMinutes(totalSeconds: number): { formatted: string; decimalHours: string } {
@@ -61,6 +63,8 @@ export function ScholarProfileModal({
   onNudge,
   nudgeCooldown,
   isSelf,
+  isHost,
+  onBan,
 }: ScholarProfileModalProps) {
   const [mounted, setMounted] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -565,18 +569,30 @@ export function ScholarProfileModal({
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-t border-[var(--border)] bg-[var(--surface-2)]/40 shrink-0 gap-3">
-          {onNudge && !isSelf && scholar ? (
-            <ClassicNudgeButton
-              targetUserId={scholar.userId}
-              targetUsername={scholar.name || scholar.username || 'Scholar'}
-              onNudge={() => onNudge(scholar.userId, scholar.name || scholar.username || 'Scholar')}
-              cooldownSeconds={nudgeCooldown || 0}
-              size="md"
-              label="NUDGE"
-            />
-          ) : (
-            <div />
-          )}
+          <div className="flex items-center gap-2">
+            {onNudge && !isSelf && scholar && (
+              <ClassicNudgeButton
+                targetUserId={scholar.userId}
+                targetUsername={scholar.name || scholar.username || 'Scholar'}
+                onNudge={() => onNudge(scholar.userId, scholar.name || scholar.username || 'Scholar')}
+                cooldownSeconds={nudgeCooldown || 0}
+                size="md"
+                label="NUDGE"
+              />
+            )}
+
+            {onBan && isHost && !isSelf && scholar && (
+              <button
+                type="button"
+                onClick={() => onBan(scholar.userId, scholar.name || scholar.username || 'Scholar')}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-hud font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                title={`Ban ${scholar.name || scholar.username || 'Scholar'} from room`}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>BAN</span>
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
