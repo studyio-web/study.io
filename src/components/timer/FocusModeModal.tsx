@@ -367,23 +367,31 @@ export function FocusModeModal() {
           isolation: 'isolate',
         }}
       >
+        {/* Deep contrast backdrop scrim to guarantee 100% crystal clarity over any scene */}
+        <div
+          className="absolute inset-0 -z-20 pointer-events-none scale-150 rounded-full"
+          style={{
+            background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.4) 45%, transparent 75%)',
+          }}
+        />
+
         {/* Soft GPU-accelerated ambient glow layer behind clock */}
         <div
-          className="absolute inset-0 -z-10 pointer-events-none scale-150"
+          className="absolute inset-0 -z-10 pointer-events-none scale-125"
           style={{
-            background: `radial-gradient(ellipse 70% 50% at 50% 50%, ${sceneGlow} 0%, transparent 75%)`,
-            opacity: 0.8,
+            background: `radial-gradient(ellipse 65% 45% at 50% 50%, ${sceneGlow} 0%, transparent 70%)`,
+            opacity: 0.45,
             transition: 'background 0.9s ease',
           }}
         />
 
         {timerMode === 'pomodoro' && (
-          <div className="mb-3 landscape:mb-1 text-sm md:text-base font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-3 landscape:mb-1 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md">
             {pomodoroPhase === 'work' ? 'Deep Focus' : 'Rest Phase'}
           </div>
         )}
         {timerMode === 'countdown' && (
-          <div className="mb-3 landscape:mb-1 text-sm md:text-base font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-3 landscape:mb-1 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md">
             Countdown
           </div>
         )}
@@ -394,23 +402,23 @@ export function FocusModeModal() {
             fontFamily: "'Space Grotesk', var(--font-hud), sans-serif",
             fontSize: 'clamp(5rem, min(14.5vw, 25vh), 13.5rem)',
             letterSpacing: '-0.035em',
-            textShadow: `0 0 28px ${sceneGlow}, 0 2px 16px rgba(0,0,0,0.65)`,
-            transition: 'text-shadow 0.9s ease, font-size 0.3s ease',
+            textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 45px rgba(0,0,0,0.7)',
+            filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.75))',
+            transition: 'font-size 0.3s ease',
           }}
         >
           {displayTime}
         </div>
 
         <div
-          className="mt-4 sm:mt-5 landscape:mt-2 text-lg sm:text-xl md:text-2xl landscape:text-base font-medium text-white/80 select-none flex items-center justify-center gap-2.5"
+          className="mt-4 sm:mt-5 landscape:mt-2 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white font-medium text-sm sm:text-base md:text-lg landscape:text-xs select-none flex items-center justify-center gap-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
           style={{
             fontFamily: "'Outfit', var(--font-geist-sans), sans-serif",
-            textShadow: '0 1px 12px rgba(0,0,0,.5)',
           }}
         >
-          <span>{subjectSubtitle}</span>
+          <span className="drop-shadow-sm">{subjectSubtitle}</span>
           {isPaused && (
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-hud font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm animate-pulse">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-hud font-bold tracking-wider uppercase bg-amber-500/25 text-amber-300 border border-amber-500/50 shadow-sm animate-pulse">
               Paused
             </span>
           )}

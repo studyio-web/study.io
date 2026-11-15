@@ -131,12 +131,12 @@ function FocusSceneLayerComponent({
         />
       )}
 
-      {/* Dual Radial Vignette from concept design */}
+      {/* Dual Radial Vignette to protect center contrast */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(0,0,0,.24) 0, transparent 36%), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%)',
+            'radial-gradient(ellipse 65% 50% at center, rgba(0,0,0,0.42) 0%, transparent 65%), radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.65) 100%)',
           contain: 'strict',
           transform: 'translate3d(0, 0, 0)',
         }}
