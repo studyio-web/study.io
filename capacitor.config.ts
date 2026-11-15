@@ -8,7 +8,16 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://studyio-web.vercel.app',
     cleartext: true
-  }
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: true,
+      backgroundColor: '#050507',
+      androidSplashResourceName: 'splash',
+      showSpinner: false,
+    },
+  },
 };
 
 export default config;

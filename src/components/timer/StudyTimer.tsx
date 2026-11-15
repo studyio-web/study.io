@@ -6,7 +6,6 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { usePremium } from '../../context/PremiumContext';
 import { useFocusGoals } from '../../context/FocusGoalContext';
-import { DailyTodoList } from '../todo/DailyTodoList';
 import { SubjectManagerModal, SubjectManager } from './SubjectManagerModal';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import {

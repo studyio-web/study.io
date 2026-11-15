@@ -251,7 +251,70 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-// ─── Lifecycle ───────────────────────────────────────────────────────────────
+// ─── Lifecycle & Static Asset Caching (Cache-First) ───────────────────────────
 
-self.addEventListener('install',  function() { self.skipWaiting(); });
-self.addEventListener('activate', function(event) { event.waitUntil(self.clients.claim()); });
+const CACHE_NAME = 'studyio-static-v2';
+const STATIC_ASSET_REGEX = /\.(js|css|woff|woff2|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$/i;
+
+self.addEventListener('install', function() {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.map(function(key) {
+          if (key !== CACHE_NAME && key.startsWith('studyio-static-')) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
+  );
+});
+
+self.addEventListener('fetch', function(event) {
+  // Only intercept GET requests
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Bypass API, database, realtime socket, auth & payment requests
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('razorpay.com') ||
+    url.protocol.startsWith('ws')
+  ) {
+    return;
+  }
+
+  // Cache-first for Next.js chunks, Google Fonts, and static image/font assets
+  const isNextStatic = url.pathname.startsWith('/_next/static/');
+  const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+  const isStaticFile = STATIC_ASSET_REGEX.test(url.pathname);
+
+  if (isNextStatic || isGoogleFont || isStaticFile) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(function(cache) {
+        return cache.match(event.request).then(function(cachedResponse) {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          return fetch(event.request).then(function(networkResponse) {
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          }).catch(function() {
+            return cachedResponse;
+          });
+        });
+      })
+    );
+  }
+});
+

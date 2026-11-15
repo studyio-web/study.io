@@ -86,6 +86,8 @@ const websiteJsonLd = {
   "url": "https://studyio-web.vercel.app/",
 };
 
+const inlineSwScript = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});});}`;
+
 const inlineThemeScript = `(function(){try{var m=${JSON.stringify(THEME_META_MAP)};var t=localStorage.getItem('studyio-theme')||'rank';if(!m[t])t='rank';var e=m[t];document.documentElement.dataset.theme=t;if(e.scheme==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}else{document.documentElement.classList.remove('light');document.documentElement.classList.add('dark');}document.documentElement.style.backgroundColor=e.themeColor;var tc=document.getElementById('theme-color-meta');if(tc)tc.setAttribute('content',e.themeColor);var cs=document.getElementById('color-scheme-meta');if(cs)cs.setAttribute('content',e.scheme);var as=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');if(as)as.setAttribute('content',e.scheme==='light'?'default':'black-translucent');}catch(e){document.documentElement.dataset.theme='rank';}})();`;
 
 export default function RootLayout({
@@ -115,6 +117,11 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: inlineThemeScript,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: inlineSwScript,
           }}
         />
         <script

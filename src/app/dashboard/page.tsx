@@ -5,21 +5,28 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Logo } from '../../components/Logo';
 import Home from '../page';
+import { getCachedUserState } from '../../lib/userCache';
+
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
+  const hasCachedUser = typeof window !== 'undefined' && Boolean(
+    getCachedUserState()?.profile?.id ||
+    localStorage.getItem('studypulse_is_authenticated') === 'true'
+  );
+
   useEffect(() => {
     // Only redirect once auth loading has settled and confirmed unauthenticated
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !hasCachedUser) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, hasCachedUser, router]);
 
-  // Prevent premature bounce: show branded loading screen while session is being verified/restored
-  if (isLoading) {
+  // Prevent premature bounce: show branded loading screen while session is being verified/restored ONLY IF NO CACHE
+  if (isLoading && !hasCachedUser) {
     return (
       <div className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center text-slate-100 relative">
         <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
@@ -33,7 +40,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !hasCachedUser) {
     return null;
   }
 

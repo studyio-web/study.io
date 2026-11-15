@@ -12,6 +12,7 @@ import React, {
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { PremiumModal } from '../components/premium/PremiumModal';
+import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
 
 export interface PremiumContextType {
   isPremium: boolean;
@@ -32,12 +33,32 @@ const PremiumContext = createContext<PremiumContextType | undefined>(undefined);
 export function PremiumProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
 
-  const [rawIsPremium, setRawIsPremium] = useState<boolean>(false);
+  const [rawIsPremium, setRawIsPremium] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = getCachedUserState();
+        if (cached && typeof cached.isPro === 'boolean') {
+          return cached.isPro;
+        }
+      } catch {}
+    }
+    return false;
+  });
   const [premiumUntilDate, setPremiumUntilDate] = useState<Date | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('none');
   const [cancelAtCycleEnd, setCancelAtCycleEnd] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = getCachedUserState();
+        if (cached && typeof cached.isPro === 'boolean') {
+          return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Single error logging guard
@@ -105,6 +126,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
         });
 
         setRawIsPremium(isPrem);
+        saveCachedUserState({ isPro: isPrem });
         setPremiumUntilDate(isValidDate ? parsedUntil : null);
         setPlan(mappedPlan);
         setStatus(mappedStatus);
@@ -149,6 +171,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
         setStatus('none');
         setCancelAtCycleEnd(false);
         setLoading(false);
+        saveCachedUserState({ isPro: false });
       }
     });
 
@@ -239,6 +262,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
 
   const setImmediatePremium = useCallback((newPlan: string, untilDateIso: string) => {
     setRawIsPremium(true);
+    saveCachedUserState({ isPro: true });
     setPremiumUntilDate(new Date(untilDateIso));
     setPlan(newPlan);
     setStatus('active');

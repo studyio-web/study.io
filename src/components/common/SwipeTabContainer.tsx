@@ -39,7 +39,21 @@ export function SwipeTabContainer({
   const currentIdxRef = useRef(activeIndex);
 
   // Keep track of which tabs have been visited so we preserve their mounted state
-  const [visitedIndices, setVisitedIndices] = useState<Set<number>>(() => new Set([activeIndex, 0, 1]));
+  // On cold start, mount ONLY the active tab for instant sub-second first-frame paint
+  const [visitedIndices, setVisitedIndices] = useState<Set<number>>(() => new Set([activeIndex]));
+
+  // Idle background prefetch of neighbor tabs so swipe interactions stay silky smooth
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVisitedIndices((prev) => {
+        const next = new Set(prev);
+        if (currentIdxRef.current > 0) next.add(currentIdxRef.current - 1);
+        if (currentIdxRef.current < TABS.length - 1) next.add(currentIdxRef.current + 1);
+        return next;
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Synchronize track position when activeTab prop updates (e.g. from navbar clicks)
   useEffect(() => {
@@ -108,6 +122,15 @@ export function SwipeTabContainer({
       isHorizontalLockRef.current = null;
       isDraggingRef.current = false;
       dragXRef.current = 0;
+
+      // Ensure neighbor tabs are rendered as soon as user touches to drag
+      setVisitedIndices((prev) => {
+        const idx = currentIdxRef.current;
+        const next = new Set(prev);
+        if (idx > 0) next.add(idx - 1);
+        if (idx < TABS.length - 1) next.add(idx + 1);
+        return next;
+      });
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -259,7 +282,7 @@ export function SwipeTabContainer({
         {TABS.map((tab, idx) => {
           const isActive = idx === currentTabIdx;
           const isNeighbor = Math.abs(idx - currentTabIdx) <= 1;
-          const shouldRender = isNeighbor || visitedIndices.has(idx);
+          const shouldRender = isActive || visitedIndices.has(idx);
 
           return (
             <div

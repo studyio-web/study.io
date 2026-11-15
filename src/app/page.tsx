@@ -1,38 +1,90 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, usePathname } from 'next/navigation';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
 import { getSupabase } from '../lib/supabase';
 import { useStudy } from '../context/StudyContext';
 import { Navbar } from '../components/common/Navbar';
-import { AuthModal } from '../components/common/AuthModal';
-import { ProfileModal } from '../components/common/ProfileModal';
-import { SettingsModal } from '../components/common/SettingsModal';
 import { StudyTimer } from '../components/timer/StudyTimer';
-import { FocusModeModal } from '../components/timer/FocusModeModal';
 import { IdleCheckModal } from '../components/timer/IdleCheckModal';
-import { AnalyticsDashboard } from '../components/analytics/AnalyticsDashboard';
 import { IntroductionAndLogin } from '../components/common/IntroductionAndLogin';
-import { LevelUpModal } from '../components/gamification/LevelUpModal';
 import { XpFloatingNotification } from '../components/gamification/XpFloatingNotification';
-import { RankSettlementModal } from '../components/RankSettlementModal';
 import { SeasonRecapBanner } from '../components/gamification/SeasonRecapBanner';
 import { SeasonResetAlertModal } from '../components/gamification/SeasonResetAlertModal';
-import { TasksOverview } from '../components/todo/TasksOverview';
 import { DailyBoostModal } from '../components/common/DailyBoostModal';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Logo } from '../components/Logo';
 import { NavTabType } from '../components/common/Navbar';
 import { SwipeTabContainer } from '../components/common/SwipeTabContainer';
-import { SettingsTabContent } from '../components/common/SettingsTabContent';
-import { MonthlyLeaderboard } from '../components/leaderboard/MonthlyLeaderboard';
-import StudyRoomsTab from '../components/rooms/StudyRoomsTab';
 import { useRankTheme } from '../hooks/useRankTheme';
 import { DevRankSwitcher } from '../components/common/DevRankSwitcher';
 import { useStudyMode } from '../context/StudyModeContext';
-import { OnboardingFlow } from '../components/onboarding/OnboardingFlow';
+import { getCachedUserState } from '../lib/userCache';
+
+// Lazy-load inactive tabs so chart, tasks, leaderboard, and WebRTC room libraries are deferred
+const TasksOverview = dynamic(
+  () => import('../components/todo/TasksOverview').then((mod) => mod.TasksOverview),
+  { ssr: false }
+);
+
+const AnalyticsDashboard = dynamic(
+  () => import('../components/analytics/AnalyticsDashboard').then((mod) => mod.AnalyticsDashboard),
+  { ssr: false }
+);
+
+const MonthlyLeaderboard = dynamic(
+  () => import('../components/leaderboard/MonthlyLeaderboard').then((mod) => mod.MonthlyLeaderboard),
+  { ssr: false }
+);
+
+const StudyRoomsTab = dynamic(
+  () => import('../components/rooms/StudyRoomsTab'),
+  { ssr: false }
+);
+
+const SettingsTabContent = dynamic(
+  () => import('../components/common/SettingsTabContent').then((mod) => mod.SettingsTabContent),
+  { ssr: false }
+);
+
+// Lazy-load non-critical modals
+const AuthModal = dynamic(
+  () => import('../components/common/AuthModal').then((mod) => mod.AuthModal),
+  { ssr: false }
+);
+
+const ProfileModal = dynamic(
+  () => import('../components/common/ProfileModal').then((mod) => mod.ProfileModal),
+  { ssr: false }
+);
+
+const SettingsModal = dynamic(
+  () => import('../components/common/SettingsModal').then((mod) => mod.SettingsModal),
+  { ssr: false }
+);
+
+const FocusModeModal = dynamic(
+  () => import('../components/timer/FocusModeModal').then((mod) => mod.FocusModeModal),
+  { ssr: false }
+);
+
+const LevelUpModal = dynamic(
+  () => import('../components/gamification/LevelUpModal').then((mod) => mod.LevelUpModal),
+  { ssr: false }
+);
+
+const RankSettlementModal = dynamic(
+  () => import('../components/RankSettlementModal').then((mod) => mod.RankSettlementModal),
+  { ssr: false }
+);
+
+const OnboardingFlow = dynamic(
+  () => import('../components/onboarding/OnboardingFlow').then((mod) => mod.OnboardingFlow),
+  { ssr: false }
+);
 
 export default function Home() {
   const router = useRouter();
@@ -68,36 +120,14 @@ export default function Home() {
     }
   }, []);
 
-  // Supabase session and auth state change listener: automatically redirect to /dashboard
+  // Seamlessly keep the URL aligned with /dashboard without triggering a router navigation delay on startup
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !pathname.startsWith('/dashboard')) {
-      router.push('/dashboard');
-      return;
+    if (isAuthenticated && typeof window !== 'undefined' && window.location.pathname === '/') {
+      try {
+        window.history.replaceState({}, '', '/dashboard');
+      } catch {}
     }
-
-    const supabase = getSupabase();
-    if (!supabase) return;
-
-    // Check existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !pathname.startsWith('/dashboard')) {
-        router.push('/dashboard');
-      }
-    });
-
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'SIGNED_IN' || session) && !pathname.startsWith('/dashboard')) {
-        router.push('/dashboard');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [isAuthenticated, isLoading, pathname, router]);
+  }, [isAuthenticated]);
 
   const {
     refetchSessions,
@@ -230,14 +260,20 @@ export default function Home() {
     };
   }, [isAuthenticated, refetchSessions]);
 
+  // Check if we have optimistic cached user state for instant launch
+  const hasCachedUser = typeof window !== 'undefined' && Boolean(
+    getCachedUserState()?.profile?.id ||
+    localStorage.getItem('studypulse_is_authenticated') === 'true'
+  );
+
   // Track if initial boot has finished so we don't show the full-screen loader on re-fetches
   const hasInitialBootCompletedRef = useRef(false);
-  if (!isLoading) {
+  if (!isLoading || hasCachedUser) {
     hasInitialBootCompletedRef.current = true;
   }
 
-  // Loading state while verifying stored session
-  if (isLoading && !hasInitialBootCompletedRef.current) {
+  // Loading state while verifying stored session (skip when cached state exists)
+  if (isLoading && !hasCachedUser && !hasInitialBootCompletedRef.current) {
     return (
       <div className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center text-slate-100 relative">
         <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
@@ -254,8 +290,8 @@ export default function Home() {
     );
   }
 
-  // Not authenticated: App cannot be used without logging in!
-  if (!isAuthenticated) {
+  // Not authenticated and no cached state: App cannot be used without logging in!
+  if (!isAuthenticated && !hasCachedUser) {
     return <IntroductionAndLogin />;
   }
 

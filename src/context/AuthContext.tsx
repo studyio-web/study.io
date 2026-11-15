@@ -9,6 +9,7 @@ import { getRankFromRp, getSoftResetRp, HARD_RESET_CAP_RP, calculateSeasonRp, ge
 import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '../lib/rankedSystem';
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
 import { resolveAppAvatar, isAppAvatar, getDeterministicDefaultAvatar } from '../lib/avatars';
+import { getCachedUserState, saveCachedUserState, clearCachedUserState } from '../lib/userCache';
 
 export type StoredAccount = {
   id: string;
@@ -36,15 +37,68 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile>(INITIAL_USER);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = getCachedUserState();
+        if (cached?.profile) {
+          const profile = { ...INITIAL_USER, ...cached.profile } as UserProfile;
+          const resolvedDisplayName = profile.username || profile.displayName || profile.name || 'Focus Scholar';
+          profile.avatarUrl = resolveAppAvatar(profile.avatarUrl, resolvedDisplayName);
+          profile.streakDays = cached.streakCount ?? profile.streakDays ?? 0;
+          return profile;
+        }
+        const saved = localStorage.getItem('studypulse_active_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') return parsed;
+        }
+      } catch {}
+    }
+    return INITIAL_USER;
+  });
 
-  // Helper to persist to localStorage
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = getCachedUserState();
+        if (cached?.profile?.id && !cached.profile.id.startsWith('guest')) {
+          return true;
+        }
+        return localStorage.getItem('studypulse_is_authenticated') === 'true';
+      } catch {}
+    }
+    return false;
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/auth/callback')) {
+        return true;
+      }
+      try {
+        const cached = getCachedUserState();
+        const hasAuth = localStorage.getItem('studypulse_is_authenticated') === 'true';
+        if (cached?.profile?.id || hasAuth) {
+          return false;
+        }
+      } catch {}
+    }
+    return false;
+  });
+
+  // Helper to persist to localStorage & unified user cache
   const saveUser = useCallback((newUser: UserProfile) => {
     setUser(newUser);
     try {
       localStorage.setItem('studypulse_active_user', JSON.stringify(newUser));
+      saveCachedUserState({
+        profile: newUser,
+        streakCount: newUser.streakDays,
+        rankBadge: getRankTier(newUser.seasonRp || 0).badge,
+        rankTitle: newUser.rank_title,
+        rp: newUser.seasonRp,
+      });
     } catch {
       // ignore
     }
@@ -237,7 +291,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               levelTitle: profile.level_title || calculatedTitle || prev.levelTitle,
             },
           };
-          try { localStorage.setItem('studypulse_active_user', JSON.stringify(synced)); } catch {}
+          try {
+            localStorage.setItem('studypulse_active_user', JSON.stringify(synced));
+            saveCachedUserState({
+              profile: synced,
+              streakCount: finalStreak,
+              rankBadge: effectiveBadge,
+              rankTitle: effectiveRankTitle,
+              rp: syncedRP,
+            });
+          } catch {}
           return synced;
         });
       } else {
@@ -972,6 +1035,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     saveUser(INITIAL_USER);
     setIsAuthenticated(false);
+    clearCachedUserState();
     try {
       localStorage.removeItem('studypulse_is_authenticated');
       localStorage.removeItem('studypulse_active_user');
@@ -1018,6 +1082,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     saveUser(INITIAL_USER);
     setIsAuthenticated(false);
+    clearCachedUserState();
   }, [saveUser]);
 
   const deleteAccount = useCallback(async () => {

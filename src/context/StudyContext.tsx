@@ -35,6 +35,7 @@ import {
   getCurrentMonthFocusSeconds,
   resolveLiveSeasonStats,
 } from '../lib/ranks';
+import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
 
 export const showPushNotification = async (title: string, options?: NotificationOptions) => {
   if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -349,6 +350,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjectsState] = useState<Subject[]>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const cached = getCachedUserState();
+        if (cached?.subjects && Array.isArray(cached.subjects) && cached.subjects.length > 0) {
+          return deduplicateSubjects(cached.subjects);
+        }
         const uid = user?.id || 'guest';
         const saved =
           localStorage.getItem(getSubjectStorageKey(uid)) ||
@@ -2201,6 +2206,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             const carryoverRp = liveStats.startingRp;
             const rankDetails = liveStats.rankTier;
 
+            saveCachedUserState({
+              subjects: subjectList,
+              streakCount: realStreak,
+              rp: currentSeasonRp,
+              rankBadge: rankDetails.badge,
+              rankTitle: rankDetails.name || rankDetails.fullTitle || 'Bronze I',
+            });
+
             // Baseline sync for Supabase sessions to guarantee no false level-up on login
             const currentLifetimeXP = Number(userRef.current?.lifetime_xp ?? userRef.current?.lifetimeXp ?? userRef.current?.xp ?? 0) || Math.floor(realTotalSeconds / 60) * 10;
             const computedLevel = getLevelFromLifetimeXP(currentLifetimeXP);
@@ -2277,6 +2290,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const json = JSON.stringify(deduplicated);
         localStorage.setItem(getSubjectStorageKey(uid), json);
         localStorage.setItem('studypulse_subjects', json);
+        saveCachedUserState({ subjects: deduplicated });
       } catch {
         // ignore
       }
