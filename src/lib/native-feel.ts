@@ -73,12 +73,6 @@ export async function updateNativeStatusBar(color = '#050507', isDark = true): P
   try {
     if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('StatusBar')) {
       await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-      await StatusBar.setBackgroundColor({ color });
-      try {
-        await StatusBar.hide();
-      } catch {
-        // Fallback
-      }
       try {
         await StatusBar.setOverlaysWebView({ overlay: true });
       } catch {
