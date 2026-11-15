@@ -205,7 +205,7 @@ self.addEventListener('message', function(event) {
     case 'SHOW_NUDGE_NOTIFICATION':
       (async function() {
         try {
-          await self.registration.showNotification('⚡ Focus Nudge!', {
+          await self.registration.showNotification('Focus Nudge', {
             body: (d.senderUsername || 'A scholar') + ' nudged you to focus in study.io!',
             icon: ICON,
             badge: BADGE,

@@ -94,7 +94,7 @@ export async function requestNudgeNotificationPermission(): Promise<Notification
 export async function triggerNudgePushNotification(senderUsername: string): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  const title = '⚡ Focus Nudge!';
+  const title = 'Focus Nudge';
   const body = `${senderUsername} nudged you to focus in study.io!`;
   const icon = '/icon';
   const tag = `studyio-nudge-${Date.now()}`;

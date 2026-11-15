@@ -310,9 +310,6 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
       // In-App Attention Toast
       toast((t) => (
         <div className="flex items-center gap-3 py-1">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-base shrink-0 animate-bounce">
-            ⚡
-          </div>
           <div>
             <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">Focus Nudge</div>
             <div className="text-xs font-semibold text-white">
@@ -378,7 +375,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
       console.warn('Failed to broadcast nudge:', err);
     }
 
-    toast.success(`Nudged ${targetUsername}! ⚡`, { duration: 2500 });
+    toast.success(`Nudged ${targetUsername}!`, { duration: 2500 });
   }, [user, roomId, nudgeTimestamps]);
 
   const handleOpenScholarModal = (u: any) => {
@@ -2132,17 +2129,13 @@ CREATE POLICY "Hosts can update their own study rooms"
               return (
                 <div
                   key={u.user_id}
-                  onClick={() => handleOpenScholarModal(u)}
-                  role="button"
-                  tabIndex={0}
                   className={`flex flex-col items-center gap-2 group relative transition-all duration-300 select-none ${
-                    activeMenuUserId === u.user_id ? 'z-30' : 'hover:scale-105 active:scale-95 cursor-pointer'
+                    activeMenuUserId === u.user_id ? 'z-30' : ''
                   }`}
                 >
                   <div className={`relative ${recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''}`}>
                     {recentlyNudgedUsers[u.user_id] && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none whitespace-nowrap bg-amber-500 text-black font-mono font-black text-[9px] px-2 py-0.5 rounded-full shadow-[0_0_12px_#f59e0b] border border-amber-300 flex items-center gap-1 animate-bounce">
-                        <Zap className="w-2.5 h-2.5 fill-black" />
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none whitespace-nowrap bg-amber-500 text-black font-mono font-black text-[9px] px-2.5 py-0.5 rounded-full shadow-[0_0_12px_#f59e0b] border border-amber-300 flex items-center justify-center animate-bounce">
                         <span>NUDGED!</span>
                       </div>
                     )}
@@ -2204,10 +2197,9 @@ CREATE POLICY "Hosts can update their own study rooms"
                             <button
                               type="button"
                               disabled
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-50 text-left"
+                              className="w-full flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-50 text-left"
                               title="You cannot nudge yourself"
                             >
-                              <Zap className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                               <span>Nudge</span>
                             </button>
                           ) : (
@@ -2225,13 +2217,12 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 setActiveMenuUserId(null);
                                 handleSendNudge(u.user_id, u.username);
                               }}
-                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
+                              className={`w-full flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
                                 (nudgeCooldowns[u.user_id] || 0) > 0
                                   ? 'text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-60'
                                   : 'text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer active:scale-95'
                               }`}
                             >
-                              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
                               <span className="truncate">
                                 {(nudgeCooldowns[u.user_id] || 0) > 0
                                   ? `Nudged (${formatNudgeCooldown(nudgeCooldowns[u.user_id])})`
