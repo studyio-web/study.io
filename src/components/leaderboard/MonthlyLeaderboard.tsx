@@ -313,7 +313,6 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     setHasSeenRecap(true);
   }, []);
 
-  const [currentUserRowVisible, setCurrentUserRowVisible] = useState(true);
   const myRowRef = useRef<HTMLDivElement | null>(null);
 
   const userRef = useRef(user);
@@ -696,24 +695,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     return { rank: actualRank, row, h, m, tierConfig };
   }, [contenders, checkIsCurrentUser, userRank, user, sessions]);
 
-  useEffect(() => {
-    if (isLoading || isFetching) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]) {
-          setCurrentUserRowVisible(entries[0].isIntersecting);
-        }
-      },
-      { threshold: 0, rootMargin: '-10px 0px -10px 0px' }
-    );
 
-    if (myRowRef.current) {
-      observer.observe(myRowRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [isLoading, isFetching, leaderboard, contenders]);
 
   if (hasSeenRecap === null) {
     return (
@@ -894,27 +876,26 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
               </div>
             </div>
 
-            {/* Floating Current User Rank Indicator (Fixed so it takes 0 layout height and never causes scroll jitter) */}
+            {/* Current User Rank Summary Card */}
             {currentUserEntry && (
-              <div
-                className={`fixed bottom-24 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ${
-                  !currentUserRowVisible
-                    ? 'opacity-100 translate-y-0 pointer-events-auto'
-                    : 'opacity-0 translate-y-4 pointer-events-none'
-                }`}
-              >
-                <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs font-mono text-[var(--text)] shadow-[0_12px_32px_rgba(0,0,0,0.7)]">
-                  <span>
-                    YOUR RANK: <strong style={{ color: 'var(--tier-accent-text)' }}>#{currentUserEntry.rank}</strong>
+              <div className="w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)] shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <span className="text-xs font-hud uppercase tracking-wider text-[var(--text-dim)] shrink-0">Your Rank:</span>
+                  <span className="font-hud-mono font-bold text-sm text-[var(--accent)] shrink-0">
+                    #{currentUserEntry.rank}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                    className="rounded-full bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 px-3 py-1 font-bold text-[11px] cursor-pointer transition-transform active:scale-95 shadow-sm"
-                  >
-                    Jump to You ↓
-                  </button>
+                  <span className="text-xs text-[var(--text-dim)] font-mono truncate hidden xs:inline">
+                    · {currentUserEntry.h}h {currentUserEntry.m}m
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  className="rounded-xl px-3 py-1.5 font-hud-mono font-bold text-xs cursor-pointer transition-transform active:scale-95 shadow-sm shrink-0 flex items-center gap-1 hover:brightness-110"
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                >
+                  <span>Jump to You ↓</span>
+                </button>
               </div>
             )}
 

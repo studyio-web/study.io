@@ -192,7 +192,7 @@ export function SwipeTabContainer({
                 displayIndex === idx
                   ? (tab === 'timer' || tab === 'rooms')
                     ? 'overflow-hidden pb-0'
-                    : 'overflow-y-auto pb-28 overscroll-contain'
+                    : 'overflow-y-auto pb-28 md:pb-12'
                   : 'overflow-hidden pointer-events-none'
               }`}
               style={{
@@ -201,7 +201,7 @@ export function SwipeTabContainer({
                 WebkitOverflowScrolling: 'touch',
               }}
             >
-              <div className="w-full h-full flex-1">
+              <div className="w-full h-full flex-1 min-h-0">
                 {isNeighbor ? children[tab] : null}
               </div>
             </div>
