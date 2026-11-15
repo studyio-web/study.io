@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Gamified collaborative focus and habit tracking platform',
     start_url: '/',
     display: 'standalone',
-    orientation: 'portrait',
+    orientation: 'any',
     background_color: '#080b12',
     theme_color: '#080b12',
     icons: [

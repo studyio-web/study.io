@@ -46,7 +46,7 @@ import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
 import confetti from 'canvas-confetti';
 import { CountdownEditor } from './CountdownEditor';
-import { exitFullscreenSafely } from './FocusModeModal';
+import { enterFullscreenSafely, exitFullscreenSafely } from './FocusModeModal';
 import { getSupabase } from '../../lib/supabase';
 import { getDailyQuote } from '../../lib/quotes';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -1572,20 +1572,8 @@ export function StudyTimer() {
         <button
           type="button"
           onClick={() => {
+            enterFullscreenSafely();
             setIsFocusModeOpen(true);
-            const el = document.documentElement;
-            const lockLandscape = () => {
-              const orientation = window.screen?.orientation as any;
-              if (orientation && orientation.lock) {
-                orientation.lock('landscape').catch(() => {});
-              }
-            };
-            if (el.requestFullscreen) {
-              el.requestFullscreen().then(lockLandscape).catch(() => {});
-            } else if ((el as any).webkitRequestFullscreen) {
-              (el as any).webkitRequestFullscreen();
-              setTimeout(lockLandscape, 100);
-            }
           }}
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer select-none"
           title="Fullscreen Focus Mode"

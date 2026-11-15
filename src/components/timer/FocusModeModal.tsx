@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { formatSeconds } from '../../lib/utils';
-import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2 } from 'lucide-react';
+import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, RotateCw } from 'lucide-react';
 import { FocusSceneLayer } from '../focus/FocusSceneLayer';
 import { useFocusScene } from '../focus/useFocusScene';
 import { ScenePicker, ScenePreviewPill } from '../focus/ScenePicker';
@@ -11,6 +11,31 @@ import { AtmospherePicker } from '../focus/AtmospherePicker';
 import { useAtmosphere } from '../focus/useAtmosphere';
 import { AVAILABLE_SCENES, getSceneById } from '../focus/scenes/registry';
 import { useStudyMode } from '../../context/StudyModeContext';
+import { hapticTick, hapticMedium } from '@/lib/haptics';
+
+export function enterFullscreenSafely() {
+  if (typeof document === 'undefined') return;
+
+  interface VendorDocElement extends HTMLElement {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+    mozRequestFullScreen?: () => Promise<void> | void;
+    msRequestFullscreen?: () => Promise<void> | void;
+  }
+
+  try {
+    const el = document.documentElement as VendorDocElement;
+    if (document.fullscreenElement) return;
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {});
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+    } else if (el.mozRequestFullScreen) {
+      el.mozRequestFullScreen();
+    } else if (el.msRequestFullscreen) {
+      el.msRequestFullscreen();
+    }
+  } catch {}
+}
 
 export function exitFullscreenSafely() {
   if (typeof document === 'undefined') return;
@@ -18,22 +43,34 @@ export function exitFullscreenSafely() {
   interface VendorDoc extends Document {
     webkitFullscreenElement?: Element;
     webkitExitFullscreen?: () => Promise<void> | void;
+    mozFullScreenElement?: Element;
+    mozCancelFullScreen?: () => Promise<void> | void;
+    msFullscreenElement?: Element;
+    msExitFullscreen?: () => Promise<void> | void;
   }
   interface VendorOrientation {
     unlock?: () => Promise<void> | void;
   }
 
-  const vendorDoc = document as VendorDoc;
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  } else if (vendorDoc.webkitFullscreenElement && vendorDoc.webkitExitFullscreen) {
-    vendorDoc.webkitExitFullscreen();
-  }
+  try {
+    const vendorDoc = document as VendorDoc;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (vendorDoc.webkitFullscreenElement && vendorDoc.webkitExitFullscreen) {
+      vendorDoc.webkitExitFullscreen();
+    } else if (vendorDoc.mozFullScreenElement && vendorDoc.mozCancelFullScreen) {
+      vendorDoc.mozCancelFullScreen();
+    } else if (vendorDoc.msFullscreenElement && vendorDoc.msExitFullscreen) {
+      vendorDoc.msExitFullscreen();
+    }
+  } catch {}
 
-  const orientation = window.screen?.orientation as unknown as VendorOrientation | undefined;
-  if (orientation?.unlock) {
-    orientation.unlock();
-  }
+  try {
+    const orientation = window.screen?.orientation as unknown as VendorOrientation | undefined;
+    if (orientation?.unlock) {
+      orientation.unlock();
+    }
+  } catch {}
 }
 
 export function FocusModeModal() {
@@ -49,7 +86,6 @@ export function FocusModeModal() {
     selectedSubject,
     isStudying,
     isPaused,
-    isRunning,
     pauseTimer,
     resumeTimer,
     startTimer,
@@ -60,9 +96,38 @@ export function FocusModeModal() {
   const isIdleRef = useRef(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isAtmosphereOpen, setIsAtmosphereOpen] = useState(false);
+  const [isLandscapeLocked, setIsLandscapeLocked] = useState(false);
   const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const atmosphereButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Automatically request browser/WebView fullscreen upon entering immersive view
+  useEffect(() => {
+    if (isFocusModeOpen) {
+      enterFullscreenSafely();
+    } else {
+      setIsLandscapeLocked(false);
+    }
+  }, [isFocusModeOpen]);
+
+  // Track orientation changes to stay in sync
+  useEffect(() => {
+    if (!isFocusModeOpen || typeof window === 'undefined') return;
+
+    const checkOrientation = () => {
+      const orientation = window.screen?.orientation as any;
+      if (orientation?.type) {
+        if (!orientation.type.includes('landscape')) {
+          setIsLandscapeLocked(false);
+        }
+      }
+    };
+
+    window.screen?.orientation?.addEventListener?.('change', checkOrientation);
+    return () => {
+      window.screen?.orientation?.removeEventListener?.('change', checkOrientation);
+    };
+  }, [isFocusModeOpen]);
 
   const handlePause = () => {
     pauseTimer();
@@ -80,6 +145,32 @@ export function FocusModeModal() {
     }
   };
 
+  const handleToggleOrientation = async () => {
+    hapticTick();
+    enterFullscreenSafely();
+
+    try {
+      const orientation = window.screen?.orientation as any;
+      if (!orientation) return;
+
+      if (isLandscapeLocked) {
+        if (orientation.unlock) {
+          orientation.unlock();
+        } else if (orientation.lock) {
+          await orientation.lock('portrait').catch(() => {});
+        }
+        setIsLandscapeLocked(false);
+      } else {
+        if (orientation.lock) {
+          await orientation.lock('landscape').catch(() => {});
+          setIsLandscapeLocked(true);
+        }
+      }
+    } catch (err) {
+      console.warn('Orientation lock error:', err);
+    }
+  };
+
   // Focus scenes state & soft gating
   const {
     activeSceneId,
@@ -93,10 +184,9 @@ export function FocusModeModal() {
   } = useFocusScene();
 
   // Atmosphere ambient audio hook
-  const { ambientSound, activeOption: activeAtmosphereOption, isLoading: isAtmosphereLoading, loadingSound: atmosphereLoadingSound } = useAtmosphere();
+  const { ambientSound, activeOption: activeAtmosphereOption, isLoading: isAtmosphereLoading } = useAtmosphere();
 
   // Auto-hide UI when mouse is idle (keep visible while picker or atmosphere is open)
-  // Debounced with requestAnimationFrame to eliminate all mousemove main-thread jank
   useEffect(() => {
     if (!isFocusModeOpen) return;
 
@@ -106,13 +196,11 @@ export function FocusModeModal() {
     const handlePointerActivity = () => {
       const now = Date.now();
 
-      // Only update React state if currently idle (prevents re-renders while moving mouse)
       if (isIdleRef.current) {
         isIdleRef.current = false;
         setIsIdle(false);
       }
 
-      // Throttle timeout resets to at most once per 250ms
       if (now - lastActivityTime < 250) return;
       lastActivityTime = now;
 
@@ -148,7 +236,7 @@ export function FocusModeModal() {
     };
   }, [isFocusModeOpen, isPickerOpen, isAtmosphereOpen]);
 
-  // Arrow keys navigation (ArrowLeft / ArrowRight) & Escape key listener
+  // Arrow keys navigation & Escape key listener
   useEffect(() => {
     if (!isFocusModeOpen) return;
 
@@ -167,17 +255,17 @@ export function FocusModeModal() {
         return;
       }
 
-      // Do not trigger shortcuts if focus is inside an input, textarea or slider
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
 
-      // Spacebar toggles pause / resume / start
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
+        hapticMedium();
         if (isStudying && !isPaused) {
           handlePause();
         } else if (isStudying && isPaused) {
           handleResume();
         } else if (!isStudying) {
+          enterFullscreenSafely();
           handleStart();
         }
         return;
@@ -188,10 +276,12 @@ export function FocusModeModal() {
 
       if (e.key === 'ArrowRight') {
         e.preventDefault();
+        hapticTick();
         const nextKey = keys[(curIndex + 1) % keys.length];
         selectScene(nextKey);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
+        hapticTick();
         const prevKey = keys[(curIndex - 1 + keys.length) % keys.length];
         selectScene(prevKey);
       }
@@ -244,7 +334,7 @@ export function FocusModeModal() {
   return (
     <div
       style={{ colorScheme: 'dark' }}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-[#05060a] ${
+      className={`fixed inset-0 w-screen h-dvh z-[100] flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-[#05060a] ${
         isIdle && !isPickerOpen && !isAtmosphereOpen ? 'cursor-none' : 'cursor-default'
       }`}
     >
@@ -262,19 +352,22 @@ export function FocusModeModal() {
       {/* Invisible overlay that can be double-clicked to exit */}
       <div
         className="absolute inset-0 z-0 pointer-events-auto"
-        onDoubleClick={() => setIsFocusModeOpen(false)}
+        onDoubleClick={() => {
+          setIsFocusModeOpen(false);
+          exitFullscreenSafely();
+        }}
       />
 
       {/* 3. Big Clock with Space Grotesk tabular digits and scene-specific ambient glow */}
       <div
-        className="relative z-10 flex flex-col items-center justify-center text-center pointer-events-none"
+        className="relative z-10 flex flex-col items-center justify-center text-center pointer-events-none landscape:my-1"
         style={{
           contain: 'layout style',
           transform: 'translate3d(0, 0, 0)',
           isolation: 'isolate',
         }}
       >
-        {/* Soft GPU-accelerated ambient glow layer behind clock (zero per-tick rasterization lag) */}
+        {/* Soft GPU-accelerated ambient glow layer behind clock */}
         <div
           className="absolute inset-0 -z-10 pointer-events-none"
           style={{
@@ -285,21 +378,20 @@ export function FocusModeModal() {
         />
 
         {timerMode === 'pomodoro' && (
-          <div className="mb-3 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-2 landscape:mb-0.5 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
             {pomodoroPhase === 'work' ? 'Deep Focus' : 'Rest Phase'}
           </div>
         )}
         {timerMode === 'countdown' && (
-          <div className="mb-3 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-2 landscape:mb-0.5 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
             Countdown
           </div>
         )}
 
         <div
-          className="font-bold leading-none text-white tabular-nums select-none"
+          className="font-bold leading-none text-white tabular-nums select-none text-6xl sm:text-7xl landscape:text-7xl"
           style={{
             fontFamily: "'Space Grotesk', var(--font-hud), sans-serif",
-            fontSize: 'clamp(64px, 14vw, 175px)',
             letterSpacing: '-0.03em',
             textShadow: `0 0 20px ${sceneGlow}, 0 2px 14px rgba(0,0,0,0.6)`,
             transition: 'text-shadow 0.9s ease',
@@ -309,7 +401,7 @@ export function FocusModeModal() {
         </div>
 
         <div
-          className="mt-3.5 text-base sm:text-lg font-medium text-white/75 select-none flex items-center justify-center gap-2.5"
+          className="mt-3.5 landscape:mt-1 text-base sm:text-lg landscape:text-sm font-medium text-white/75 select-none flex items-center justify-center gap-2.5"
           style={{
             fontFamily: "'Outfit', var(--font-geist-sans), sans-serif",
             textShadow: '0 1px 12px rgba(0,0,0,.5)',
@@ -326,7 +418,7 @@ export function FocusModeModal() {
 
       {/* 4. Bottom Control Bar: Compact Timer Playback, Scene Selector & Utility Controls */}
       <div
-        className={`absolute bottom-[calc(22px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex flex-col items-center justify-center gap-2.5 max-w-[calc(100%-24px)] transition-[opacity,transform] duration-250 ease-out will-change-[opacity,transform] ${
+        className={`absolute bottom-[calc(22px+env(safe-area-inset-bottom,0px))] landscape:bottom-[calc(8px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex flex-col items-center justify-center gap-2.5 landscape:gap-1.5 landscape:pb-3 max-w-[calc(100%-24px)] transition-[opacity,transform] duration-250 ease-out will-change-[opacity,transform] ${
           isIdle && !isPickerOpen && !isAtmosphereOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={{
@@ -343,7 +435,10 @@ export function FocusModeModal() {
           {isStudying && !isPaused ? (
             <button
               type="button"
-              onClick={handlePause}
+              onClick={() => {
+                hapticMedium();
+                handlePause();
+              }}
               className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 hover:border-white/40 text-white font-medium text-xs sm:text-[13px] backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
               title="Pause timer (Space)"
             >
@@ -353,7 +448,15 @@ export function FocusModeModal() {
           ) : (
             <button
               type="button"
-              onClick={isStudying ? handleResume : handleStart}
+              onClick={() => {
+                hapticMedium();
+                enterFullscreenSafely();
+                if (isStudying) {
+                  handleResume();
+                } else {
+                  handleStart();
+                }
+              }}
               className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-semibold text-xs sm:text-[13px] shadow-[0_4px_16px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
               title={isStudying ? "Resume timer (Space)" : "Start timer (Space)"}
             >
@@ -363,11 +466,11 @@ export function FocusModeModal() {
           )}
         </div>
 
-        {/* Pill Group matching concept design without heavy backdrop-filter blur passes */}
+        {/* Sleek Centered Glassmorphic Scene Selector Bar */}
         <div
           role="group"
           aria-label="Scene selector"
-          className="flex items-center gap-1 p-1 max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-none rounded-full bg-[#090b14]/92 border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.7)]"
+          className="max-w-[92vw] sm:max-w-fit mx-auto flex items-center gap-1 p-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-3 landscape:mb-1.5"
         >
           {AVAILABLE_SCENES.map((scene) => {
             const isActive = activeSceneId === scene.id;
@@ -378,11 +481,14 @@ export function FocusModeModal() {
                 key={scene.id}
                 type="button"
                 aria-pressed={isActive}
-                onClick={() => selectScene(scene.id)}
-                className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs sm:text-[13px] font-medium transition-colors shrink-0 cursor-pointer ${
+                onClick={() => {
+                  hapticTick();
+                  selectScene(scene.id);
+                }}
+                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   isActive
-                    ? 'bg-white/92 text-[#0b0d14] font-semibold shadow-md'
-                    : 'bg-transparent text-white/80 hover:text-white hover:bg-white/10'
+                    ? 'bg-white/15 text-white shadow-sm border border-white/10'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
                 }`}
                 style={{ fontFamily: "'Outfit', sans-serif" }}
               >
@@ -395,14 +501,14 @@ export function FocusModeModal() {
           })}
         </div>
 
-        {/* Action Controls: Atmosphere, Dim & Exit Fullscreen */}
+        {/* Action Controls: Atmosphere, Dim, Rotate Screen & Exit Fullscreen */}
         <div className="flex items-center gap-2">
-
           {/* Atmosphere Audio Soundscapes Toggle */}
           <button
             ref={atmosphereButtonRef}
             type="button"
             onClick={() => {
+              hapticTick();
               setIsAtmosphereOpen((prev) => !prev);
               if (isPickerOpen) setIsPickerOpen(false);
             }}
@@ -440,6 +546,7 @@ export function FocusModeModal() {
             ref={settingsButtonRef}
             type="button"
             onClick={() => {
+              hapticTick();
               setIsPickerOpen((prev) => !prev);
               if (isAtmosphereOpen) setIsAtmosphereOpen(false);
             }}
@@ -453,10 +560,26 @@ export function FocusModeModal() {
             <span className="font-mono text-[11px] text-white/60">{dim}%</span>
           </button>
 
+          {/* Rotate Screen Toggle */}
+          <button
+            type="button"
+            onClick={handleToggleOrientation}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer ${
+              isLandscapeLocked
+                ? 'bg-white/20 text-white border-white/35 font-semibold'
+                : 'bg-[#090b14]/92 hover:bg-white/15 border-white/15 text-white/80 hover:text-white'
+            }`}
+            title={isLandscapeLocked ? 'Unlock screen rotation' : 'Rotate to landscape desk clock'}
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isLandscapeLocked ? 'text-amber-400 rotate-90' : ''} transition-transform`} />
+            <span className="hidden sm:inline">Rotate</span>
+          </button>
+
           {/* Exit Fullscreen */}
           <button
             type="button"
             onClick={() => {
+              hapticTick();
               setIsFocusModeOpen(false);
               exitFullscreenSafely();
             }}
