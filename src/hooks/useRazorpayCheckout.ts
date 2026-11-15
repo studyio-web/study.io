@@ -196,6 +196,17 @@ export function useRazorpayCheckout() {
           process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
           'rzp_test_TxMMb1eZs7gIB7';
 
+        // Resolve absolute brand logo URL for Razorpay checkout dialog
+        const isLocalOrCapacitor =
+          typeof window !== 'undefined' &&
+          (window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1' ||
+            window.location.protocol === 'capacitor:');
+        const brandLogoUrl =
+          !isLocalOrCapacitor && typeof window !== 'undefined' && window.location?.origin
+            ? `${window.location.origin}/logo.png`
+            : 'https://studyio-web.vercel.app/logo.png';
+
         // 3. Configure Razorpay Standard Checkout options with dark/gold theme
         const options: RazorpayOptions = {
           key: keyId,
@@ -207,7 +218,7 @@ export function useRazorpayCheckout() {
             plan === 'yearly'
               ? 'study.io Pro Yearly (₹999/yr)'
               : 'study.io Pro Monthly (₹99/mo)',
-          image: '/icon.png',
+          image: brandLogoUrl,
           prefill: {
             email: user.email || '',
             name: user.displayName || user.name || user.email?.split('@')[0] || '',
