@@ -2193,7 +2193,11 @@ CREATE POLICY "Hosts can update their own study rooms"
                     <div className="flex items-center gap-1.5 justify-center">
                       <div className="inline-flex items-center gap-1 justify-center min-w-0">
                         <p
-                          className="text-sm font-bold text-slate-200 truncate max-w-[100px]"
+                          className={`text-sm font-bold truncate max-w-[100px] ${
+                            u.is_current_user
+                              ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.45)]'
+                              : 'text-slate-200'
+                          }`}
                           title={u.username}
                         >
                           {u.username}
@@ -2205,6 +2209,11 @@ CREATE POLICY "Hosts can update their own study rooms"
                       {u.is_host && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-500/30 text-amber-400 font-semibold uppercase tracking-wider flex-shrink-0">
                           Host
+                        </span>
+                      )}
+                      {u.is_current_user && !u.is_host && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/15 border border-amber-400/30 text-amber-300 font-semibold uppercase tracking-wider flex-shrink-0">
+                          You
                         </span>
                       )}
                     </div>
@@ -2353,7 +2362,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                           <div className={`flex items-center gap-2 mb-1.5 ${isMe ? 'mr-1 flex-row-reverse' : 'ml-1'}`}>
                             <div className="inline-flex items-center gap-1 min-w-0">
                               <span className={`text-xs font-hud font-bold tracking-tight ${isMe ? 'text-amber-400' : 'text-slate-200'}`}>
-                                {isMe ? 'YOU' : username}
+                                {isMe ? `${username} (YOU)` : username}
                               </span>
                               {flairMap[firstMsg.user_id] && (
                                 <FlairCrown frame={flairMap[firstMsg.user_id]} size={12} className="-ml-0.5" />
@@ -2927,8 +2936,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <div className="inline-flex items-center gap-1 min-w-0">
-                                <span className="text-sm font-bold text-white truncate max-w-[140px]">
-                                  {member.username}
+                                <span className={`text-sm font-bold truncate max-w-[140px] ${
+                                  member.is_current_user ? 'text-amber-400 font-extrabold' : 'text-white'
+                                }`}>
+                                  {member.username} {member.is_current_user ? '(You)' : ''}
                                 </span>
                                 {flairMap[member.user_id] && (
                                   <FlairCrown frame={flairMap[member.user_id]} size={13} className="-ml-0.5" />
