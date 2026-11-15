@@ -304,8 +304,11 @@ export function Navbar({
         {/* Right Action Bar */}
         <div className="flex items-center gap-1.5 sm:gap-3">
 
-          {/* Notifications Bell */}
-          <NotificationBell onNavigateToRooms={() => setActiveTab('rooms')} />
+          {/* Notifications Bell (Desktop/PC only) */}
+          <NotificationBell
+            className="hidden md:block"
+            onNavigateToRooms={() => setActiveTab('rooms')}
+          />
 
           {/* Upgrade Header Link (Free users) or Pro Badge (Premium users) */}
           {!isPremium ? (
