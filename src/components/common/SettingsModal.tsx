@@ -19,7 +19,9 @@ import {
   Crown,
   Compass,
   HelpCircle,
+  Vibrate,
 } from 'lucide-react';
+import { isHapticsEnabled, setHapticsEnabled, hapticMedium } from '@/lib/haptics';
 import { submitReport } from '../../app/actions/report';
 import { soundFx } from '../../lib/audio';
 import { useAuth } from '../../context/AuthContext';
@@ -69,6 +71,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [hapticsActive, setHapticsActive] = useState<boolean>(() => isHapticsEnabled());
+
+  useEffect(() => {
+    setHapticsActive(isHapticsEnabled());
+    const handleHapticsChange = (e: any) => {
+      setHapticsActive(Boolean(e.detail));
+    };
+    window.addEventListener('studyio_haptics_changed', handleHapticsChange);
+    return () => {
+      window.removeEventListener('studyio_haptics_changed', handleHapticsChange);
+    };
+  }, []);
+
+  const handleToggleHaptics = () => {
+    const nextVal = !hapticsActive;
+    setHapticsActive(nextVal);
+    setHapticsEnabled(nextVal);
+    if (nextVal) {
+      hapticMedium();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -323,6 +347,43 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <span>ADD TO HOME</span>
               </button>
             )}
+          </div>
+
+          {/* Section: Touch Vibrations (Haptics) */}
+          <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] shadow-sm flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-xl bg-fg/[0.04] border border-[var(--border)] flex items-center justify-center flex-shrink-0"
+                style={{ color: theme.accent }}
+              >
+                <Vibrate className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-hud font-bold tracking-wider text-[var(--text)] uppercase">
+                  Touch Vibrations (Haptics)
+                </div>
+                <div className="text-[11px] text-[var(--text-dim)] font-mono">
+                  Tactile vibration for timer controls, task actions, and room navigation
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hapticsActive}
+              onClick={handleToggleHaptics}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                hapticsActive ? 'bg-emerald-500' : 'bg-zinc-700'
+              }`}
+              title={hapticsActive ? 'Disable touch vibrations' : 'Enable touch vibrations'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  hapticsActive ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Section: Replay Welcome Intro */}

@@ -41,6 +41,7 @@ import { RankCrestBadge } from './RankCrestBadge';
 import Image from 'next/image';
 import { getRankIconPath } from '../../utils/rankIcons';
 import { FacetedTrophyIcon, FacetedGearIcon } from './GeometricIcons';
+import { hapticTick } from '@/lib/haptics';
 
 export type NavTabType = 'timer' | 'tasks' | 'analytics' | 'leaderboard' | 'settings' | 'rooms';
 
@@ -83,6 +84,11 @@ export function Navbar({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleTabClick = (tab: NavTabType) => {
+    hapticTick();
+    setActiveTab(tab);
+  };
 
   const displayStreak = useMemo(() => {
     // 1. If sessions are available, calculate the live streak
@@ -266,7 +272,7 @@ export function Navbar({
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Logo & Brand */}
         <div className="flex items-center gap-2.5 sm:gap-6">
-          <div className="flex items-center gap-2.5 cursor-pointer select-none group" onClick={() => setActiveTab('timer')}>
+          <div className="flex items-center gap-2.5 cursor-pointer select-none group" onClick={() => handleTabClick('timer')}>
             <Logo className="w-7 h-7 transition-transform group-hover:scale-105" />
             <div className="flex flex-col justify-center">
               <div className="text-sm sm:text-base font-hud font-extrabold tracking-tight text-[var(--text)] flex items-center gap-1.5 leading-none lowercase">
@@ -286,7 +292,7 @@ export function Navbar({
             ] as const).map(({ id, label, Icon }) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => handleTabClick(id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-hud font-bold tracking-wider uppercase transition-all cursor-pointer ${
                   activeTab === id
                     ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm'
@@ -654,7 +660,7 @@ export function Navbar({
 
         {/* Tab 1: Timer */}
         <button
-          onClick={() => setActiveTab('timer')}
+          onClick={() => handleTabClick('timer')}
           className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             activeTab === 'timer'
               ? 'text-[var(--text)] font-bold drop-shadow-sm'
@@ -668,7 +674,7 @@ export function Navbar({
 
         {/* Tab 2: Tasks */}
         <button
-          onClick={() => setActiveTab('tasks')}
+          onClick={() => handleTabClick('tasks')}
           className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             activeTab === 'tasks'
               ? 'text-[var(--text)] font-bold drop-shadow-sm'
@@ -682,7 +688,7 @@ export function Navbar({
 
         {/* Tab 3: Analytics */}
         <button
-          onClick={() => setActiveTab('analytics')}
+          onClick={() => handleTabClick('analytics')}
           className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             activeTab === 'analytics'
               ? 'text-[var(--text)] font-bold drop-shadow-sm'
@@ -696,7 +702,7 @@ export function Navbar({
 
         {/* Tab 4: Leaderboard */}
         <button
-          onClick={() => setActiveTab('leaderboard')}
+          onClick={() => handleTabClick('leaderboard')}
           className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             activeTab === 'leaderboard'
               ? 'text-[var(--text)] font-bold drop-shadow-sm'
@@ -710,7 +716,7 @@ export function Navbar({
 
         {/* Tab 5: Rooms */}
         <button
-          onClick={() => setActiveTab('rooms')}
+          onClick={() => handleTabClick('rooms')}
           className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             activeTab === 'rooms'
               ? 'text-[var(--text)] font-bold drop-shadow-sm'

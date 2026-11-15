@@ -60,6 +60,7 @@ import { Skeleton } from '../common/Skeleton';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import { useStudyMode } from '../../context/StudyModeContext';
 import { triggerHaptic } from '../../lib/native-feel';
+import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 
 const EMPTY_STATE_QUOTES = [
   'Every long streak starts with one session.',
@@ -257,23 +258,23 @@ export function StudyTimer() {
     }
     setSubjectWarning(false);
     setShowRecoveryBanner(false);
-    triggerHaptic('medium');
+    hapticMedium();
     startTimer(activeSub.id);
   }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager]);
 
   const handlePause = useCallback(() => {
-    triggerHaptic('light');
+    hapticMedium();
     pauseTimer();
   }, [pauseTimer]);
 
   const handleResume = useCallback(() => {
     setShowRecoveryBanner(false);
-    triggerHaptic('medium');
+    hapticMedium();
     resumeTimer();
   }, [resumeTimer]);
 
   const handleReset = useCallback(() => {
-    triggerHaptic('light');
+    hapticMedium();
     setIsCountdownCompleted(false);
     setIsCountdownHalfwayNotified(false);
     try {
@@ -758,6 +759,7 @@ export function StudyTimer() {
   useEffect(() => {
     if (timerMode === 'countdown' && isStudying && elapsedSeconds >= countdownTarget && !isCountdownCompleted) {
       setIsCountdownCompleted(true);
+      hapticSuccess();
       try {
         localStorage.setItem('studyio_timer_countdown_completed', 'true');
       } catch {}

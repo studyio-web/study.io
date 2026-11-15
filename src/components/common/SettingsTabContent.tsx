@@ -14,7 +14,9 @@ import {
   CheckCircle2,
   Trophy,
   Crown,
+  Vibrate,
 } from 'lucide-react';
+import { isHapticsEnabled, setHapticsEnabled, hapticMedium } from '@/lib/haptics';
 import { soundFx } from '../../lib/audio';
 import { useAuth } from '../../context/AuthContext';
 import { usePremium } from '../../context/PremiumContext';
@@ -42,6 +44,28 @@ export function SettingsTabContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+
+  const [hapticsActive, setHapticsActive] = useState<boolean>(() => isHapticsEnabled());
+
+  useEffect(() => {
+    setHapticsActive(isHapticsEnabled());
+    const handleHapticsChange = (e: any) => {
+      setHapticsActive(Boolean(e.detail));
+    };
+    window.addEventListener('studyio_haptics_changed', handleHapticsChange);
+    return () => {
+      window.removeEventListener('studyio_haptics_changed', handleHapticsChange);
+    };
+  }, []);
+
+  const handleToggleHaptics = () => {
+    const nextVal = !hapticsActive;
+    setHapticsActive(nextVal);
+    setHapticsEnabled(nextVal);
+    if (nextVal) {
+      hapticMedium();
+    }
+  };
 
   const handleInstallClick = async () => {
     if (deferredPrompt || canInstall) {
@@ -214,6 +238,45 @@ export function SettingsTabContent() {
             <span>ADD TO HOME SCREEN</span>
           </button>
         )}
+      </div>
+
+      {/* Touch Vibrations (Haptics) */}
+      <div className="p-5 rounded-2xl hud-surface border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border border-[var(--border)] bg-[var(--accent-soft)]"
+            style={{
+              color: 'var(--accent)',
+            }}
+          >
+            <Vibrate className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs font-hud font-bold text-[var(--text)] tracking-wider uppercase">
+              TOUCH VIBRATIONS (HAPTICS)
+            </div>
+            <div className="text-[11px] text-[var(--text-dim)] mt-0.5">
+              Tactile vibration feedback on taps, timer controls, and task actions
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={hapticsActive}
+          onClick={handleToggleHaptics}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none self-start sm:self-auto ${
+            hapticsActive ? 'bg-emerald-500' : 'bg-zinc-700'
+          }`}
+          title={hapticsActive ? 'Disable touch vibrations' : 'Enable touch vibrations'}
+        >
+          <span
+            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+              hapticsActive ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Security & Danger Zone */}

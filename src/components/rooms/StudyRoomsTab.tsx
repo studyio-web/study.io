@@ -33,6 +33,7 @@ import {
 import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
 import ActiveRoom from './ActiveRoom';
+import { hapticMedium, hapticTick } from '@/lib/haptics';
 
 function parseHoursMinutes(totalSeconds: number) {
   const safe = Math.max(0, Math.round(totalSeconds || 0));
@@ -556,6 +557,7 @@ CREATE POLICY "Hosts can update their own study rooms"
 
   const handleJoinClick = (room: any) => {
     if (!user) return;
+    hapticMedium();
     const isMember = myGroups.some((g) => g.id === room.id) || room.host_id === user.id;
     if (isMember) {
       // If already a member or host, directly enter the room

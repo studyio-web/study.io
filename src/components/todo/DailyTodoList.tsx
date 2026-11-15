@@ -21,6 +21,7 @@ import { useStudyMode } from '../../context/StudyModeContext';
 import toast from 'react-hot-toast';
 import { parseSmartTasks, isMultiTaskPaste } from '../../lib/smartTaskParser';
 import { motion, AnimatePresence } from 'framer-motion';
+import { hapticTick, hapticMedium, hapticSuccess, hapticWarning } from '../../lib/haptics';
 
 export interface DailyTodo {
   id: string;
@@ -281,6 +282,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
     });
 
     setTaskInput('');
+    hapticMedium();
     soundFx.playReactionPop();
 
     // Show temporary feedback indicator
@@ -411,6 +413,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       return updated;
     });
 
+    hapticMedium();
     setTaskInput('');
     setTimeout(() => inputRef.current?.focus(), 20);
 
@@ -463,12 +466,15 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
   const handleToggleTask = async (id: string, currentCompleted: boolean) => {
     const nextCompleted = !currentCompleted;
     if (nextCompleted) {
+      hapticSuccess();
       soundFx.playReactionPop();
       confetti({
         particleCount: 25,
         spread: 45,
         origin: { y: 0.6 },
       });
+    } else {
+      hapticTick();
     }
 
     inFlightOpsRef.current += 1;
@@ -504,6 +510,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
 
   // 5. Delete Task
   const handleDeleteTask = async (id: string) => {
+    hapticWarning();
     inFlightOpsRef.current += 1;
 
     // Immediate local update
@@ -559,6 +566,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
 
   // 7. Clear All Completed Tasks
   const handleClearCompleted = async () => {
+    hapticWarning();
     inFlightOpsRef.current += 1;
     let completedIds: string[] = [];
 
@@ -606,6 +614,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
   const currentSubjectColor = currentSubject?.color || (taskSubjectId === 'none' ? '#71717a' : '#10B981');
 
   const handleSelectSubject = (id: string) => {
+    hapticTick();
     setTaskSubjectId(id);
     setIsSubjectDropdownOpen(false);
   };
@@ -632,7 +641,10 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
             <button
               type="button"
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => {
+                hapticTick();
+                setFilter(f);
+              }}
               className={`px-3 py-1.5 rounded-lg font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider uppercase transition-all whitespace-nowrap cursor-pointer shadow-card ${
                 filter === f
                   ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-[0_0_15px_var(--glow)]'
@@ -683,6 +695,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
           <button
             type="button"
             onClick={() => {
+              hapticTick();
               const order: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
               setTaskPriority(order[(order.indexOf(taskPriority) + 1) % 3]);
             }}
@@ -716,7 +729,10 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
             >
               <button
                 type="button"
-                onClick={() => setIsSubjectDropdownOpen(prev => !prev)}
+                onClick={() => {
+                  hapticTick();
+                  setIsSubjectDropdownOpen(prev => !prev);
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-medium tracking-wider uppercase text-zinc-200 transition-all cursor-pointer select-none active:scale-95"
                 aria-haspopup="listbox"
                 aria-expanded={isSubjectDropdownOpen}

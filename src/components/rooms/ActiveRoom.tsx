@@ -37,6 +37,7 @@ import {
   MoreVertical,
   Loader2,
   Zap,
+  Vibrate,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../common/UserAvatar';
@@ -48,6 +49,7 @@ import { ScholarProfileModal, ScholarModalData } from '../common/ScholarProfileM
 import { ClassicNudgeButton } from './ClassicNudgeButton';
 import { playClassicNudgeSound } from '../../lib/nudgeSound';
 import { triggerHaptic } from '../../lib/native-feel';
+import { hapticMedium, hapticTick, isHapticsEnabled, setHapticsEnabled } from '@/lib/haptics';
 import {
   THREE_HOURS_MS,
   formatNudgeCooldown,
@@ -185,6 +187,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   } = useStudy();
 
   const handleStartOrResume = useCallback(() => {
+    hapticMedium();
     if (isPaused) {
       resumeTimer();
     } else if (!isRunning) {
@@ -194,6 +197,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   }, [isPaused, isRunning, resumeTimer, startTimer, selectedSubject?.id, subjects]);
 
   const handlePauseTimer = useCallback(() => {
+    hapticMedium();
     if (isRunning) {
       pauseTimer();
     }
@@ -229,6 +233,28 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
   // Ban management state
   const [bannedMembers, setBannedMembers] = useState<{ userId: string; username: string }[]>([]);
+
+  const [hapticsActive, setHapticsActive] = useState<boolean>(() => isHapticsEnabled());
+
+  useEffect(() => {
+    setHapticsActive(isHapticsEnabled());
+    const handleHapticsChange = (e: any) => {
+      setHapticsActive(Boolean(e.detail));
+    };
+    window.addEventListener('studyio_haptics_changed', handleHapticsChange);
+    return () => {
+      window.removeEventListener('studyio_haptics_changed', handleHapticsChange);
+    };
+  }, []);
+
+  const handleToggleHaptics = () => {
+    const nextVal = !hapticsActive;
+    setHapticsActive(nextVal);
+    setHapticsEnabled(nextVal);
+    if (nextVal) {
+      hapticMedium();
+    }
+  };
   const [memberToBan, setMemberToBan] = useState<{ userId: string; username: string } | null>(null);
   const [isBanning, setIsBanning] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState<string | null>(null);
@@ -2085,7 +2111,10 @@ CREATE POLICY "Hosts can update their own study rooms"
         <div className="flex items-center shrink-0">
           <div className="flex bg-black/40 border border-white/10 p-0.5 sm:p-1 rounded-xl shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
             <button
-              onClick={() => setRoomTab('home')}
+              onClick={() => {
+                hapticTick();
+                setRoomTab('home');
+              }}
               className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
                 roomTab === 'home'
                   ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
@@ -2097,6 +2126,7 @@ CREATE POLICY "Hosts can update their own study rooms"
             </button>
             <button
               onClick={() => {
+                hapticTick();
                 setRoomTab('chat');
                 setUnreadCount(0);
               }}
@@ -2119,7 +2149,10 @@ CREATE POLICY "Hosts can update their own study rooms"
             </button>
             {isHost && (
               <button
-                onClick={() => setRoomTab('settings')}
+                onClick={() => {
+                  hapticTick();
+                  setRoomTab('settings');
+                }}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   roomTab === 'settings'
                     ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
@@ -3114,6 +3147,40 @@ CREATE POLICY "Hosts can update their own study rooms"
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Touch Vibrations (Haptics) Preference */}
+              <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-amber-400">
+                    <Vibrate className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white tracking-wide uppercase font-hud">
+                      Touch Vibrations (Haptics)
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Tactile touch vibration on timer controls, focus actions, and tabs
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={hapticsActive}
+                  onClick={handleToggleHaptics}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    hapticsActive ? 'bg-emerald-500' : 'bg-zinc-700'
+                  }`}
+                  title={hapticsActive ? 'Disable touch vibrations' : 'Enable touch vibrations'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      hapticsActive ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* Danger Zone: Delete Room */}

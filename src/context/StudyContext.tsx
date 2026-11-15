@@ -13,6 +13,7 @@ import { getDeviceId } from '../lib/deviceId';
 import { soundFx } from '../lib/audio';
 import confetti from 'canvas-confetti';
 import toast from 'react-hot-toast';
+import { hapticSuccess } from '../lib/haptics';
 import {
   getLevelProgress,
   calculateFocusXP,
@@ -1214,6 +1215,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clientSessionIdRef.current = null;
               setIsPaused(true);
               setPomodoroCompletedPhase('work');
+              hapticSuccess();
               toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
               if (typeof document !== 'undefined' && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
                 const iconUrl = typeof window !== 'undefined' ? `${window.location.origin}/icon-192.png` : '/icon-192.png';
@@ -1353,6 +1355,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clientSessionIdRef.current = null;
               setIsPaused(true);
               setPomodoroCompletedPhase('work');
+              hapticSuccess();
               soundFx.playMilestoneBell();
               toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
               confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });

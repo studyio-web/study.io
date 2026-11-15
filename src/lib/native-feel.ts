@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { App } from '@capacitor/app';
+import { isHapticsEnabled } from './haptics';
 
 export type HapticType =
   | 'light'
@@ -20,6 +21,7 @@ export type HapticType =
  */
 export async function triggerHaptic(type: HapticType = 'light'): Promise<void> {
   if (typeof window === 'undefined') return;
+  if (!isHapticsEnabled()) return;
 
   try {
     if (Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('Haptics')) {
