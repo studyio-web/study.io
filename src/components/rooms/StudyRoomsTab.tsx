@@ -953,8 +953,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                   </div>
                 ) : (
                   <div className="w-full bg-[var(--surface)] border border-[var(--border)] shadow-card rounded-2xl overflow-hidden divide-y divide-[var(--border)]">
-                    {/* Column Headers */}
-                    <div className="px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-[11px] sm:text-xs text-[var(--text-dim)] font-hud-mono uppercase tracking-wider flex items-center justify-between border-b border-[var(--border)] select-none">
+                    {/* Column Headers (Desktop Only) */}
+                    <div className="hidden sm:flex px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-[11px] sm:text-xs text-[var(--text-dim)] font-hud-mono uppercase tracking-wider items-center justify-between border-b border-[var(--border)] select-none">
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                         <span className="w-7 text-center">#</span>
                         <span>Room // Host</span>
@@ -980,7 +980,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <div
                           key={room.id}
                           onClick={() => handleJoinClick(room)}
-                          className={`relative w-full overflow-hidden transition-colors duration-150 flex items-center justify-between px-4 sm:px-6 cursor-pointer border-l-2 min-h-[60px] py-2.5 ${
+                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
                             isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
                               : isMember
@@ -988,134 +988,262 @@ CREATE POLICY "Hosts can update their own study rooms"
                               : 'border-l-transparent hover:bg-fg/[0.02]'
                           }`}
                         >
-                          {/* Left: Index + Avatar + Title & Meta */}
-                          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                            <span className="w-7 text-center font-mono text-xs text-[var(--text-dim)] font-semibold shrink-0">
-                              {idx + 1}
-                            </span>
+                          {/* Mobile Card (< sm) */}
+                          <div className="flex sm:hidden flex-col gap-2.5 p-3.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-sm text-[var(--accent)] bg-[var(--accent-soft)] shadow-sm">
+                                  {initial}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate max-w-[150px]">
+                                      {room.name}
+                                    </span>
+                                    {room.is_private ? (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
+                                        <Lock className="w-2.5 h-2.5" />
+                                        <span>PROTECTED</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                        <Globe className="w-2.5 h-2.5" />
+                                        <span>PUBLIC</span>
+                                      </span>
+                                    )}
+                                  </div>
 
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-xs text-[var(--accent)] bg-[var(--accent-soft)] shadow-md">
-                              {initial}
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    {isHost ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider inline-flex items-center gap-1">
+                                        <Crown className="w-2.5 h-2.5" />
+                                        YOU (HOST)
+                                      </span>
+                                    ) : isMember ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider inline-flex items-center">
+                                        JOINED
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-[var(--text-dim)] font-mono truncate">
+                                        Host: @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action on right */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isMember ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveRoomId(room.id);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  >
+                                    <span>OPEN</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleJoinClick(room);
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  >
+                                    {room.is_private && <Lock className="w-3 h-3" />}
+                                    <span>JOIN</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
-                            <div className="min-w-0 flex flex-col justify-center">
-                              <div className="flex items-center gap-2">
-                                <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
-                                  {room.name}
-                                </span>
-                                {room.is_private ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
-                                    <Lock className="w-2.5 h-2.5" />
-                                    <span className="hidden sm:inline">PROTECTED</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                                    <Globe className="w-2.5 h-2.5" />
-                                    <span className="hidden sm:inline">PUBLIC</span>
-                                  </span>
-                                )}
+                            {/* Description if present */}
+                            {room.description && (
+                              <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 font-sans pl-1">
+                                {room.description}
+                              </p>
+                            )}
+
+                            {/* Bottom Meta Row */}
+                            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[var(--border)]/60">
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-1 font-mono text-[11px] text-[var(--text-dim)]">
+                                  <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                                  <span className="font-semibold text-[var(--text)]">{memberCount}</span>
+                                  <span>/</span>
+                                  <span>{room.max_capacity || 4}</span>
+                                </div>
+
+                                <span className="text-neutral-700">·</span>
+
+                                <div className="flex items-center gap-1 font-hud-mono text-[10px] font-bold tracking-wider">
+                                  {memberCount > 0 ? (
+                                    <>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      <span className="text-emerald-400">LIVE</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                                      <span className="text-neutral-500">IDLE</span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
 
-                              <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
-                                {isHost ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
-                                    <Crown className="w-2.5 h-2.5" />
-                                    YOU (HOST)
-                                  </span>
-                                ) : isMember ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
-                                    JOINED
-                                  </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopyCode(shortCode, room.id, e)}
+                                className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-2 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer font-mono"
+                                title="Copy room code"
+                              >
+                                <span>#{shortCode}</span>
+                                {copiedCodeId === room.id ? (
+                                  <Check className="w-3 h-3 text-emerald-400" />
                                 ) : (
-                                  <span className="text-[var(--text-dim)] truncate">
-                                    @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
-                                  </span>
+                                  <Copy className="w-3 h-3 opacity-60" />
                                 )}
-                                <span className="text-neutral-600">·</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleCopyCode(shortCode, room.id, e)}
-                                  className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-1.5 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer"
-                                  title="Copy room code"
-                                >
-                                  <span>#{shortCode}</span>
-                                  {copiedCodeId === room.id ? (
-                                    <Check className="w-3 h-3 text-emerald-400" />
-                                  ) : (
-                                    <Copy className="w-3 h-3 opacity-60" />
-                                  )}
-                                </button>
-                              </div>
-                              {room.description && (
-                                <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 mt-1 max-w-[200px] sm:max-w-xs md:max-w-md font-sans">
-                                  {room.description}
-                                </p>
-                              )}
+                              </button>
                             </div>
                           </div>
 
-                          {/* Right Columns: Members, Status, Time, Action */}
-                          <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
-                            {/* Members */}
-                            <div className="w-16 sm:w-24 flex items-center justify-center sm:justify-start gap-1.5 font-mono text-xs sm:text-sm text-[var(--text)]">
-                              <Users className="w-3.5 h-3.5 text-neutral-500 hidden sm:inline shrink-0" />
-                              <span>{memberCount}</span>
-                              <span className="text-neutral-600">/</span>
-                              <span className="text-neutral-500">{room.max_capacity || 4}</span>
+                          {/* Desktop Row (>= sm) */}
+                          <div className="hidden sm:flex items-center justify-between px-4 sm:px-6 min-h-[60px] py-2.5 w-full">
+                            {/* Left: Index + Avatar + Title & Meta */}
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                              <span className="w-7 text-center font-mono text-xs text-[var(--text-dim)] font-semibold shrink-0">
+                                {idx + 1}
+                              </span>
+
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-xs text-[var(--accent)] bg-[var(--accent-soft)] shadow-md">
+                                {initial}
+                              </div>
+
+                              <div className="min-w-0 flex flex-col justify-center">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
+                                    {room.name}
+                                  </span>
+                                  {room.is_private ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
+                                      <Lock className="w-2.5 h-2.5" />
+                                      <span className="hidden sm:inline">PROTECTED</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                      <Globe className="w-2.5 h-2.5" />
+                                      <span className="hidden sm:inline">PUBLIC</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
+                                  {isHost ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
+                                      <Crown className="w-2.5 h-2.5" />
+                                      YOU (HOST)
+                                    </span>
+                                  ) : isMember ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                                      JOINED
+                                    </span>
+                                  ) : (
+                                    <span className="text-[var(--text-dim)] truncate">
+                                      @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
+                                    </span>
+                                  )}
+                                  <span className="text-neutral-600">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleCopyCode(shortCode, room.id, e)}
+                                    className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-1.5 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer"
+                                    title="Copy room code"
+                                  >
+                                    <span>#{shortCode}</span>
+                                    {copiedCodeId === room.id ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 opacity-60" />
+                                    )}
+                                  </button>
+                                </div>
+                                {room.description && (
+                                  <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 mt-1 max-w-[200px] sm:max-w-xs md:max-w-md font-sans">
+                                    {room.description}
+                                  </p>
+                                )}
+                              </div>
                             </div>
 
-                            {/* Status */}
-                            <div className="w-16 sm:w-20 flex items-center justify-center gap-1.5 font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider">
-                              {memberCount > 0 ? (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                  <span className="text-emerald-400">LIVE</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
-                                  <span className="text-neutral-500">IDLE</span>
-                                </>
-                              )}
-                            </div>
+                            {/* Right Columns: Members, Status, Time, Action */}
+                            <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
+                              {/* Members */}
+                              <div className="w-16 sm:w-24 flex items-center justify-center sm:justify-start gap-1.5 font-mono text-xs sm:text-sm text-[var(--text)]">
+                                <Users className="w-3.5 h-3.5 text-neutral-500 hidden sm:inline shrink-0" />
+                                <span>{memberCount}</span>
+                                <span className="text-neutral-600">/</span>
+                                <span className="text-neutral-500">{room.max_capacity || 4}</span>
+                              </div>
 
-                            {/* Focus Time */}
-                            <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
-                              {formattedTime ? (
-                                <span>{formattedTime}</span>
-                              ) : (
-                                <span className="text-neutral-600 font-mono">--</span>
-                              )}
-                            </div>
+                              {/* Status */}
+                              <div className="w-16 sm:w-20 flex items-center justify-center gap-1.5 font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider">
+                                {memberCount > 0 ? (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-emerald-400">LIVE</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                                    <span className="text-neutral-500">IDLE</span>
+                                  </>
+                                )}
+                              </div>
 
-                            {/* Action */}
-                            <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
-                              {isMember ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveRoomId(room.id);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
-                                >
-                                  <span>OPEN</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleJoinClick(room);
-                                  }}
-                                  className="px-3.5 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
-                                >
-                                  {room.is_private && <Lock className="w-3 h-3" />}
-                                  <span>JOIN</span>
-                                </button>
-                              )}
+                              {/* Focus Time */}
+                              <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
+                                {formattedTime ? (
+                                  <span>{formattedTime}</span>
+                                ) : (
+                                  <span className="text-neutral-600 font-mono">--</span>
+                                )}
+                              </div>
+
+                              {/* Action */}
+                              <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
+                                {isMember ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveRoomId(room.id);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  >
+                                    <span>OPEN</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleJoinClick(room);
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  >
+                                    {room.is_private && <Lock className="w-3 h-3" />}
+                                    <span>JOIN</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1228,8 +1356,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                 ) : (
                   /* Table Layout */
                   <div className="w-full bg-[var(--surface)] border border-[var(--border)] shadow-card rounded-2xl overflow-hidden divide-y divide-[var(--border)]">
-                    {/* Column Headers */}
-                    <div className="px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-[11px] sm:text-xs text-[var(--text-dim)] font-hud-mono uppercase tracking-wider flex items-center justify-between border-b border-[var(--border)] select-none">
+                    {/* Column Headers (Desktop Only) */}
+                    <div className="hidden sm:flex px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-[11px] sm:text-xs text-[var(--text-dim)] font-hud-mono uppercase tracking-wider items-center justify-between border-b border-[var(--border)] select-none">
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                         <span className="w-7 text-center">#</span>
                         <span>Room // Host</span>
@@ -1254,134 +1382,256 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <div
                           key={room.id}
                           onClick={() => setActiveRoomId(room.id)}
-                          className={`relative w-full overflow-hidden transition-colors duration-150 flex items-center justify-between px-4 sm:px-6 cursor-pointer border-l-2 min-h-[60px] py-2.5 ${
+                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
                             isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
                               : 'border-l-transparent hover:bg-fg/[0.02]'
                           }`}
                         >
-                          {/* Left: Index + Avatar + Title & Meta */}
-                          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                            <span className="w-7 text-center font-mono text-xs text-[var(--text-dim)] font-semibold shrink-0">
-                              {idx + 1}
-                            </span>
+                          {/* Mobile Card (< sm) */}
+                          <div className="flex sm:hidden flex-col gap-2.5 p-3.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-sm text-[var(--accent)] bg-[var(--accent-soft)] shadow-sm">
+                                  {initial}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate max-w-[150px]">
+                                      {room.name}
+                                    </span>
+                                    {room.is_private ? (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
+                                        <Lock className="w-2.5 h-2.5" />
+                                        <span>PROTECTED</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                        <Globe className="w-2.5 h-2.5" />
+                                        <span>PUBLIC</span>
+                                      </span>
+                                    )}
+                                  </div>
 
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-xs text-[var(--accent)] bg-[var(--accent-soft)] shadow-md">
-                              {initial}
-                            </div>
-
-                            <div className="min-w-0 flex flex-col justify-center">
-                              <div className="flex items-center gap-2">
-                                <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
-                                  {room.name}
-                                </span>
-                                {room.is_private ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
-                                    <Lock className="w-2.5 h-2.5" />
-                                    <span className="hidden sm:inline">PROTECTED</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                                    <Globe className="w-2.5 h-2.5" />
-                                    <span className="hidden sm:inline">PUBLIC</span>
-                                  </span>
-                                )}
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    {isHost ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider inline-flex items-center gap-1">
+                                        <Crown className="w-2.5 h-2.5" />
+                                        YOU (HOST)
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-[var(--text-dim)] font-mono truncate">
+                                        Host: @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
-                                {isHost ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
-                                    <Crown className="w-2.5 h-2.5" />
-                                    YOU (HOST)
-                                  </span>
-                                ) : (
-                                  <span className="text-[var(--text-dim)] truncate">
-                                    @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
-                                  </span>
+                              {/* Action on right */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {!isHost && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRoomToDelete(room);
+                                    }}
+                                    className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                    title="Leave Room"
+                                  >
+                                    <LogOut className="w-4 h-4" />
+                                  </button>
                                 )}
-                                <span className="text-neutral-600">·</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleCopyCode(shortCode, room.id, e)}
-                                  className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-1.5 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer"
-                                  title="Copy room code"
-                                >
-                                  <span>#{shortCode}</span>
-                                  {copiedCodeId === room.id ? (
-                                    <Check className="w-3 h-3 text-emerald-400" />
-                                  ) : (
-                                    <Copy className="w-3 h-3 opacity-60" />
-                                  )}
-                                </button>
-                              </div>
-                              {room.description && (
-                                <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 mt-1 max-w-[200px] sm:max-w-xs md:max-w-md font-sans">
-                                  {room.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Right Columns: Members, Status, Time, Action */}
-                          <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
-                            {/* Members */}
-                            <div className="w-16 sm:w-24 flex items-center justify-center sm:justify-start gap-1.5 font-mono text-xs sm:text-sm text-[var(--text)]">
-                              <Users className="w-3.5 h-3.5 text-neutral-500 hidden sm:inline shrink-0" />
-                              <span>{memberCount}</span>
-                              <span className="text-neutral-600">/</span>
-                              <span className="text-neutral-500">{room.max_capacity || 4}</span>
-                            </div>
-
-                            {/* Status */}
-                            <div className="w-16 sm:w-20 flex items-center justify-center gap-1.5 font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider">
-                              {memberCount > 0 ? (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                  <span className="text-emerald-400">LIVE</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
-                                  <span className="text-neutral-500">IDLE</span>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Focus Time */}
-                            <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
-                              {formattedTime ? (
-                                <span>{formattedTime}</span>
-                              ) : (
-                                <span className="text-neutral-600 font-mono">--</span>
-                              )}
-                            </div>
-
-                            {/* Action */}
-                            <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
-                              {!isHost && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setRoomToDelete(room);
+                                    setActiveRoomId(room.id);
                                   }}
-                                  className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                                  title="Leave Room"
+                                  className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
                                 >
-                                  <LogOut className="w-4 h-4" />
+                                  <span>OPEN</span>
                                 </button>
-                              )}
+                              </div>
+                            </div>
+
+                            {/* Description if present */}
+                            {room.description && (
+                              <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 font-sans pl-1">
+                                {room.description}
+                              </p>
+                            )}
+
+                            {/* Bottom Meta Row */}
+                            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[var(--border)]/60">
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-1 font-mono text-[11px] text-[var(--text-dim)]">
+                                  <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                                  <span className="font-semibold text-[var(--text)]">{memberCount}</span>
+                                  <span>/</span>
+                                  <span>{room.max_capacity || 4}</span>
+                                </div>
+
+                                <span className="text-neutral-700">·</span>
+
+                                <div className="flex items-center gap-1 font-hud-mono text-[10px] font-bold tracking-wider">
+                                  {memberCount > 0 ? (
+                                    <>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      <span className="text-emerald-400">LIVE</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                                      <span className="text-neutral-500">IDLE</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveRoomId(room.id);
-                                }}
-                                className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                onClick={(e) => handleCopyCode(shortCode, room.id, e)}
+                                className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-2 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer font-mono"
+                                title="Copy room code"
                               >
-                                <span>OPEN</span>
+                                <span>#{shortCode}</span>
+                                {copiedCodeId === room.id ? (
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3 h-3 opacity-60" />
+                                )}
                               </button>
+                            </div>
+                          </div>
+
+                          {/* Desktop Row (>= sm) */}
+                          <div className="hidden sm:flex items-center justify-between px-4 sm:px-6 min-h-[60px] py-2.5 w-full">
+                            {/* Left: Index + Avatar + Title & Meta */}
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                              <span className="w-7 text-center font-mono text-xs text-[var(--text-dim)] font-semibold shrink-0">
+                                {idx + 1}
+                              </span>
+
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex-shrink-0 flex items-center justify-center font-mono font-bold text-xs text-[var(--accent)] bg-[var(--accent-soft)] shadow-md">
+                                {initial}
+                              </div>
+
+                              <div className="min-w-0 flex flex-col justify-center">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
+                                    {room.name}
+                                  </span>
+                                  {room.is_private ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
+                                      <Lock className="w-2.5 h-2.5" />
+                                      <span className="hidden sm:inline">PROTECTED</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                      <Globe className="w-2.5 h-2.5" />
+                                      <span className="hidden sm:inline">PUBLIC</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
+                                  {isHost ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
+                                      <Crown className="w-2.5 h-2.5" />
+                                      YOU (HOST)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[var(--text-dim)] truncate">
+                                      @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
+                                    </span>
+                                  )}
+                                  <span className="text-neutral-600">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleCopyCode(shortCode, room.id, e)}
+                                    className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-1.5 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer"
+                                    title="Copy room code"
+                                  >
+                                    <span>#{shortCode}</span>
+                                    {copiedCodeId === room.id ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 opacity-60" />
+                                    )}
+                                  </button>
+                                </div>
+                                {room.description && (
+                                  <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 mt-1 max-w-[200px] sm:max-w-xs md:max-w-md font-sans">
+                                    {room.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right Columns: Members, Status, Time, Action */}
+                            <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
+                              {/* Members */}
+                              <div className="w-16 sm:w-24 flex items-center justify-center sm:justify-start gap-1.5 font-mono text-xs sm:text-sm text-[var(--text)]">
+                                <Users className="w-3.5 h-3.5 text-neutral-500 hidden sm:inline shrink-0" />
+                                <span>{memberCount}</span>
+                                <span className="text-neutral-600">/</span>
+                                <span className="text-neutral-500">{room.max_capacity || 4}</span>
+                              </div>
+
+                              {/* Status */}
+                              <div className="w-16 sm:w-20 flex items-center justify-center gap-1.5 font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider">
+                                {memberCount > 0 ? (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-emerald-400">LIVE</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                                    <span className="text-neutral-500">IDLE</span>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Focus Time */}
+                              <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
+                                {formattedTime ? (
+                                  <span>{formattedTime}</span>
+                                ) : (
+                                  <span className="text-neutral-600 font-mono">--</span>
+                                )}
+                              </div>
+
+                              {/* Action */}
+                              <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
+                                {!isHost && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRoomToDelete(room);
+                                    }}
+                                    className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                    title="Leave Room"
+                                  >
+                                    <LogOut className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveRoomId(room.id);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                >
+                                  <span>OPEN</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
