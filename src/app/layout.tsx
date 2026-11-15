@@ -73,6 +73,9 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "study.io",
   },
+  verification: {
+    google: "googlefeaf0a2a16a77d0d",
+  },
 };
 
 const websiteJsonLd = {

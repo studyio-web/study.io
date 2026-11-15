@@ -10,12 +10,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Other authentication and API route bypasses:
+  // Other authentication, static verification, and API route bypasses:
   if (
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api') ||
-    pathname.startsWith('/.well-known')
+    pathname.startsWith('/.well-known') ||
+    pathname.startsWith('/google') ||
+    pathname.endsWith('.html') ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
   ) {
     return NextResponse.next();
   }
@@ -122,8 +126,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (images, audio, etc.)
+     * - public files (images, audio, verification html, sitemaps, robots, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|google.*\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg|html|txt|xml)$).*)',
   ],
 };
