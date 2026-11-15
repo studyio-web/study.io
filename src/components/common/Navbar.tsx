@@ -40,7 +40,7 @@ import { TierIcon } from './TierIcon';
 import { RankCrestBadge } from './RankCrestBadge';
 import Image from 'next/image';
 import { getRankIconPath } from '../../utils/rankIcons';
-import { FacetedTrophyIcon, FacetedGearIcon } from './GeometricIcons';
+import { FacetedGearIcon } from './GeometricIcons';
 import { hapticTick } from '@/lib/haptics';
 
 export type NavTabType = 'timer' | 'tasks' | 'analytics' | 'leaderboard' | 'settings' | 'rooms';
@@ -287,7 +287,6 @@ export function Navbar({
                 { id: 'timer', label: 'TIMER', Icon: Timer },
                 { id: 'tasks', label: 'TASKS', Icon: CheckSquare },
                 { id: 'analytics', label: 'STATS', Icon: BarChart3 },
-                { id: 'leaderboard', label: 'LEADERBOARD', Icon: FacetedTrophyIcon },
                 { id: 'rooms', label: 'ROOMS', Icon: Users },
               ] as const).map(({ id, label, Icon }) => (
                 <button
@@ -361,9 +360,16 @@ export function Navbar({
                     <div className="w-10 h-3 bg-fg/10 ml-2 rounded"></div>
                   </div>
                 ) : (
-                  <div
-                    className="relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] shadow-card cursor-default select-none rounded-xl"
-                    title={`Ranked Season RP: ${liveSeasonRp.toLocaleString()} RP (${liveRank.name.toUpperCase()})`}
+                  <button
+                    type="button"
+                    onClick={() => handleTabClick('leaderboard')}
+                    className={`relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border text-[var(--text)] shadow-card cursor-pointer select-none rounded-xl transition-all hover:scale-105 active:scale-95 ${
+                      activeTab === 'leaderboard'
+                        ? 'border-[var(--tier-accent)] ring-1 ring-[var(--tier-accent)] bg-fg/[0.08]'
+                        : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-fg/[0.04]'
+                    }`}
+                    title={`View Leaderboard • Ranked Season RP: ${liveSeasonRp.toLocaleString()} RP (${liveRank.name.toUpperCase()})`}
+                    aria-label={`Open Leaderboard • Current Rank: ${liveRank.name.toUpperCase()}`}
                   >
                     <div className="flex items-center gap-1.5 sm:gap-2">
                       <RankCrestBadge
@@ -379,7 +385,7 @@ export function Navbar({
                         {liveRank.name.toUpperCase()}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 )}
               </div>
             )}
@@ -651,8 +657,19 @@ export function Navbar({
           <div
             className="absolute top-0.5 bottom-0.5 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none bg-fg/[0.14] border border-fg/20 shadow-sm"
             style={{
-              width: '20%',
-              transform: `translateX(${activeTab === 'timer' ? '0%' : activeTab === 'tasks' ? '100%' : activeTab === 'analytics' ? '200%' : activeTab === 'leaderboard' ? '300%' : '400%'})`
+              width: '25%',
+              transform: `translateX(${
+                activeTab === 'timer'
+                  ? '0%'
+                  : activeTab === 'tasks'
+                  ? '100%'
+                  : activeTab === 'analytics'
+                  ? '200%'
+                  : activeTab === 'rooms'
+                  ? '300%'
+                  : '0%'
+              })`,
+              opacity: activeTab === 'leaderboard' ? 0 : 1,
             }}
           />
 
@@ -698,21 +715,7 @@ export function Navbar({
             <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Stats</span>
           </button>
 
-          {/* Tab 4: Leaderboard */}
-          <button
-            onClick={() => handleTabClick('leaderboard')}
-            className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
-              activeTab === 'leaderboard'
-                ? 'text-[var(--text)] font-bold drop-shadow-sm'
-                : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-            }`}
-            aria-label="Leaderboard"
-          >
-            <FacetedTrophyIcon className="w-4 h-4" />
-            <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Rankings</span>
-          </button>
-
-          {/* Tab 5: Rooms */}
+          {/* Tab 4: Rooms */}
           <button
             onClick={() => handleTabClick('rooms')}
             className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
