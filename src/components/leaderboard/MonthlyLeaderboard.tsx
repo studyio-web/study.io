@@ -894,18 +894,27 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
               </div>
             </div>
 
-            {/* Sticky Current User Rank Indicator */}
-            {currentUserEntry && !currentUserRowVisible && (
-              <div className="sticky top-2 z-30 mb-2 flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 px-4 py-2 text-xs font-mono text-[var(--text)] backdrop-blur-md shadow-card">
-                <span>
-                  YOUR RANK: <strong style={{ color: 'var(--tier-accent-text)' }}>#{currentUserEntry.rank}</strong>
-                </span>
-                <button
-                  onClick={() => myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                  className="rounded bg-fg/10 hover:bg-fg/15 px-2.5 py-1 text-[var(--text)] cursor-pointer transition-colors"
-                >
-                  Jump to You ↓
-                </button>
+            {/* Floating Current User Rank Indicator (Fixed so it takes 0 layout height and never causes scroll jitter) */}
+            {currentUserEntry && (
+              <div
+                className={`fixed bottom-24 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ${
+                  !currentUserRowVisible
+                    ? 'opacity-100 translate-y-0 pointer-events-auto'
+                    : 'opacity-0 translate-y-4 pointer-events-none'
+                }`}
+              >
+                <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs font-mono text-[var(--text)] shadow-[0_12px_32px_rgba(0,0,0,0.7)]">
+                  <span>
+                    YOUR RANK: <strong style={{ color: 'var(--tier-accent-text)' }}>#{currentUserEntry.rank}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                    className="rounded-full bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 px-3 py-1 font-bold text-[11px] cursor-pointer transition-transform active:scale-95 shadow-sm"
+                  >
+                    Jump to You ↓
+                  </button>
+                </div>
               </div>
             )}
 
@@ -913,7 +922,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
             {/* RANKED LIST PANEL                                          */}
             {/* ══════════════════════════════════════════════════════════ */}
             {contenders.length > 0 && (
-              <div className="w-full bg-[var(--surface)] backdrop-blur-md border border-[var(--border)] rounded-2xl overflow-hidden shadow-card divide-y divide-fg/[0.06]">
+              <div className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-card divide-y divide-fg/[0.06]">
                 {/* Column Labels */}
                 <div className="px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-xs text-[var(--text-dim)] font-normal flex items-center justify-between border-b border-[var(--border)] select-none">
                   <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">

@@ -160,7 +160,7 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
       onClick={() => onSelectScholar?.(row)}
       role="button"
       tabIndex={0}
-      className={`relative w-full overflow-hidden transition-all duration-150 flex items-center justify-between px-4 sm:px-6 cursor-pointer select-none active:scale-[0.998] border-l-2 ${
+      className={`relative w-full overflow-hidden transition-colors duration-150 flex items-center justify-between px-4 sm:px-6 cursor-pointer select-none border-l-2 ${
         isTop3 ? 'min-h-[72px] py-3.5' : 'min-h-[60px] py-2.5'
       } ${
         isCurrentUser

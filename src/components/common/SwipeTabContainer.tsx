@@ -188,16 +188,17 @@ export function SwipeTabContainer({
           return (
             <div
               key={tab}
-              className={`flex-shrink-0 flex flex-col h-full min-h-0 transform-gpu ${
+              className={`flex-shrink-0 flex flex-col h-full min-h-0 ${
                 displayIndex === idx
                   ? (tab === 'timer' || tab === 'rooms')
                     ? 'overflow-hidden pb-0'
-                    : 'overflow-y-auto pb-28'
+                    : 'overflow-y-auto pb-28 overscroll-contain'
                   : 'overflow-hidden pointer-events-none'
               }`}
               style={{
                 width: `${100 / TABS.length}%`,
                 visibility: isNeighbor ? 'visible' : 'hidden',
+                WebkitOverflowScrolling: 'touch',
               }}
             >
               <div className="w-full h-full flex-1">
