@@ -31,6 +31,7 @@ import {
   Radio,
   Ban,
   ShieldAlert,
+  User,
   UserX,
   UserCheck,
   MoreVertical,
@@ -2064,7 +2065,9 @@ CREATE POLICY "Hosts can update their own study rooms"
                   onClick={() => handleOpenScholarModal(u)}
                   role="button"
                   tabIndex={0}
-                  className="flex flex-col items-center gap-2 group relative transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 select-none"
+                  className={`flex flex-col items-center gap-2 group relative transition-all duration-300 select-none ${
+                    activeMenuUserId === u.user_id ? 'z-30' : 'hover:scale-105 active:scale-95 cursor-pointer'
+                  }`}
                 >
                   <div className={`relative ${recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''}`}>
                     {recentlyNudgedUsers[u.user_id] && (
@@ -2087,49 +2090,102 @@ CREATE POLICY "Hosts can update their own study rooms"
                       />
                     </ProAvatarRing>
 
+                    {/* 3-Dots Action Button on Top-Right of each profile */}
+                    <div className="absolute -top-1 -right-2 z-20">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuUserId(activeMenuUserId === u.user_id ? null : u.user_id);
+                        }}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center bg-[#0d121c]/90 border border-white/20 text-slate-300 hover:text-white hover:border-amber-400/60 hover:bg-black shadow-lg transition-all cursor-pointer ${
+                          activeMenuUserId === u.user_id
+                            ? 'opacity-100 ring-2 ring-amber-500/50 bg-black text-amber-300 scale-105'
+                            : 'opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
+                        }`}
+                        title="Profile Options"
+                        aria-label={`Options for ${u.username}`}
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
 
-
-                    {/* Host 3-Dots Action Button on Hover */}
-                    {isHost && !u.is_host && !u.is_current_user && (
-                      <div className="absolute -top-1 -right-2 z-20">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuUserId(activeMenuUserId === u.user_id ? null : u.user_id);
-                          }}
-                          className={`w-6 h-6 rounded-full flex items-center justify-center bg-[#0d121c] border border-white/20 text-slate-300 hover:text-white hover:border-amber-400/60 hover:bg-black shadow-lg transition-all cursor-pointer ${
-                            activeMenuUserId === u.user_id
-                              ? 'opacity-100 ring-2 ring-amber-500/50 bg-black text-amber-300 scale-105'
-                              : 'opacity-0 group-hover:opacity-100'
-                          }`}
-                          title="Scholar Options"
+                      {/* Floating Dropdown Menu */}
+                      {activeMenuUserId === u.user_id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-full mt-1.5 w-36 bg-[#0c1017]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.05)] p-1 z-40 animate-in fade-in zoom-in-95 duration-150"
                         >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Floating Dropdown Menu */}
-                        {activeMenuUserId === u.user_id && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 w-28 bg-[#0c1017] border border-white/15 rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.9)] backdrop-blur-xl p-1 z-30 animate-in fade-in zoom-in-95 duration-150"
+                          {/* Option 1: View Profile */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuUserId(null);
+                              handleOpenScholarModal(u);
+                            }}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-200 hover:text-white hover:bg-white/10 text-xs font-semibold transition-colors cursor-pointer text-left"
                           >
+                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>View Profile</span>
+                          </button>
+
+                          {/* Option 2: Nudge */}
+                          {u.is_current_user ? (
                             <button
                               type="button"
+                              disabled
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-50 text-left"
+                              title="You cannot nudge yourself"
+                            >
+                              <Zap className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                              <span>Nudge</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={(nudgeCooldowns[u.user_id] || 0) > 0}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if ((nudgeCooldowns[u.user_id] || 0) > 0) return;
                                 setActiveMenuUserId(null);
-                                setMemberToBan({ userId: u.user_id, username: u.username });
+                                handleSendNudge(u.user_id, u.username);
                               }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-400 hover:text-white hover:bg-rose-500/20 text-[11px] font-hud font-bold uppercase tracking-wider transition-colors cursor-pointer text-left"
+                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
+                                (nudgeCooldowns[u.user_id] || 0) > 0
+                                  ? 'text-slate-500 bg-white/[0.02] cursor-not-allowed opacity-60'
+                                  : 'text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer active:scale-95'
+                              }`}
                             >
-                              <Ban className="w-3.5 h-3.5 text-rose-400" />
-                              <span>Ban</span>
+                              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                              <span className="truncate">
+                                {(nudgeCooldowns[u.user_id] || 0) > 0
+                                  ? `Nudge (${nudgeCooldowns[u.user_id]}s)`
+                                  : 'Nudge'}
+                              </span>
                             </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+
+                          {/* Host Extra Option: Ban */}
+                          {isHost && !u.is_host && !u.is_current_user && (
+                            <>
+                              <div className="h-px bg-white/10 my-1" />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuUserId(null);
+                                  setMemberToBan({ userId: u.user_id, username: u.username });
+                                }}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-400 hover:text-white hover:bg-rose-500/20 text-xs font-semibold transition-colors cursor-pointer text-left active:scale-95"
+                              >
+                                <Ban className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                <span>Ban</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Member Name, Total Time Studied Today (Adds up live when focusing) */}
@@ -2186,22 +2242,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                         </span>
                       )}
                     </div>
-
-                    {/* Classic Tactile Nudge Button for everyone to nudge peers */}
-                    {!u.is_current_user && (
-                      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                        <ClassicNudgeButton
-                          targetUserId={u.user_id}
-                          targetUsername={u.username}
-                          onNudge={(e) => {
-                            e.stopPropagation();
-                            handleSendNudge(u.user_id, u.username);
-                          }}
-                          cooldownSeconds={nudgeCooldowns[u.user_id] || 0}
-                          size="sm"
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               );
