@@ -1,50 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export interface ProAvatarRingProps {
   isPro: boolean;
   isStudying?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | number;
   children: React.ReactNode;
   className?: string;
   defaultBorder?: boolean;
 }
 
-const SIZE_MAP = {
-  sm: {
-    ringMargin: 'm-[2px]',
-    innerPad: 'p-[1.5px]',
-    glow: 'blur-[6px] -inset-[3px]',
-  },
-  md: {
-    ringMargin: 'm-[2.5px]',
-    innerPad: 'p-[2px]',
-    glow: 'blur-[8px] -inset-[4px]',
-  },
-  lg: {
-    ringMargin: 'm-[3px]',
-    innerPad: 'p-[2.5px]',
-    glow: 'blur-[10px] -inset-[5px]',
-  },
-};
-
-const PRO_GOLD_CONIC_GRADIENT =
-  'conic-gradient(from 135deg, #451a03 0deg, #92400e 70deg, #eab308 130deg, #fef08a 160deg, #eab308 190deg, #92400e 250deg, #451a03 360deg)';
-
 export const ProAvatarRing = React.memo(function ProAvatarRing({
   isPro,
   isStudying = false,
-  size = 'md',
   children,
   className,
   defaultBorder = false,
 }: ProAvatarRingProps) {
-  const config = SIZE_MAP[size] || SIZE_MAP.md;
+  const rawId = useId();
+  const uniqueId = rawId.replace(/[^a-zA-Z0-9-_]/g, '_');
+  const ringRadius = 37.5;
 
-  // Non-Pro state: render children normally (or with subtle solid/glow border in rooms)
+  // Non-Pro state in rooms: render standard clean border
   if (!isPro) {
     if (defaultBorder) {
       return (
@@ -69,61 +49,145 @@ export const ProAvatarRing = React.memo(function ProAvatarRing({
     );
   }
 
-  // Pro state: sleek "Brushed Metallic Gold & Champagne" specular bezel
+  // Pro State (Rooms only): Signature Animated Focus Ring
   return (
     <div
       className={cn(
-        'relative inline-flex items-center justify-center rounded-full shrink-0 select-none transition-shadow duration-300',
-        'shadow-[0_0_8px_rgba(234,179,8,0.18)]',
+        'relative inline-flex items-center justify-center shrink-0 select-none',
         className
       )}
     >
-      {/* 1. Soft warm gold ambient glow (Active Studying Mode only, fades out when paused) */}
-      {isStudying && (
-        <motion.div
-          className={cn(
-            'absolute rounded-full pointer-events-none will-change-transform transform-gpu',
-            config.glow
-          )}
-          style={{
-            background: 'radial-gradient(circle, rgba(234,179,8,0.32) 0%, rgba(234,179,8,0) 70%)',
-          }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, rotate: 360 }}
-          exit={{ opacity: 0 }}
-          transition={{
-            rotate: { repeat: Infinity, duration: 5, ease: 'linear' },
-            opacity: { duration: 0.3 },
-          }}
-        />
-      )}
-
-      {/* 2. Metallic Gold Specular Bezel (Rotates 360° continuously when studying; static at 135deg when paused/idle) */}
+      {/* Layer 1: Ambient Background Radial Glow */}
       <motion.div
-        className="absolute inset-0 rounded-full pointer-events-none overflow-hidden will-change-transform transform-gpu"
-        animate={isStudying ? { rotate: 360 } : { rotate: 0 }}
-        transition={
+        animate={
           isStudying
-            ? { repeat: Infinity, duration: 5, ease: 'linear' }
-            : { duration: 0.4, ease: 'easeOut' }
+            ? {
+                opacity: [0.75, 0.95, 0.75],
+                scale: [0.98, 1.04, 0.98],
+              }
+            : {
+                opacity: [0.35, 0.6, 0.35],
+                scale: 1,
+              }
         }
-      >
-        <div
-          className="w-full h-full rounded-full"
-          style={{
-            background: PRO_GOLD_CONIC_GRADIENT,
-          }}
-        />
-      </motion.div>
+        transition={{
+          duration: isStudying ? 2.5 : 4,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute inset-[-8px] rounded-full pointer-events-none -z-10 will-change-transform transform-gpu"
+        style={{
+          background: isStudying
+            ? 'radial-gradient(circle, rgba(16,185,129,0.45) 0%, transparent 72%)'
+            : 'radial-gradient(circle, rgba(245,158,11,0.2) 0%, transparent 68%)',
+          filter: 'blur(8px)',
+        }}
+      />
 
-      {/* 3. Dark inner gap (#09090b) between metallic ring and circular avatar */}
-      <div
-        className={cn(
-          'relative z-10 rounded-full bg-[#09090b] flex items-center justify-center overflow-hidden',
-          config.ringMargin,
-          config.innerPad
-        )}
+      {/* Layer 2: 60fps GPU Animated SVG Focus Rings */}
+      <svg
+        viewBox="0 0 100 100"
+        className="absolute inset-[-14px] w-[calc(100%+28px)] h-[calc(100%+28px)] pointer-events-none select-none overflow-visible z-0 will-change-transform transform-gpu"
+        style={{
+          filter: isStudying ? 'drop-shadow(0 0 6px rgba(16,185,129,0.85))' : undefined,
+        }}
       >
+        <defs>
+          <linearGradient id={`cyberCyan_${uniqueId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#06B6D4" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+
+          <linearGradient id={`defaultGrad_${uniqueId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#10B981" />
+            <stop offset="50%" stopColor="#06B6D4" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+        </defs>
+
+        {!isStudying ? (
+          /* STATE: PAUSED / IDLE IN ROOMS (Subtle breathing amber dashed focus ring) */
+          <motion.g
+            animate={{
+              rotate: [0, 360],
+              opacity: [0.6, 0.9, 0.6],
+            }}
+            transition={{
+              rotate: { duration: 32, repeat: Infinity, ease: 'linear' },
+              opacity: { duration: 4.5, repeat: Infinity, ease: 'easeInOut' },
+            }}
+            style={{ transformOrigin: '50px 50px' }}
+          >
+            <circle
+              cx="50"
+              cy="50"
+              r={ringRadius}
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="1.75"
+              strokeDasharray="4.5 4.5"
+              strokeLinecap="round"
+              opacity="0.85"
+            />
+          </motion.g>
+        ) : (
+          /* STATE: ACTIVELY STUDYING IN ROOMS (Signature Dual Pulse Focus Ring Matrix) */
+          <g>
+            {/* Outer Neon Cyan Tech Ring (Rotating Counter-Clockwise) with 2 Nodes */}
+            <motion.g
+              animate={{ rotate: [360, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+              style={{ transformOrigin: '50px 50px' }}
+            >
+              <circle
+                cx="50"
+                cy="50"
+                r={ringRadius + 2.5}
+                fill="none"
+                stroke={`url(#cyberCyan_${uniqueId})`}
+                strokeWidth="1.6"
+                strokeDasharray="18 6 4 6"
+              />
+              {/* Outer Tech Nodes at 90Â° and 270Â° */}
+              <circle cx={50 + (ringRadius + 2.5)} cy="50" r="2.4" fill="#06B6D4" />
+              <circle cx={50 + (ringRadius + 2.5)} cy="50" r="1.2" fill="#FFFFFF" />
+              <circle cx={50 - (ringRadius + 2.5)} cy="50" r="2.4" fill="#06B6D4" />
+              <circle cx={50 - (ringRadius + 2.5)} cy="50" r="1.2" fill="#FFFFFF" />
+            </motion.g>
+
+            {/* Inner Emerald Pulse Ring (Rotating Clockwise) with 2 Nodes */}
+            <motion.g
+              animate={{ rotate: [0, 360] }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+              style={{ transformOrigin: '50px 50px' }}
+            >
+              <circle
+                cx="50"
+                cy="50"
+                r={ringRadius - 1.5}
+                fill="none"
+                stroke={`url(#defaultGrad_${uniqueId})`}
+                strokeWidth="1.8"
+                strokeDasharray="14 4 4 4"
+              />
+              {/* Inner Emerald Nodes at 0Â° and 180Â° */}
+              <circle cx="50" cy={50 - (ringRadius - 1.5)} r="2.2" fill="#10B981" />
+              <circle cx="50" cy={50 - (ringRadius - 1.5)} r="1.1" fill="#FFFFFF" />
+              <circle cx="50" cy={50 + (ringRadius - 1.5)} r="2.2" fill="#10B981" />
+              <circle cx="50" cy={50 + (ringRadius - 1.5)} r="1.1" fill="#FFFFFF" />
+            </motion.g>
+
+            {/* 4 Cardinal Tech Micro-Accents */}
+            <line x1="50" y1="6" x2="50" y2="10" stroke="#06B6D4" strokeWidth="1.5" opacity="0.85" />
+            <line x1="50" y1="90" x2="50" y2="94" stroke="#06B6D4" strokeWidth="1.5" opacity="0.85" />
+            <line x1="6" y1="50" x2="10" y2="50" stroke="#06B6D4" strokeWidth="1.5" opacity="0.85" />
+            <line x1="90" y1="50" x2="94" y2="50" stroke="#06B6D4" strokeWidth="1.5" opacity="0.85" />
+          </g>
+        )}
+      </svg>
+
+      {/* Layer 3: Central Avatar Node */}
+      <div className="relative z-10 flex items-center justify-center rounded-full overflow-hidden">
         {children}
       </div>
     </div>

@@ -29,7 +29,6 @@ import {
 } from '../../lib/premium';
 import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
 import { HelpFeedbackModal } from './HelpFeedbackModal';
-import { ProAvatarRing } from '../ui/ProAvatarRing';
 
 import { Logo } from '../Logo';
 import { calculateStreak, getCachedStreak, setCachedStreak } from '../../lib/mockData';
@@ -404,52 +403,48 @@ export function Navbar({
               className="flex items-center gap-2.5 p-1 rounded-2xl hover:bg-fg/5 border border-[var(--border)] shadow-card transition-all active:scale-[0.98]"
               title={`Level ${effectiveLevel} (${effectiveTitle}) · ${gamification.totalXP} Total XP`}
             >
-              {/* Avatar with SVG Circular XP Progress Ring or ProAvatarRing */}
+              {/* Avatar with SVG Circular XP Progress Ring */}
               <div className="relative flex items-center justify-center w-10 h-10">
-                {!isPremium && (
-                  <svg className="absolute inset-0 w-10 h-10 -rotate-90 pointer-events-none" viewBox="0 0 38 38">
-                    {/* Background track circle */}
-                    <circle
-                      cx="19"
-                      cy="19"
-                      r={radius}
-                      stroke="rgb(var(--fg) / 0.14)"
-                      fill="none"
-                      strokeWidth="2.5"
-                    />
-                    {/* Dynamic XP Progress Stroke */}
-                    <circle
-                      cx="19"
-                      cy="19"
-                      r={radius}
-                      className="fill-none transition-all duration-500 ease-out"
-                      stroke="var(--tier-accent)"
-                      strokeWidth="2.5"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
+                <svg className="absolute inset-0 w-10 h-10 -rotate-90 pointer-events-none" viewBox="0 0 38 38">
+                  {/* Background track circle */}
+                  <circle
+                    cx="19"
+                    cy="19"
+                    r={radius}
+                    stroke="rgb(var(--fg) / 0.14)"
+                    fill="none"
+                    strokeWidth="2.5"
+                  />
+                  {/* Dynamic XP Progress Stroke */}
+                  <circle
+                    cx="19"
+                    cy="19"
+                    r={radius}
+                    className="fill-none transition-all duration-500 ease-out"
+                    stroke="var(--tier-accent)"
+                    strokeWidth="2.5"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </svg>
 
                 {/* Avatar */}
-                <ProAvatarRing isPro={Boolean(isPremium)} isStudying={false} size="sm">
-                  <div className="w-[30px] h-[30px] rounded-full overflow-hidden flex items-center justify-center relative shadow-inner bg-[var(--surface-2)]">
-                    {effectiveAvatar && isAppAvatar(effectiveAvatar) && !imageError ? (
-                      <img
-                        src={effectiveAvatar}
-                        alt={displayName || 'User Avatar'}
-                        className="w-full h-full object-cover transition-opacity duration-300"
-                        referrerPolicy="no-referrer"
-                        onError={() => setImageError(true)}
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold text-[11px] uppercase">
-                        {(displayName || user?.email || 'U').charAt(0)}
-                      </div>
-                    )}
-                  </div>
-                </ProAvatarRing>
+                <div className="w-[30px] h-[30px] rounded-full overflow-hidden flex items-center justify-center relative shadow-inner bg-[var(--surface-2)]">
+                  {effectiveAvatar && isAppAvatar(effectiveAvatar) && !imageError ? (
+                    <img
+                      src={effectiveAvatar}
+                      alt={displayName || 'User Avatar'}
+                      className="w-full h-full object-cover transition-opacity duration-300"
+                      referrerPolicy="no-referrer"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold text-[11px] uppercase">
+                      {(displayName || user?.email || 'U').charAt(0)}
+                    </div>
+                  )}
+                </div>
 
                 {/* Online/Studying status in DP's down right corner */}
                 <span
