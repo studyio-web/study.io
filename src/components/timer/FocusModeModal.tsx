@@ -369,39 +369,40 @@ export function FocusModeModal() {
       >
         {/* Soft GPU-accelerated ambient glow layer behind clock */}
         <div
-          className="absolute inset-0 -z-10 pointer-events-none"
+          className="absolute inset-0 -z-10 pointer-events-none scale-150"
           style={{
             background: `radial-gradient(ellipse 70% 50% at 50% 50%, ${sceneGlow} 0%, transparent 75%)`,
-            opacity: 0.75,
+            opacity: 0.8,
             transition: 'background 0.9s ease',
           }}
         />
 
         {timerMode === 'pomodoro' && (
-          <div className="mb-2 landscape:mb-0.5 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-3 landscape:mb-1 text-sm md:text-base font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
             {pomodoroPhase === 'work' ? 'Deep Focus' : 'Rest Phase'}
           </div>
         )}
         {timerMode === 'countdown' && (
-          <div className="mb-2 landscape:mb-0.5 text-xs md:text-sm font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
+          <div className="mb-3 landscape:mb-1 text-sm md:text-base font-bold text-white/50 tracking-[0.3em] uppercase drop-shadow">
             Countdown
           </div>
         )}
 
         <div
-          className="font-bold leading-none text-white tabular-nums select-none text-6xl sm:text-7xl landscape:text-7xl"
+          className="font-bold leading-none text-white tabular-nums select-none tracking-tight"
           style={{
             fontFamily: "'Space Grotesk', var(--font-hud), sans-serif",
-            letterSpacing: '-0.03em',
-            textShadow: `0 0 20px ${sceneGlow}, 0 2px 14px rgba(0,0,0,0.6)`,
-            transition: 'text-shadow 0.9s ease',
+            fontSize: 'clamp(5rem, min(14.5vw, 25vh), 13.5rem)',
+            letterSpacing: '-0.035em',
+            textShadow: `0 0 28px ${sceneGlow}, 0 2px 16px rgba(0,0,0,0.65)`,
+            transition: 'text-shadow 0.9s ease, font-size 0.3s ease',
           }}
         >
           {displayTime}
         </div>
 
         <div
-          className="mt-3.5 landscape:mt-1 text-base sm:text-lg landscape:text-sm font-medium text-white/75 select-none flex items-center justify-center gap-2.5"
+          className="mt-4 sm:mt-5 landscape:mt-2 text-lg sm:text-xl md:text-2xl landscape:text-base font-medium text-white/80 select-none flex items-center justify-center gap-2.5"
           style={{
             fontFamily: "'Outfit', var(--font-geist-sans), sans-serif",
             textShadow: '0 1px 12px rgba(0,0,0,.5)',
@@ -409,7 +410,7 @@ export function FocusModeModal() {
         >
           <span>{subjectSubtitle}</span>
           {isPaused && (
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-hud font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm animate-pulse">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-hud font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm animate-pulse">
               Paused
             </span>
           )}
