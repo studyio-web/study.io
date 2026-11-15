@@ -12,48 +12,73 @@ import { useAtmosphere } from '../focus/useAtmosphere';
 import { AVAILABLE_SCENES, getSceneById } from '../focus/scenes/registry';
 import { useStudyMode } from '../../context/StudyModeContext';
 import { hapticTick, hapticMedium } from '@/lib/haptics';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar } from '@capacitor/status-bar';
 
 export function enterFullscreenSafely() {
-  if (typeof document === 'undefined') return;
+  if (typeof window === 'undefined') return;
 
-  interface VendorDocElement extends HTMLElement {
-    webkitRequestFullscreen?: () => Promise<void> | void;
-    mozRequestFullScreen?: () => Promise<void> | void;
-    msRequestFullscreen?: () => Promise<void> | void;
+  // 1. Android Native Bridge (Hides both status bar and bottom gesture navigation bar)
+  try {
+    const androidBridge = (window as any).AndroidFullscreenBridge;
+    if (androidBridge?.enterFullscreen) {
+      androidBridge.enterFullscreen();
+    }
+  } catch (err) {
+    console.warn('[enterFullscreenSafely] AndroidFullscreenBridge error:', err);
   }
 
+  // 2. Capacitor Status Bar Plugin
   try {
-    const el = document.documentElement as VendorDocElement;
-    if (document.fullscreenElement) return;
-    if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
-    } else if (el.webkitRequestFullscreen) {
-      el.webkitRequestFullscreen();
-    } else if (el.mozRequestFullScreen) {
-      el.mozRequestFullScreen();
-    } else if (el.msRequestFullscreen) {
-      el.msRequestFullscreen();
+    if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('StatusBar')) {
+      StatusBar.hide().catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[enterFullscreenSafely] StatusBar.hide error:', err);
+  }
+
+  // 3. Web Fullscreen API for standard browsers
+  try {
+    const el = document.documentElement as any;
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: 'hide' } as any).catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else if (el.mozRequestFullScreen) {
+        el.mozRequestFullScreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
+      }
     }
   } catch {}
 }
 
 export function exitFullscreenSafely() {
-  if (typeof document === 'undefined') return;
+  if (typeof window === 'undefined') return;
 
-  interface VendorDoc extends Document {
-    webkitFullscreenElement?: Element;
-    webkitExitFullscreen?: () => Promise<void> | void;
-    mozFullScreenElement?: Element;
-    mozCancelFullScreen?: () => Promise<void> | void;
-    msFullscreenElement?: Element;
-    msExitFullscreen?: () => Promise<void> | void;
-  }
-  interface VendorOrientation {
-    unlock?: () => Promise<void> | void;
-  }
-
+  // 1. Android Native Bridge (Restores top status bar and bottom gesture navigation bar)
   try {
-    const vendorDoc = document as VendorDoc;
+    const androidBridge = (window as any).AndroidFullscreenBridge;
+    if (androidBridge?.exitFullscreen) {
+      androidBridge.exitFullscreen();
+    }
+  } catch (err) {
+    console.warn('[exitFullscreenSafely] AndroidFullscreenBridge error:', err);
+  }
+
+  // 2. Capacitor Status Bar Plugin
+  try {
+    if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('StatusBar')) {
+      StatusBar.show().catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[exitFullscreenSafely] StatusBar.show error:', err);
+  }
+
+  // 3. Web Fullscreen API
+  try {
+    const vendorDoc = document as any;
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     } else if (vendorDoc.webkitFullscreenElement && vendorDoc.webkitExitFullscreen) {
@@ -65,8 +90,9 @@ export function exitFullscreenSafely() {
     }
   } catch {}
 
+  // 4. Orientation unlock if locked
   try {
-    const orientation = window.screen?.orientation as unknown as VendorOrientation | undefined;
+    const orientation = window.screen?.orientation as any;
     if (orientation?.unlock) {
       orientation.unlock();
     }
@@ -109,10 +135,15 @@ export function FocusModeModal() {
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const atmosphereButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  // Automatically request browser/WebView fullscreen upon entering immersive view
+  // Automatically enter immersive sticky fullscreen upon entering Focus Mode, and exit upon closing
   useEffect(() => {
     if (isFocusModeOpen) {
       enterFullscreenSafely();
+      return () => {
+        exitFullscreenSafely();
+      };
+    } else {
+      exitFullscreenSafely();
     }
   }, [isFocusModeOpen]);
 
