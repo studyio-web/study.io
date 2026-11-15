@@ -51,6 +51,7 @@ scratch/
 # rank normalization backups
 **/ranks/original/
 
-# APK binaries
+# APK binaries (ignore android build intermediates, but track public release APK)
 *.apk
+!public/studyio.apk
 
