@@ -358,6 +358,24 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
           },
         });
 
+        // Broadcast to target user's personal notifications channel
+        const userNotifChannel = supabase.channel(`user_notifications_${targetUserId}`);
+        await userNotifChannel.send({
+          type: 'broadcast',
+          event: 'nudge_received',
+          payload: {
+            id: `nudge-${now}`,
+            fromUserId: user.id,
+            fromUsername: senderName,
+            fromAvatarUrl: user.user_metadata?.avatar_url,
+            targetUserId,
+            targetUsername,
+            roomId,
+            roomName: roomInfo?.name || 'Study Room',
+            timestamp: now,
+          },
+        });
+
         // Persist system message to room_messages so other users & page refreshes sync the 3-hour cooldown
         await supabase.from('room_messages').insert({
           room_id: roomId,

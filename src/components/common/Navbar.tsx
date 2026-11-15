@@ -41,6 +41,7 @@ import { RankCrestBadge } from './RankCrestBadge';
 import Image from 'next/image';
 import { getRankIconPath } from '../../utils/rankIcons';
 import { FacetedTrophyIcon, FacetedGearIcon } from './GeometricIcons';
+import { NotificationBell } from './NotificationBell';
 
 export type NavTabType = 'timer' | 'tasks' | 'analytics' | 'leaderboard' | 'settings' | 'rooms';
 
@@ -302,6 +303,9 @@ export function Navbar({
 
         {/* Right Action Bar */}
         <div className="flex items-center gap-1.5 sm:gap-3">
+
+          {/* Notifications Bell */}
+          <NotificationBell onNavigateToRooms={() => setActiveTab('rooms')} />
 
           {/* Upgrade Header Link (Free users) or Pro Badge (Premium users) */}
           {!isPremium ? (
