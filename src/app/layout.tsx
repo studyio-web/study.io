@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Rajdhani, Chakra_Petch } from "next/font/google";
 import "./globals.css";
 import { Providers } from "../components/common/Providers";
-import { FullscreenEnforcer } from "../components/FullscreenEnforcer";
 import { THEME_META_MAP, DEFAULT_THEME } from "../lib/themes";
 
 const geistSans = Geist({
@@ -132,7 +131,6 @@ export default function RootLayout({
           className="fixed inset-0 w-screen h-screen overflow-x-hidden -z-50 bg-[#050507] pointer-events-none"
         />
         <Providers>
-          <FullscreenEnforcer />
           {children}
         </Providers>
       </body>
