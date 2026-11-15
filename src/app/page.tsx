@@ -262,11 +262,12 @@ export default function Home() {
   // Authenticated: Full StudyPulse focus dashboard
   return (
     <div className="w-full h-[100dvh] bg-[var(--bg)] bg-dot-grid text-[var(--text)] flex flex-col relative selection:bg-[var(--accent)]/30 selection:text-[var(--accent)] overflow-hidden">
+      {/* Infinite Edge-to-Edge Canvas Mesh Background */}
+      <div className="fixed inset-0 w-screen h-screen overflow-x-hidden pointer-events-none bg-[#050507] -z-20" />
       {/* Subtle Background Dot Grid Texture */}
-      <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
-
+      <div className="fixed inset-0 w-screen h-screen overflow-x-hidden pointer-events-none bg-dot-grid -z-10" />
       {/* Drifting Ambient HUD Grid Overlay */}
-      <div className="fixed inset-0 pointer-events-none bg-hud-grid opacity-[0.03] z-0" />
+      <div className="fixed inset-0 w-screen h-screen overflow-x-hidden pointer-events-none bg-hud-grid opacity-[0.03] -z-10" />
 
       {/* 4-Hour Idle Alarm Check */}
       <IdleCheckModal />

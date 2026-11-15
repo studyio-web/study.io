@@ -6,7 +6,10 @@ import { AuthCard } from './AuthCard';
 
 export function IntroductionAndLogin() {
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden flex flex-col justify-between select-none bg-[#08090c] text-white relative">
+    <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden flex flex-col justify-between select-none bg-[#050507] text-white relative">
+      {/* Infinite Edge-to-Edge Canvas Mesh Background */}
+      <div className="fixed inset-0 w-screen h-screen overflow-x-hidden pointer-events-none bg-[#050507] -z-20" />
+
       {/* Subtle Dot-Matrix Background Texture */}
       <div className="fixed inset-0 pointer-events-none bg-dot-grid opacity-20 z-0" />
 
@@ -21,7 +24,7 @@ export function IntroductionAndLogin() {
       />
 
       {/* 1. Top Header: Clean, Centered study.io Logo with Safe-Area Padding */}
-      <header className="w-full max-w-md mx-auto pt-8 sm:pt-10 px-6 flex items-center justify-center relative z-10 shrink-0">
+      <header className="w-full max-w-md mx-auto pt-[calc(env(safe-area-inset-top,24px)+1rem)] sm:pt-10 px-6 flex items-center justify-center relative z-10 shrink-0">
         <div className="flex items-center gap-2.5">
           <Logo className="w-8 h-8 shrink-0 drop-shadow-sm" />
           <span className="text-lg font-bold tracking-tight text-white font-sans">

@@ -268,7 +268,7 @@ export function Navbar({
 
   return (
     <>
-    <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl transition-colors">
+    <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl transition-colors header-edge-to-edge">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Logo & Brand */}
         <div className="flex items-center gap-2.5 sm:gap-6">
@@ -643,7 +643,7 @@ export function Navbar({
     </header>
 
     {/* Mobile Floating Dock Navigation: Full-width Pill with Sliding Tier Indicator */}
-    <div className="fixed bottom-5 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,0px)] pointer-events-none">
+    <div className="fixed bottom-3 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,16px)] pointer-events-none">
       <nav
         aria-label="Mobile Floating Dock Navigation"
         className="w-full max-w-md bg-[var(--surface)]/95 backdrop-blur-xl border border-[var(--border)] rounded-full p-1 shadow-card transition-all pointer-events-auto"

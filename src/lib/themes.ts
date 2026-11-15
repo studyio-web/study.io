@@ -15,8 +15,8 @@ export const THEMES: ThemeOption[] = [
     id: 'rank',
     name: 'Rank colors',
     description: 'Follows your rank',
-    previewColors: ['#07090E', '#0F1117', '#D4A017'],
-    themeColor: '#07090E',
+    previewColors: ['#050507', '#0F1117', '#D4A017'],
+    themeColor: '#050507',
     scheme: 'dark',
   },
   {

@@ -125,7 +125,12 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen overflow-x-clip flex flex-col text-[var(--text)] bg-[var(--bg)] dark antialiased selection:bg-[var(--accent)]/30 selection:text-[var(--accent)]">
+      <body className="min-h-screen overflow-x-clip flex flex-col text-[var(--text)] bg-[#050507] dark antialiased selection:bg-[var(--accent)]/30 selection:text-[var(--accent)]">
+        {/* Infinite Edge-to-Edge Background Canvas to eliminate visual gaps in portrait & landscape */}
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 w-screen h-screen overflow-x-hidden -z-50 bg-[#050507] pointer-events-none"
+        />
         <Providers>
           <FullscreenEnforcer />
           {children}

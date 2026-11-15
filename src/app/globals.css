@@ -92,8 +92,13 @@
   color-scheme: dark;
   --fg: 255 255 255;
   --shadow-card: none;
+  /* Edge-to-Edge System Bar Insets */
+  --safe-top: env(safe-area-inset-top, 24px);
+  --safe-bottom: env(safe-area-inset-bottom, 16px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   /* Base token set (Default: Rank theme) */
-  --bg: #07090e;
+  --bg: #050507;
   --background: var(--bg);
   --surface: #0F1117;
   --surface-2: #141721;
@@ -1645,3 +1650,32 @@ html.light ::selection,
     animation: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   EDGE-TO-EDGE TRANSPARENT SYSTEM BARS ACCOMMODATIONS
+   ───────────────────────────────────────────────────────────── */
+.edge-to-edge-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow-x: hidden;
+  background-color: #050507;
+  pointer-events: none;
+}
+
+.header-edge-to-edge {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@media (max-width: 768px) {
+  .header-edge-to-edge {
+    padding-top: env(safe-area-inset-top, 24px);
+  }
+}
+
+.footer-edge-to-edge {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
