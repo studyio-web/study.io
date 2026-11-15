@@ -1308,7 +1308,7 @@ export function StudyTimer() {
             </div>
           ) : timerMode === 'pomodoro' && pomodoroPhase === 'shortBreak' ? (
             isPaused ? (
-              <div className="flex items-center gap-2.5 w-[240px] justify-center">
+              <div className="flex items-center gap-2.5 w-[min(280px,85vw)] sm:w-[260px] justify-center">
                 <button
                   onClick={startPomodoroBreak}
                   disabled={isSaving || isRemoteTransitioning}
@@ -1329,7 +1329,7 @@ export function StudyTimer() {
               <button
                 onClick={handleReset}
                 disabled={isSaving || isRemoteTransitioning}
-                className="w-[240px] h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text)] font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-[min(280px,85vw)] sm:w-[240px] h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text)] font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <span>End break</span>
               </button>
@@ -1342,7 +1342,7 @@ export function StudyTimer() {
                   handleStartSession();
                 }}
                 disabled={isSaving || isRemoteTransitioning}
-                className="w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
+                className="w-[min(280px,85vw)] sm:w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
               >
                 <Flame className="w-4 h-4 fill-current" />
                 <span>Start focus session</span>
@@ -1355,7 +1355,7 @@ export function StudyTimer() {
                   type="button"
                   onClick={handleStartSession}
                   disabled={isSaving || isRemoteTransitioning}
-                  className="w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] shadow-sm hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-[min(280px,85vw)] sm:w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] shadow-sm hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Start focus</span>
@@ -1370,7 +1370,7 @@ export function StudyTimer() {
                       setShowDropdown(true);
                     }
                   }}
-                  className="w-[240px] h-[52px] rounded-full font-medium text-sm bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.12] border border-fg/[0.06] active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer text-center px-4"
+                  className="w-[min(280px,85vw)] sm:w-[240px] h-[52px] rounded-full font-medium text-sm bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.12] border border-fg/[0.06] active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer text-center px-4"
                   title="Choose a subject to start"
                 >
                   <span className="truncate">Choose a subject to start</span>
@@ -1380,7 +1380,7 @@ export function StudyTimer() {
                   type="button"
                   onClick={handleStartSession}
                   disabled={isSaving || isRemoteTransitioning}
-                  className="w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] shadow-sm hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-[min(280px,85vw)] sm:w-[240px] h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] shadow-sm hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Start session</span>
@@ -1388,7 +1388,7 @@ export function StudyTimer() {
               )}
             </div>
           ) : !isPaused ? (
-            <div className="flex items-center gap-2.5 w-[240px] justify-center">
+            <div className="flex items-center gap-2.5 w-[min(280px,85vw)] sm:w-[260px] justify-center">
               <button
                 type="button"
                 onClick={handlePause}
@@ -1418,7 +1418,7 @@ export function StudyTimer() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 w-[280px] sm:w-[320px] justify-center">
+            <div className="flex items-center gap-2.5 w-[min(300px,92vw)] sm:w-[320px] justify-center">
               <button
                 type="button"
                 onClick={handleResume}

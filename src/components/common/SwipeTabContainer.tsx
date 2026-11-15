@@ -24,9 +24,19 @@ export function SwipeTabContainer({
   children,
 }: SwipeTabContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const currentIndex = TABS.indexOf(activeTab);
+  const activeIndex = TABS.indexOf(activeTab);
+  const [displayIndex, setDisplayIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
   const [dragX, setDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Synchronize internal display index whenever parent activeTab updates
+  useEffect(() => {
+    const idx = TABS.indexOf(activeTab);
+    if (idx >= 0) {
+      setDisplayIndex(idx);
+      setDragX(0);
+    }
+  }, [activeTab]);
 
   // Safeguard: Ensure container never retains rogue horizontal scrollLeft from child focus events
   const handleScroll = useCallback(() => {
@@ -39,7 +49,7 @@ export function SwipeTabContainer({
     if (containerRef.current && containerRef.current.scrollLeft !== 0) {
       containerRef.current.scrollLeft = 0;
     }
-  }, [activeTab, currentIndex, dragX]);
+  }, [displayIndex, dragX]);
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const isHorizontalLockRef = useRef<boolean | null>(null);
@@ -87,14 +97,14 @@ export function SwipeTabContainer({
     const dx = currentX - touchStartRef.current.x;
     const dy = currentY - touchStartRef.current.y;
 
-    // Disambiguate horizontal vs vertical swipe
+    // Disambiguate horizontal swipe vs vertical scroll
     if (isHorizontalLockRef.current === null) {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
 
-      if (absDx > 8 || absDy > 8) {
-        // High ratio threshold to prevent accidental hijacking of vertical scroll
-        if (absDx > absDy * 1.25) {
+      if (absDx > 6 || absDy > 6) {
+        // Natural thumb swipe angle check
+        if (absDx > absDy) {
           isHorizontalLockRef.current = true;
           setIsDragging(true);
         } else {
@@ -106,10 +116,10 @@ export function SwipeTabContainer({
     }
 
     if (isHorizontalLockRef.current) {
-      // Rubber-band resistance at boundary edges
+      // Rubber-band resistance at outer boundary edges
       let effectiveDx = dx;
-      if ((currentIndex === 0 && dx > 0) || (currentIndex === TABS.length - 1 && dx < 0)) {
-        effectiveDx = dx * 0.25;
+      if ((displayIndex === 0 && dx > 0) || (displayIndex === TABS.length - 1 && dx < 0)) {
+        effectiveDx = dx * 0.22;
       }
       setDragX(effectiveDx);
     }
@@ -126,71 +136,76 @@ export function SwipeTabContainer({
 
     const dt = Math.max(1, Date.now() - touchStartRef.current.time);
     const velocity = Math.abs(dragX) / dt; // px/ms
-    const distanceThreshold = 80; // px
-    const velocityThreshold = 0.28; // px/ms
+    const distanceThreshold = 45; // px (responsive, natural thumb flick)
+    const velocityThreshold = 0.2; // px/ms
 
-    if ((Math.abs(dragX) > distanceThreshold || velocity > velocityThreshold) && Math.abs(dragX) > 25) {
-      if (dragX < 0 && currentIndex < TABS.length - 1) {
-        // Swipe Left -> Next Tab
-        onChangeTab(TABS[currentIndex + 1]);
-      } else if (dragX > 0 && currentIndex > 0) {
-        // Swipe Right -> Previous Tab
-        onChangeTab(TABS[currentIndex - 1]);
+    let targetIdx = displayIndex;
+    if ((Math.abs(dragX) > distanceThreshold || velocity > velocityThreshold) && Math.abs(dragX) > 18) {
+      if (dragX < 0 && displayIndex < TABS.length - 1) {
+        // Swipe Left -> Advance to Next Tab smoothly
+        targetIdx = displayIndex + 1;
+      } else if (dragX > 0 && displayIndex > 0) {
+        // Swipe Right -> Go to Previous Tab smoothly
+        targetIdx = displayIndex - 1;
       }
     }
 
-    // Reset drag with spring transition
-    touchStartRef.current = null;
-    isHorizontalLockRef.current = null;
+    // Immediately advance displayIndex so track glides forward seamlessly without snapback
+    setDisplayIndex(targetIdx);
     setIsDragging(false);
     setDragX(0);
+    touchStartRef.current = null;
+    isHorizontalLockRef.current = null;
+
+    if (targetIdx !== activeIndex) {
+      onChangeTab(TABS[targetIdx]);
+    }
   };
 
   return (
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="w-full h-full min-h-0 overflow-hidden relative flex-1 flex flex-col"
+      className="w-full h-full min-h-0 overflow-hidden relative flex-1 flex flex-col touch-pan-y"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
-      {/* Dynamic Sliding Track */}
+      {/* Dynamic Sliding Track (GPU-accelerated 120fps motion) */}
       <div
-        className="flex w-full h-full min-h-0 flex-1"
+        className="flex w-full h-full min-h-0 flex-1 transform-gpu will-change-transform"
         style={{
           width: `${TABS.length * 100}%`,
-          transform: `translateX(calc(-${currentIndex * (100 / TABS.length)}% + ${dragX}px))`,
-          transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-          willChange: 'transform',
+          transform: `translate3d(calc(-${displayIndex * (100 / TABS.length)}% + ${dragX}px), 0, 0)`,
+          transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
-        {TABS.map((tab, idx) => (
-          <div
-            key={tab}
-            className={`flex-shrink-0 flex flex-col transition-opacity duration-300 h-full min-h-0 ${
-              currentIndex === idx
-                ? (tab === 'timer' || tab === 'rooms')
-                  ? 'overflow-hidden pb-0'
-                  : 'overflow-y-auto pb-28'
-                : 'overflow-hidden pointer-events-none'
-            }`}
-            style={{
-              width: `${100 / TABS.length}%`,
-              opacity: isDragging
-                ? Math.max(0.6, 1 - Math.abs(dragX) / 300)
-                : currentIndex === idx
-                ? 1
-                : 0,
-              visibility: (!isDragging && currentIndex !== idx) ? 'hidden' : 'visible'
-            }}
-          >
-            <div className={(!isDragging && currentIndex !== idx) ? 'hidden' : 'contents w-full h-full flex-1'}>
-              {children[tab]}
+        {TABS.map((tab, idx) => {
+          // Keep active tab and adjacent neighbors mounted so swipe transitions are 100% gapless
+          const isNeighbor = Math.abs(idx - displayIndex) <= 1 || Math.abs(idx - activeIndex) <= 1;
+
+          return (
+            <div
+              key={tab}
+              className={`flex-shrink-0 flex flex-col h-full min-h-0 transform-gpu ${
+                displayIndex === idx
+                  ? (tab === 'timer' || tab === 'rooms')
+                    ? 'overflow-hidden pb-0'
+                    : 'overflow-y-auto pb-28'
+                  : 'overflow-hidden pointer-events-none'
+              }`}
+              style={{
+                width: `${100 / TABS.length}%`,
+                visibility: isNeighbor ? 'visible' : 'hidden',
+              }}
+            >
+              <div className="w-full h-full flex-1">
+                {isNeighbor ? children[tab] : null}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
