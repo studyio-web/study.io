@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Bell, Zap } from 'lucide-react';
+import { formatNudgeCooldown } from '../../lib/nudge';
 
 interface ClassicNudgeButtonProps {
   targetUserId: string;
@@ -46,7 +47,7 @@ export function ClassicNudgeButton({
       disabled={isOnCooldown}
       title={
         isOnCooldown
-          ? `Cooldown: wait ${cooldownSeconds}s before nudging ${targetUsername} again`
+          ? `Cooldown: wait ${formatNudgeCooldown(cooldownSeconds)} before nudging ${targetUsername} again`
           : `Send a focus nudge to ${targetUsername}`
       }
       className={`group relative inline-flex items-center justify-center font-mono font-bold uppercase select-none transition-all duration-100 ${
@@ -88,7 +89,7 @@ export function ClassicNudgeButton({
         {justPressed
           ? 'NUDGED!'
           : isOnCooldown
-          ? `${cooldownSeconds}s`
+          ? formatNudgeCooldown(cooldownSeconds)
           : label || 'NUDGE'}
       </span>
     </button>

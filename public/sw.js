@@ -201,6 +201,22 @@ self.addEventListener('message', function(event) {
     case 'PING':
       if (event.ports && event.ports[0]) event.ports[0].postMessage({ type: 'PONG' });
       break;
+
+    case 'SHOW_NUDGE_NOTIFICATION':
+      (async function() {
+        try {
+          await self.registration.showNotification('⚡ Focus Nudge!', {
+            body: (d.senderUsername || 'A scholar') + ' nudged you to focus in study.io!',
+            icon: ICON,
+            badge: BADGE,
+            tag: 'studyio-nudge-' + Date.now(),
+            renotify: true,
+            vibrate: [300, 150, 300],
+            data: { url: d.url || '/' },
+          });
+        } catch(e) {}
+      })();
+      break;
   }
 });
 
