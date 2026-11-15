@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
 import { usePremium } from '../../context/PremiumContext';
@@ -132,8 +133,6 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const cleanedHandle = sanitizeHandleInput(username.replace(/^@/, ''));
   const handleIsAppropriate = cleanedHandle === '' || isAppropriateHandle(cleanedHandle);
   
@@ -223,10 +222,29 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
-      <div className="bg-white/[0.07] backdrop-blur-3xl border border-white/20 rounded-2xl w-full max-w-md my-auto max-h-[90vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative">
-        
-        {/* Header */}
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={handleClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            aria-hidden="true"
+          />
+
+          {/* Spring-based Scaling Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-white/[0.07] backdrop-blur-3xl border border-white/20 rounded-2xl w-full max-w-md my-auto max-h-[90vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative z-10"
+          >
+            {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10 shrink-0 bg-white/[0.02]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
@@ -423,12 +441,30 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
             </div>
           </form>
         </div>
-      </div>
+      </motion.div>
       
       {/* Avatar Vault Modal */}
-      {isVaultOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
-          <div className="bg-white/[0.07] backdrop-blur-3xl border border-amber-500/20 rounded-2xl w-full max-w-xl my-auto max-h-[85vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative flex flex-col">
+      <AnimatePresence>
+        {isVaultOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+            {/* Vault Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              onClick={() => setIsVaultOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              aria-hidden="true"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white/[0.07] backdrop-blur-3xl border border-amber-500/20 rounded-2xl w-full max-w-xl my-auto max-h-[85vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative flex flex-col z-10"
+            >
             {/* Vault Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0 bg-white/[0.02]">
               <div>
@@ -641,10 +677,13 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
               </div>
               
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
+      </AnimatePresence>
     </div>
+      )}
+    </AnimatePresence>
   );
 }
 

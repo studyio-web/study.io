@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Volume2,
@@ -93,8 +94,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       hapticMedium();
     }
   };
-
-  if (!isOpen) return null;
 
   const handleInstallClick = async () => {
     if (deferredPrompt || canInstall) {
@@ -207,16 +206,47 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div
-        className="relative w-full max-w-lg bg-[var(--surface)] backdrop-blur-3xl rounded-2xl shadow-card overflow-hidden max-h-[90vh] flex flex-col"
-      >
-        {/* Ambient background lighting */}
-        <div
-          className="absolute -top-24 -right-24 w-52 h-52 rounded-full blur-3xl pointer-events-none opacity-15"
-          style={{ backgroundColor: theme.accent }}
-        />
-        <div className="absolute -bottom-24 -left-24 w-52 h-52 bg-fg/5 rounded-full blur-3xl pointer-events-none" />
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden pointer-events-auto">
+          {/* Backdrop Overlay (fades in and out independently) */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          {/* Swipeable Bottom Sheet on Mobile / Centered Modal on Desktop */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_e, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                onClose();
+              }
+            }}
+            className="relative w-full max-w-lg bg-[var(--surface)] backdrop-blur-3xl rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] sm:max-h-[90vh] flex flex-col z-10 border-t sm:border border-[var(--border)] overscroll-contain pb-[env(safe-area-inset-bottom,0px)]"
+          >
+            {/* Native Mobile Drag Handle Pill */}
+            <div className="w-full flex items-center justify-center pt-2.5 pb-1 sm:hidden shrink-0 cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1.5 rounded-full bg-fg/20" />
+            </div>
+
+            {/* Ambient background lighting */}
+            <div
+              className="absolute -top-24 -right-24 w-52 h-52 rounded-full blur-3xl pointer-events-none opacity-15"
+              style={{ backgroundColor: theme.accent }}
+            />
+            <div className="absolute -bottom-24 -left-24 w-52 h-52 bg-fg/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Fixed Header (Never scrolls when scrolling through settings) */}
         <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-xl relative z-20 shrink-0">
@@ -612,7 +642,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             Done
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Fallback Install / Add to Home Screen Instructions Modal */}
       <InstallInstructionModal
@@ -620,5 +650,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         onClose={() => setShowInstallInstructions(false)}
       />
     </div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, ClipboardPaste, CheckCircle2, Trash2 } from 'lucide-react';
 import { parseSmartTasks } from '../../lib/smartTaskParser';
 import { soundFx } from '../../lib/audio';
@@ -79,19 +80,34 @@ export function SmartPasteModal({ isOpen, onClose, onImport }: SmartPasteModalPr
     }
   };
 
-  if (!isOpen || !mounted || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
-        onClick={e => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-hidden pointer-events-auto"
+        >
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/75 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden z-10"
+          >
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)] bg-[var(--surface-2)]/40">
           <div className="flex items-center gap-2.5">
@@ -216,8 +232,10 @@ export function SmartPasteModal({ isOpen, onClose, onImport }: SmartPasteModalPr
             </button>
           </div>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

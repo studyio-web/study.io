@@ -115,28 +115,33 @@ export function SeasonResetAlertModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleActionDismiss]);
 
-  if (!isOpen || !data) return null;
-
   return (
     <AnimatePresence>
-      <div
-        className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 select-none"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            handleActionDismiss();
-          }
-        }}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Season Reset Alert"
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 15 }}
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center"
+      {isOpen && data && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 select-none overflow-hidden pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Season Reset Alert"
         >
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={handleActionDismiss}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center z-10"
+          >
           {/* Ambient Glowing Background Effect - Permanent Amber HUD Theme */}
           <div
             className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full blur-3xl bg-amber-500/20 pointer-events-none"
@@ -260,6 +265,7 @@ export function SeasonResetAlertModal({
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }

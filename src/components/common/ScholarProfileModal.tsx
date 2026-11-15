@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Zap, Flame, Shield, Target, Ban } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
@@ -254,20 +255,35 @@ export function ScholarProfileModal({
 
   const initialLetter = displayName.charAt(0).toUpperCase();
 
-  if (!mounted || !isOpen || !scholar || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-lg rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Header Bar - Clean title and handle without crown icon */}
+    <AnimatePresence>
+      {isOpen && scholar && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-hidden pointer-events-auto"
+        >
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-lg rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] z-10"
+          >
+            {/* Top Header Bar - Clean title and handle without crown icon */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)] bg-[var(--surface-2)]/40 shrink-0">
           <div className="min-w-0">
             <h3 className="text-base sm:text-lg font-hud font-bold tracking-wider uppercase text-[var(--text)] truncate">
@@ -602,8 +618,10 @@ export function ScholarProfileModal({
             Close
           </button>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

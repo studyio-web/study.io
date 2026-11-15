@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useStudy } from '../../context/StudyContext';
 import { useAuth } from '../../context/AuthContext';
 import { Subject } from '../../types';
@@ -44,9 +45,6 @@ export function SubjectManagerModal({ isOpen = true, onClose, subjects: propsSub
   const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // If component is mounted with isOpen === false, return null
-  if (!isOpen) return null;
 
   // 3. Fix the "Add New Subject" Handler with fallback defaults
   const handleCreateSubject = async (name: string, color = '#10b981', targetMinutes = 60) => {
@@ -145,13 +143,32 @@ export function SubjectManagerModal({ isOpen = true, onClose, subjects: propsSub
     setMounted(true);
   }, []);
 
-  if (!isOpen) return null;
-  
-  const modalContent = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-[var(--surface)] backdrop-blur-2xl border border-[var(--border)] rounded-3xl shadow-2xl p-6 sm:p-7 overflow-hidden">
+  if (!mounted || typeof document === 'undefined') return null;
 
-        {/* Header */}
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          {/* Spring-based Scaling Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-xl bg-[var(--surface)] backdrop-blur-2xl border border-[var(--border)] rounded-3xl shadow-2xl p-6 sm:p-7 overflow-hidden z-10"
+          >
+            {/* Header */}
         <div className="relative z-10 flex items-center justify-between pb-4 border-b border-white/[0.08]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.18)]">
@@ -350,57 +367,76 @@ export function SubjectManagerModal({ isOpen = true, onClose, subjects: propsSub
             Done
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Delete Confirmation Modal */}
-      {deletingSubject && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-150">
-          <div className="relative w-full max-w-sm bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1 min-w-0">
-                <h4 className="text-sm font-bold text-white tracking-tight">Delete Subject?</h4>
-                <p className="text-xs text-neutral-400 leading-relaxed font-mono">
-                  Are you sure you want to remove <span className="text-white font-semibold">{deletingSubject?.name || (deletingSubject as any)?.title || 'this subject'}</span>? It will be removed from your active list, but your past study records will be preserved.
-                </p>
-              </div>
-            </div>
+      <AnimatePresence>
+        {deletingSubject && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+            {/* Delete Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              onClick={() => setDeletingSubject(null)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md"
+              aria-hidden="true"
+            />
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setDeletingSubject(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-neutral-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all shadow-md shadow-rose-600/30 active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <span>Delete</span>
-                )}
-              </button>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-sm bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-5 space-y-4 z-10"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <h4 className="text-sm font-bold text-white tracking-tight">Delete Subject?</h4>
+                  <p className="text-xs text-neutral-400 leading-relaxed font-mono">
+                    Are you sure you want to remove <span className="text-white font-semibold">{deletingSubject?.name || (deletingSubject as any)?.title || 'this subject'}</span>? It will be removed from your active list, but your past study records will be preserved.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setDeletingSubject(null)}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-neutral-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all shadow-md shadow-rose-600/30 active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <span>Delete</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
-  
-  if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(modalContent, document.body);
 }
 
 // Export alias for compatibility

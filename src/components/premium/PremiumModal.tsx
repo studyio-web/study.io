@@ -86,24 +86,35 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="premium-modal-title"
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-md"
-          onClick={onClose}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden pointer-events-auto"
         >
+          {/* Backdrop Overlay (fades in and out independently) */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/75 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          {/* Center Modal with Spring-Based Scale */}
           <motion.div
             onClick={(e) => e.stopPropagation()}
             initial={
               shouldReduceMotion
                 ? { opacity: 0 }
-                : { opacity: 0, scale: 0.96, y: 16 }
+                : { opacity: 0, scale: 0.95 }
             }
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
             exit={
               shouldReduceMotion
                 ? { opacity: 0 }
-                : { opacity: 0, scale: 0.96, y: 16 }
+                : { opacity: 0, scale: 0.95 }
             }
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="relative w-full max-w-[480px] bg-[var(--surface)] border border-[var(--border)] rounded-t-[28px] sm:rounded-[24px] shadow-2xl p-6 sm:p-7 overflow-hidden flex flex-col pb-8 sm:pb-7 max-h-[90vh] overflow-y-auto"
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-[480px] bg-[var(--surface)] border border-[var(--border)] rounded-[24px] shadow-2xl p-6 sm:p-7 overflow-hidden flex flex-col pb-8 sm:pb-7 max-h-[90vh] overflow-y-auto z-10"
           >
             {/* Mobile sheet drag handle */}
             <div className="w-10 h-1 bg-[var(--border-strong)] rounded-full mx-auto mb-4 sm:hidden" />

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DayOfWeek, DAYS_OF_WEEK } from '../../types/timetable';
 import { useTimetable } from '../../context/TimetableContext';
 import { X, Copy, CheckSquare, Square, ArrowRight } from 'lucide-react';
@@ -55,20 +56,35 @@ export function CopyScheduleModal({ isOpen, onClose, fromDay }: CopyScheduleModa
     onClose();
   };
 
-  if (!isOpen || !mounted || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 p-5 sm:p-6 space-y-5"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
+    <AnimatePresence>
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-hidden pointer-events-auto"
+        >
+          {/* Backdrop Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/75 backdrop-blur-md"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl overflow-hidden p-5 sm:p-6 space-y-5 z-10"
+          >
+            {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/30 text-[var(--accent)] flex items-center justify-center">
@@ -184,8 +200,10 @@ export function CopyScheduleModal({ isOpen, onClose, fromDay }: CopyScheduleModa
             <span>Apply to {selectedTargets.length} {selectedTargets.length === 1 ? 'Day' : 'Days'}</span>
           </button>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }
