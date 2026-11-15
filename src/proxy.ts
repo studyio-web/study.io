@@ -10,7 +10,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Other authentication, static verification, and API route bypasses:
+  // Other authentication, static verification, APK downloads, and API route bypasses:
   if (
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
@@ -18,6 +18,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/.well-known') ||
     pathname.startsWith('/google') ||
     pathname.endsWith('.html') ||
+    pathname.endsWith('.apk') ||
+    pathname.startsWith('/studyio') ||
+    pathname.startsWith('/study.io') ||
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml'
   ) {
@@ -128,6 +131,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (images, audio, verification html, sitemaps, robots, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|google.*\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg|html|txt|xml)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|google.*\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg|html|txt|xml|apk)$).*)',
   ],
 };
