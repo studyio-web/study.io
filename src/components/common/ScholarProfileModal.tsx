@@ -11,6 +11,7 @@ import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak, calculateGoalStreak } from '../../lib/mockData';
 import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
+import { ClassicNudgeButton } from '../rooms/ClassicNudgeButton';
 
 export interface ScholarModalData {
   userId: string;
@@ -36,6 +37,9 @@ interface ScholarProfileModalProps {
   onClose: () => void;
   // Fallback for current logged in user sessions if available
   currentUserSessions?: Array<{ durationSeconds?: number; startTime?: string | Date }>;
+  onNudge?: (userId: string, username: string) => void;
+  nudgeCooldown?: number;
+  isSelf?: boolean;
 }
 
 function formatHoursMinutes(totalSeconds: number): { formatted: string; decimalHours: string } {
@@ -54,6 +58,9 @@ export function ScholarProfileModal({
   isOpen,
   onClose,
   currentUserSessions,
+  onNudge,
+  nudgeCooldown,
+  isSelf,
 }: ScholarProfileModalProps) {
   const [mounted, setMounted] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -557,7 +564,20 @@ export function ScholarProfileModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end p-4 sm:p-5 border-t border-[var(--border)] bg-[var(--surface-2)]/40 shrink-0">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-t border-[var(--border)] bg-[var(--surface-2)]/40 shrink-0 gap-3">
+          {onNudge && !isSelf && scholar ? (
+            <ClassicNudgeButton
+              targetUserId={scholar.userId}
+              targetUsername={scholar.name || scholar.username || 'Scholar'}
+              onNudge={() => onNudge(scholar.userId, scholar.name || scholar.username || 'Scholar')}
+              cooldownSeconds={nudgeCooldown || 0}
+              size="md"
+              label="NUDGE"
+            />
+          ) : (
+            <div />
+          )}
+
           <button
             type="button"
             onClick={onClose}

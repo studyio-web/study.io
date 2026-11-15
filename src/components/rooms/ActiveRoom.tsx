@@ -35,6 +35,7 @@ import {
   UserCheck,
   MoreVertical,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../common/UserAvatar';
@@ -43,6 +44,9 @@ import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { AvatarFlairRing, FlairCrown } from '../common/FlairBadge';
 import { ProAvatarRing } from '../ui/ProAvatarRing';
 import { ScholarProfileModal, ScholarModalData } from '../common/ScholarProfileModal';
+import { ClassicNudgeButton } from './ClassicNudgeButton';
+import { playClassicNudgeSound } from '../../lib/nudgeSound';
+import { triggerHaptic } from '../../lib/native-feel';
 import { getSupabase, broadcast } from '../../lib/supabase';
 import {
   updateRoomSettingsAction,
@@ -224,6 +228,107 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
   // Scholar profile modal state
   const [selectedScholar, setSelectedScholar] = useState<ScholarModalData | null>(null);
+
+  // Classic Nudge State
+  const [nudgeCooldowns, setNudgeCooldowns] = useState<Record<string, number>>({});
+  const [recentlyNudgedUsers, setRecentlyNudgedUsers] = useState<Record<string, { fromUsername: string; timestamp: number }>>({});
+  const [isScreenShaking, setIsScreenShaking] = useState(false);
+
+  // Cooldown countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNudgeCooldowns((prev) => {
+        let hasActive = false;
+        const next: Record<string, number> = {};
+        for (const [uid, sec] of Object.entries(prev)) {
+          if (sec > 1) {
+            next[uid] = sec - 1;
+            hasActive = true;
+          }
+        }
+        return hasActive || Object.keys(prev).length > 0 ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleIncomingNudge = useCallback((payload: any) => {
+    if (!payload || !payload.targetUserId) return;
+
+    // 1. Highlight target user's avatar card in the room with animated reaction
+    setRecentlyNudgedUsers((prev) => ({
+      ...prev,
+      [payload.targetUserId]: {
+        fromUsername: payload.fromUsername || 'A scholar',
+        timestamp: Date.now(),
+      },
+    }));
+
+    setTimeout(() => {
+      setRecentlyNudgedUsers((prev) => {
+        const next = { ...prev };
+        delete next[payload.targetUserId];
+        return next;
+      });
+    }, 3500);
+
+    // 2. If the current logged-in user is the recipient of the nudge:
+    if (payload.targetUserId === user?.id) {
+      playClassicNudgeSound();
+      triggerHaptic('heavy');
+      setIsScreenShaking(true);
+      setTimeout(() => setIsScreenShaking(false), 500);
+
+      toast((t) => (
+        <div className="flex items-center gap-3 py-1">
+          <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-base shrink-0 animate-bounce">
+            ⚡
+          </div>
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">Focus Nudge</div>
+            <div className="text-xs font-semibold text-white">
+              <span className="text-amber-300 font-bold">{payload.fromUsername || 'A scholar'}</span> nudged you to focus!
+            </div>
+          </div>
+        </div>
+      ), { duration: 4500, position: 'top-center' });
+    }
+  }, [user?.id]);
+
+  const handleSendNudge = useCallback(async (targetUserId: string, targetUsername: string) => {
+    if (!user?.id || targetUserId === user.id) return;
+    if ((nudgeCooldowns[targetUserId] || 0) > 0) return;
+
+    // 15-second classic cooldown per target scholar
+    setNudgeCooldowns((prev) => ({ ...prev, [targetUserId]: 15 }));
+    triggerHaptic('medium');
+    playClassicNudgeSound();
+
+    const senderName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'A scholar';
+
+    try {
+      const supabase = getSupabase();
+      if (supabase && roomId) {
+        const hubChannel = supabase.channel(`room_members_hub_${roomId}`);
+        await hubChannel.send({
+          type: 'broadcast',
+          event: 'member_nudged',
+          payload: {
+            fromUserId: user.id,
+            fromUsername: senderName,
+            fromAvatarUrl: user.user_metadata?.avatar_url,
+            targetUserId,
+            targetUsername,
+            timestamp: Date.now(),
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to broadcast nudge:', err);
+    }
+
+    toast.success(`Nudged ${targetUsername}! ⚡`, { duration: 2500 });
+  }, [user, roomId, nudgeCooldowns]);
 
   const handleOpenScholarModal = (u: any) => {
     if (!u || !u.user_id) return;
@@ -848,12 +953,15 @@ CREATE POLICY "Hosts can update their own study rooms"
         fetchRoomMembers();
         fetchMessages();
       })
+      .on('broadcast', { event: 'member_nudged' }, (payload: any) => {
+        handleIncomingNudge(payload.payload);
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(hubChannel);
     };
-  }, [roomId, fetchRoomMembers, handleFocusUpdate, sendFocusBroadcast]);
+  }, [roomId, fetchRoomMembers, handleFocusUpdate, sendFocusBroadcast, handleIncomingNudge]);
 
   // Realtime Presence Channel
   useEffect(() => {
@@ -1834,7 +1942,33 @@ CREATE POLICY "Hosts can update their own study rooms"
   };
 
   return (
-    <div data-no-swipe="true" className="w-full h-full flex-1 min-h-0 bg-transparent flex flex-col relative text-slate-200 overflow-hidden">
+    <div
+      data-no-swipe="true"
+      className={`w-full h-full flex-1 min-h-0 bg-transparent flex flex-col relative text-slate-200 overflow-hidden ${
+        isScreenShaking ? 'animate-classic-nudge-shake' : ''
+      }`}
+    >
+      <style>{`
+        @keyframes classicNudgeShake {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          15% { transform: translate(-5px, 3px) rotate(-0.75deg); }
+          30% { transform: translate(5px, -3px) rotate(0.75deg); }
+          45% { transform: translate(-4px, 2px) rotate(-0.5deg); }
+          60% { transform: translate(4px, -2px) rotate(0.5deg); }
+          75% { transform: translate(-2px, 1px) rotate(-0.25deg); }
+          90% { transform: translate(1px, -0.5px) rotate(0deg); }
+        }
+        .animate-classic-nudge-shake {
+          animation: classicNudgeShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+        @keyframes classicNudgePulse {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0)); }
+          50% { transform: scale(1.08); filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.85)); }
+        }
+        .animate-nudged-avatar {
+          animation: classicNudgePulse 0.75s ease-in-out infinite;
+        }
+      `}</style>
       <header className="shrink-0 flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-transparent">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
@@ -1932,7 +2066,13 @@ CREATE POLICY "Hosts can update their own study rooms"
                   tabIndex={0}
                   className="flex flex-col items-center gap-2 group relative transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 select-none"
                 >
-                  <div className="relative">
+                  <div className={`relative ${recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''}`}>
+                    {recentlyNudgedUsers[u.user_id] && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none whitespace-nowrap bg-amber-500 text-black font-mono font-black text-[9px] px-2 py-0.5 rounded-full shadow-[0_0_12px_#f59e0b] border border-amber-300 flex items-center gap-1 animate-bounce">
+                        <Zap className="w-2.5 h-2.5 fill-black" />
+                        <span>NUDGED!</span>
+                      </div>
+                    )}
                     <ProAvatarRing
                       isPro={Boolean(u.is_premium || flairMap[u.user_id] || (u.is_current_user && isPremium))}
                       isStudying={isStudying}
@@ -2046,6 +2186,22 @@ CREATE POLICY "Hosts can update their own study rooms"
                         </span>
                       )}
                     </div>
+
+                    {/* Classic Tactile Nudge Button for everyone to nudge peers */}
+                    {!u.is_current_user && (
+                      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                        <ClassicNudgeButton
+                          targetUserId={u.user_id}
+                          targetUsername={u.username}
+                          onNudge={(e) => {
+                            e.stopPropagation();
+                            handleSendNudge(u.user_id, u.username);
+                          }}
+                          cooldownSeconds={nudgeCooldowns[u.user_id] || 0}
+                          size="sm"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -2750,16 +2906,31 @@ CREATE POLICY "Hosts can update their own study rooms"
                           </div>
                         </div>
 
-                        {!member.is_host && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setMemberToBan({ userId: member.user_id, username: member.username }); }}
-                            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-500/60 text-rose-400 text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                            <span>BAN</span>
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {!member.is_current_user && (
+                            <ClassicNudgeButton
+                              targetUserId={member.user_id}
+                              targetUsername={member.username}
+                              onNudge={(e) => {
+                                e.stopPropagation();
+                                handleSendNudge(member.user_id, member.username);
+                              }}
+                              cooldownSeconds={nudgeCooldowns[member.user_id] || 0}
+                              size="sm"
+                            />
+                          )}
+
+                          {isHost && !member.is_host && !member.is_current_user && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setMemberToBan({ userId: member.user_id, username: member.username }); }}
+                              className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-500/60 text-rose-400 text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              <span>BAN</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3025,6 +3196,9 @@ CREATE POLICY "Hosts can update their own study rooms"
         scholar={selectedScholar}
         isOpen={Boolean(selectedScholar)}
         onClose={() => setSelectedScholar(null)}
+        onNudge={(uid, name) => handleSendNudge(uid, name)}
+        nudgeCooldown={selectedScholar ? (nudgeCooldowns[selectedScholar.userId] || 0) : 0}
+        isSelf={selectedScholar?.userId === user?.id}
       />
 
 
