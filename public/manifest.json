@@ -3,15 +3,16 @@
   "short_name": "study.io",
   "description": "Gamified collaborative focus and habit tracking platform",
   "start_url": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "display_override": [
+    "fullscreen",
     "standalone",
     "minimal-ui",
     "browser"
   ],
   "orientation": "any",
-  "background_color": "#080b12",
-  "theme_color": "#080b12",
+  "background_color": "#050507",
+  "theme_color": "#050507",
   "categories": [
     "education",
     "productivity"

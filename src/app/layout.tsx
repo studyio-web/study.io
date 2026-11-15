@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Rajdhani, Chakra_Petch } from "next/font/google";
 import "./globals.css";
 import { Providers } from "../components/common/Providers";
+import { FullscreenEnforcer } from "../components/FullscreenEnforcer";
 import { THEME_META_MAP, DEFAULT_THEME } from "../lib/themes";
 
 const geistSans = Geist({
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: DEFAULT_THEME.themeColor,
+  themeColor: "#050507",
 };
 
 export const metadata: Metadata = {
@@ -100,7 +101,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${rajdhani.variable} ${chakraPetch.variable} dark antialiased`}
     >
       <head>
-        <meta name="theme-color" id="theme-color-meta" content={DEFAULT_THEME.themeColor} />
+        <meta name="theme-color" id="theme-color-meta" content="#050507" />
         <meta name="color-scheme" id="color-scheme-meta" content={DEFAULT_THEME.scheme} />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
@@ -126,6 +127,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen overflow-x-clip flex flex-col text-[var(--text)] bg-[var(--bg)] dark antialiased selection:bg-[var(--accent)]/30 selection:text-[var(--accent)]">
         <Providers>
+          <FullscreenEnforcer />
           {children}
         </Providers>
       </body>

@@ -67,7 +67,7 @@ export async function triggerHaptic(type: HapticType = 'light'): Promise<void> {
 /**
  * Updates the native Android Status Bar color to match the current theme.
  */
-export async function updateNativeStatusBar(color = '#07090E', isDark = true): Promise<void> {
+export async function updateNativeStatusBar(color = '#050507', isDark = true): Promise<void> {
   if (typeof window === 'undefined') return;
 
   try {
@@ -75,7 +75,12 @@ export async function updateNativeStatusBar(color = '#07090E', isDark = true): P
       await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
       await StatusBar.setBackgroundColor({ color });
       try {
-        await StatusBar.setOverlaysWebView({ overlay: false });
+        await StatusBar.hide();
+      } catch {
+        // Fallback
+      }
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: true });
       } catch {
         // Ignored on edge-to-edge Android releases
       }
@@ -91,7 +96,7 @@ export async function updateNativeStatusBar(color = '#07090E', isDark = true): P
  * - Navigates browser history if canGoBack is true.
  * - Otherwise exits or minimizes the app cleanly.
  */
-export async function initNativeAndroidBridge(defaultColor = '#07090E'): Promise<() => void> {
+export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise<() => void> {
   if (typeof window === 'undefined') return () => {};
 
   let backListenerHandle: { remove: () => void } | null = null;

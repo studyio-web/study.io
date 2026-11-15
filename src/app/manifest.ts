@@ -6,10 +6,10 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'study.io',
     description: 'Gamified collaborative focus and habit tracking platform',
     start_url: '/',
-    display: 'standalone',
+    display: 'fullscreen',
     orientation: 'any',
-    background_color: '#080b12',
-    theme_color: '#080b12',
+    background_color: '#050507',
+    theme_color: '#050507',
     icons: [
       {
         src: '/logo.png',
