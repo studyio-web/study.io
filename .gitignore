@@ -50,3 +50,7 @@ scratch/
 
 # rank normalization backups
 **/ranks/original/
+
+# APK binaries
+*.apk
+

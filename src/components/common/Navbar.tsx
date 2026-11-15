@@ -280,83 +280,60 @@ export function Navbar({
                   <span>study.io</span>
                 </div>
               </div>
+            </div>
 
-              {/* Navigation Tabs - Desktop HUD strip */}
-              <nav className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-card">
-                {([
-                  { id: 'timer', label: 'TIMER', Icon: Timer },
-                  { id: 'tasks', label: 'TASKS', Icon: CheckSquare },
-                  { id: 'analytics', label: 'STATS', Icon: BarChart3 },
-                  { id: 'leaderboard', label: 'LEADERBOARD', Icon: FacetedTrophyIcon },
-                  { id: 'rooms', label: 'ROOMS', Icon: Users },
-                ] as const).map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => handleTabClick(id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-hud font-bold tracking-wider uppercase transition-all cursor-pointer ${activeTab === id
+            {/* Navigation Tabs - Desktop HUD strip */}
+            <nav className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-card">
+              {([
+                { id: 'timer', label: 'TIMER', Icon: Timer },
+                { id: 'tasks', label: 'TASKS', Icon: CheckSquare },
+                { id: 'analytics', label: 'STATS', Icon: BarChart3 },
+                { id: 'rooms', label: 'ROOMS', Icon: Users },
+              ] as const).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => handleTabClick(id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-hud font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                    activeTab === id
                       ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm'
                       : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.06]'
-                      }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </nav>
-            </div>
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
           </div>
 
-          {/* Navigation Tabs - Desktop HUD strip */}
-          <nav className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-card">
-            {([
-              { id: 'timer', label: 'TIMER', Icon: Timer },
-              { id: 'tasks', label: 'TASKS', Icon: CheckSquare },
-              { id: 'analytics', label: 'STATS', Icon: BarChart3 },
-              { id: 'rooms', label: 'ROOMS', Icon: Users },
-            ] as const).map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                onClick={() => handleTabClick(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-hud font-bold tracking-wider uppercase transition-all cursor-pointer ${activeTab === id
-                  ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm'
-                  : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.06]'
-                  }`}
+          {/* Right Action Bar */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+
+            {/* Upgrade Header Link (Free users) or Pro Badge (Premium users) */}
+            {!isPremium ? (
+              <Link
+                href="/premium"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs font-hud font-bold tracking-wider uppercase text-[#1A1405] hover:opacity-95 active:scale-95 transition-all shadow-sm select-none flex-shrink-0"
+                style={{
+                  background: PREMIUM_GOLD_GRADIENT,
+                  boxShadow: `0 0 10px ${PREMIUM_GOLD_GLOW}`,
+                }}
+                title="Upgrade to Premium"
+                aria-label="Upgrade to Premium"
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Notifications Bell */}
-        <NotificationBell onNavigateToRooms={() => setActiveTab('rooms')} />
-
-        {/* Sign In Button (if not authenticated) */}
-        {!isAuthenticated ? (
-          <Link
-            href="/login"
-            className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-[var(--accent-contrast)] font-bold text-xs transition-all hover:scale-105 active:scale-95 flex-shrink-0 font-hud tracking-wider"
-            style={{ background: 'var(--accent)', boxShadow: `0 0 14px ${theme.glow}` }}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>SIGN IN</span>
-          </Link>
-        ) : (
-          <div className="flex items-center gap-2">
-            {/* Streak Pill */}
-            <StreakBadge streak={displayStreak} />
-
-            {/* Rank Status Pill */}
-            {isLoading && (!user || user.id.startsWith('user-scholar') || user.id === 'guest') ? (
-              <div className="relative flex items-center h-8 sm:h-9 w-24 sm:w-28 bg-[var(--surface)] border border-[var(--border)] shadow-card rounded-xl animate-pulse overflow-hidden">
-                <div className="w-6 h-6 rounded-full bg-fg/10 ml-1.5"></div>
-                <div className="w-10 h-3 bg-fg/10 ml-2 rounded"></div>
-              </div>
+                <Crown className="w-3.5 h-3.5 fill-current" />
+                <span className="hidden sm:inline">UPGRADE</span>
+              </Link>
             ) : (
-              <div
-                className="relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] shadow-card cursor-default select-none rounded-xl"
-                title={`Ranked Season RP: ${liveSeasonRp.toLocaleString()} RP (${liveRank.name.toUpperCase()})`}
+              <Link
+                href="/premium"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs font-hud font-bold tracking-wider uppercase text-[#1A1405] hover:opacity-95 active:scale-95 transition-all shadow-sm select-none flex-shrink-0"
+                style={{
+                  background: PREMIUM_GOLD_GRADIENT,
+                  boxShadow: `0 0 10px ${PREMIUM_GOLD_GLOW}`,
+                }}
+                title="Premium Active — Click to view membership status"
+                aria-label="Premium Active"
               >
                 <Crown className="w-3.5 h-3.5 fill-current" />
                 <span className="hidden sm:inline">PRO</span>
@@ -388,10 +365,11 @@ export function Navbar({
                   <button
                     type="button"
                     onClick={() => handleTabClick('leaderboard')}
-                    className={`relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border text-[var(--text)] shadow-card cursor-pointer select-none rounded-xl transition-all hover:scale-105 active:scale-95 ${activeTab === 'leaderboard'
-                      ? 'border-[var(--tier-accent)] ring-1 ring-[var(--tier-accent)] bg-fg/[0.08]'
-                      : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-fg/[0.04]'
-                      }`}
+                    className={`relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border text-[var(--text)] shadow-card cursor-pointer select-none rounded-xl transition-all hover:scale-105 active:scale-95 ${
+                      activeTab === 'leaderboard'
+                        ? 'border-[var(--tier-accent)] ring-1 ring-[var(--tier-accent)] bg-fg/[0.08]'
+                        : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-fg/[0.04]'
+                    }`}
                     title={`View Leaderboard • Ranked Season RP: ${liveSeasonRp.toLocaleString()} RP (${liveRank.name.toUpperCase()})`}
                     aria-label={`Open Leaderboard • Current Rank: ${liveRank.name.toUpperCase()}`}
                   >
@@ -413,8 +391,6 @@ export function Navbar({
                 )}
               </div>
             )}
-          </div>
-        )}
 
 
 
@@ -521,144 +497,164 @@ export function Navbar({
           </button>
 
           {/* Interactive User Account Dropdown with Full Gamification Dashboard */}
-          {showPersonaMenu && (
-            <div className="absolute right-0 mt-2.5 w-80 rounded-2xl bg-[var(--surface)] backdrop-blur-2xl border border-[var(--border)] shadow-card p-4 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
-              {/* Subtle ambient accent glow */}
-              <div
-                className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none opacity-20"
-                style={{ backgroundColor: 'var(--accent)' }}
-              />
+          <AnimatePresence>
+            {showPersonaMenu && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                className="absolute right-0 mt-2.5 w-80 rounded-2xl bg-[var(--surface)] backdrop-blur-2xl border border-[var(--border)] shadow-card p-4 z-50 overflow-hidden"
+              >
+                {/* Subtle ambient accent glow */}
+                <div
+                  className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none opacity-20"
+                  style={{ backgroundColor: 'var(--accent)' }}
+                />
 
-              {/* User Header */}
-              <div className="pb-3 border-b border-fg/[0.08] relative z-10">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 pr-2">
-                    <div className="font-bold text-sm text-[var(--text)] truncate flex items-center gap-1">
-                      <span className="truncate">{displayName}</span>
-                      {isPremium && (
-                        <span title="Verified Scholar" className="flex items-center flex-shrink-0">
-                          <Check
-                            className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
-                            strokeWidth={3.85}
-                            aria-hidden="true"
-                          />
-                        </span>
-                      )}
+                {/* User Header */}
+                <div className="pb-3 border-b border-fg/[0.08] relative z-10">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 pr-2">
+                      <div className="font-bold text-sm text-[var(--text)] truncate flex items-center gap-1">
+                        <span className="truncate">{displayName}</span>
+                        {isPremium && (
+                          <span title="Verified Scholar" className="flex items-center flex-shrink-0">
+                            <Check
+                              className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                              strokeWidth={3.85}
+                              aria-hidden="true"
+                            />
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-[var(--text-dim)] truncate mt-0.5">
+                        {user?.username ? `@${user.username} • ` : ''}{user?.email}
+                      </div>
                     </div>
-                    <div className="text-[10px] font-mono text-[var(--text-dim)] truncate mt-0.5">
-                      {user?.username ? `@${user.username} • ` : ''}{user?.email}
-                    </div>
+                    <span className="text-base flex-shrink-0">{effectiveTierBadge.icon}</span>
                   </div>
-                  <span className="text-base flex-shrink-0">{effectiveTierBadge.icon}</span>
+
+                  {/* Level & Title Pill + Streak */}
+                  <div className="mt-2.5 flex items-center justify-between">
+                    <span className="text-[10px] font-hud font-bold tracking-wider uppercase px-2 py-0.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-dim)]">
+                      Lv. {effectiveLevel} · {effectiveTitle}
+                    </span>
+                    <span className="text-amber-400 font-mono font-bold text-xs flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 fill-amber-400" />
+                      {displayStreak}d
+                    </span>
+                  </div>
                 </div>
 
-              {/* Interactive User Account Dropdown with Full Gamification Dashboard */}
-              <AnimatePresence>
-                {showPersonaMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -6 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                    className="absolute right-0 mt-2.5 w-80 rounded-2xl bg-[var(--surface)] backdrop-blur-2xl border border-[var(--border)] shadow-card p-4 z-50 overflow-hidden"
+                {/* Gamification Progress Card */}
+                <div className="my-3 p-3 rounded-xl bg-fg/[0.03] backdrop-blur-md border border-fg/[0.08] relative z-10">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="text-[var(--text-dim)] font-hud text-[11px] font-bold tracking-wider uppercase flex items-center gap-1.5">
+                      <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Total XP</span>
+                    </span>
+                    <span className="text-[var(--text)] font-extrabold font-mono text-xs">
+                      {gamification.totalXP.toLocaleString()} XP
+                    </span>
+                  </div>
+
+                  {/* Mini Progress Bar */}
+                  <div className="w-full h-1.5 rounded-full bg-fg/[0.08] overflow-hidden relative">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ background: 'var(--tier-gradient)', width: `${gamification.progressPercent}%` }}
+                    />
+                  </div>
+
+                  {/* XP Footnote */}
+                  <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--text-dim)]">
+                    <span>{gamification.xpInCurrentLevel} / {gamification.xpNeededForNextLevel} XP</span>
+                    <span className="font-semibold font-mono" style={{ color: theme.accent }}>
+                      {gamification.xpRemaining} XP to Lv. {gamification.level + 1}
+                    </span>
+                  </div>
+
+                  {/* XP Sources Breakdown */}
+                  <div className="mt-2.5 pt-2 border-t border-fg/[0.06] grid grid-cols-3 gap-1.5 text-[9px] text-center font-mono">
+                    <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
+                      <div className="text-[var(--text-dim)] text-[10px]">Focus</div>
+                      <div className="font-bold mt-0.5" style={{ color: theme.accent }}>+{gamification.focusXP}</div>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
+                      <div className="text-[var(--text-dim)] text-[10px]">Tasks</div>
+                      <div className="text-cyan-400 font-bold mt-0.5">+{gamification.todoXP}</div>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
+                      <div className="text-[var(--text-dim)] text-[10px]">Streak</div>
+                      <div className="text-amber-400 font-bold mt-0.5">+{gamification.streakXP}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-1 relative z-10">
+                  <button
+                    onClick={() => { onOpenProfile(); setShowPersonaMenu(false); }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
                   >
-                    {/* Subtle ambient accent glow */}
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ background: 'var(--tier-gradient)', width: `${gamification.progressPercent}%` }}
-                  />
+                    <User className="w-3.5 h-3.5 text-[var(--text-dim)]" />
+                    <span>EDIT PROFILE</span>
+                  </button>
+
+                  <button
+                    onClick={() => { onOpenSettings(); setShowPersonaMenu(false); }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
+                  >
+                    <FacetedGearIcon className="w-3.5 h-3.5 text-[var(--text-dim)]" />
+                    <span>SETTINGS &amp; PREFERENCES</span>
+                  </button>
+
+                  <Link
+                    href="/premium"
+                    onClick={() => setShowPersonaMenu(false)}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[#E6C15A] hover:bg-[#E6C15A]/10 border border-transparent hover:border-[#E6C15A]/20 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
+                  >
+                    <Crown className="w-3.5 h-3.5 fill-current" />
+                    <span>{isPremium ? 'PREMIUM MEMBERSHIP' : 'UPGRADE TO PREMIUM'}</span>
+                  </Link>
+
+                  <button
+                    onClick={() => {
+                      setIsHelpOpen(true);
+                      setShowPersonaMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-[var(--text-dim)]" />
+                    <span>HELP &amp; FEEDBACK</span>
+                  </button>
+
+                  {!isAuthenticated ? (
+                    <button
+                      onClick={() => { onOpenAuth(); setShowPersonaMenu(false); }}
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>SIGN IN / SWITCH ACCOUNT</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { logout(); setShowPersonaMenu(false); }}
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>SIGN OUT</span>
+                    </button>
+                  )}
                 </div>
-
-                {/* XP Footnote */}
-                <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--text-dim)]">
-                  <span>{gamification.xpInCurrentLevel} / {gamification.xpNeededForNextLevel} XP</span>
-                  <span className="font-semibold font-mono" style={{ color: theme.accent }}>
-                    {gamification.xpRemaining} XP to Lv. {gamification.level + 1}
-                  </span>
-                </div>
-
-                {/* XP Sources Breakdown */}
-                <div className="mt-2.5 pt-2 border-t border-fg/[0.06] grid grid-cols-3 gap-1.5 text-[9px] text-center font-mono">
-                  <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
-                    <div className="text-[var(--text-dim)] text-[10px]">Focus</div>
-                    <div className="font-bold mt-0.5" style={{ color: theme.accent }}>+{gamification.focusXP}</div>
-                  </div>
-                  <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
-                    <div className="text-[var(--text-dim)] text-[10px]">Tasks</div>
-                    <div className="text-cyan-400 font-bold mt-0.5">+{gamification.todoXP}</div>
-                  </div>
-                  <div className="p-1.5 rounded-lg bg-fg/[0.02] border border-fg/[0.05]">
-                    <div className="text-[var(--text-dim)] text-[10px]">Streak</div>
-                    <div className="text-amber-400 font-bold mt-0.5">+{gamification.streakXP}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="space-y-1 relative z-10">
-                <button
-                  onClick={() => { onOpenProfile(); setShowPersonaMenu(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
-                >
-                  <User className="w-3.5 h-3.5 text-[var(--text-dim)]" />
-                  <span>EDIT PROFILE</span>
-                </button>
-
-                <button
-                  onClick={() => { onOpenSettings(); setShowPersonaMenu(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
-                >
-                  <FacetedGearIcon className="w-3.5 h-3.5 text-[var(--text-dim)]" />
-                  <span>SETTINGS &amp; PREFERENCES</span>
-                </button>
-
-                <Link
-                  href="/premium"
-                  onClick={() => setShowPersonaMenu(false)}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[#E6C15A] hover:bg-[#E6C15A]/10 border border-transparent hover:border-[#E6C15A]/20 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
-                >
-                  <Crown className="w-3.5 h-3.5 fill-current" />
-                  <span>{isPremium ? 'PREMIUM MEMBERSHIP' : 'UPGRADE TO PREMIUM'}</span>
-                </Link>
-
-                <button
-                  onClick={() => {
-                    setIsHelpOpen(true);
-                    setShowPersonaMenu(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
-                >
-                  <HelpCircle className="w-3.5 h-3.5 text-[var(--text-dim)]" />
-                  <span>HELP &amp; FEEDBACK</span>
-                </button>
-
-                    {!isAuthenticated ? (
-                      <button
-                        onClick={() => { onOpenAuth(); setShowPersonaMenu(false); }}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all flex items-center gap-2.5 cursor-pointer"
-                      >
-                        <LogIn className="w-3.5 h-3.5" />
-                        <span>SIGN IN / SWITCH ACCOUNT</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { logout(); setShowPersonaMenu(false); }}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex items-center gap-2.5 cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>SIGN OUT</span>
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
         </div>
       </div>
-    </div >
-      </header >
+    </header>
 
     {/* Mobile Floating Dock Navigation: Full-width Pill with Sliding Tier Indicator */ }
     < div className = "fixed bottom-3 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,16px)] pointer-events-none" >
@@ -739,11 +735,10 @@ export function Navbar({
           </button>
         </div>
       </nav>
-    </div >
+    </div>
 
-    {/* Help & Feedback Modal */ }
-    < HelpFeedbackModal isOpen = { isHelpOpen } onClose = {() => setIsHelpOpen(false)
-} />
+    {/* Help & Feedback Modal */}
+    <HelpFeedbackModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
 }

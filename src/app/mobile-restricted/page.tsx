@@ -84,7 +84,6 @@ const APP_FEATURES: FeatureItem[] = [
 
 export default function MobileRestrictedPage() {
   const router = useRouter();
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isNativeApp, setIsNativeApp] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -133,22 +132,7 @@ export default function MobileRestrictedPage() {
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const touchStartYRef = useRef<number | null>(null);
 
-  // Keep existing APK URL & download handler
-  const apkUrl = '/downloads/study-io.apk';
   const versionString = 'Android, v2.4';
-
-  const handleDownload = useCallback(() => {
-    setIsDownloading(true);
-    const link = document.createElement('a');
-    link.href = apkUrl;
-    link.download = 'study-io.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => {
-      setIsDownloading(false);
-    }, 4000);
-  }, [apkUrl]);
 
   // Ensure page loads scrolled to top
   useEffect(() => {
@@ -387,17 +371,17 @@ export default function MobileRestrictedPage() {
         <footer className="sticky bottom-0 left-0 right-0 z-30 bg-[#07090C]/90 backdrop-blur-xl border-t border-white/[0.08] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] shrink-0 animate-rise-5">
           <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-2">
             {/* Primary Button matching the app's clean white primary buttons */}
-            <button
-              type="button"
-              onClick={handleDownload}
+            <a
+              href="/studyio.apk"
+              download="study.io.apk"
               className="relative overflow-hidden w-full h-[56px] min-h-[56px] rounded-[16px] bg-white text-[#07090E] font-bold text-sm sm:text-base tracking-wide flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.12)] hover:bg-slate-100 transition-all duration-150 active:scale-[0.98] cursor-pointer"
             >
               {/* Subtle light sweep across button every 8s */}
               <div className="button-sweep absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-black/10 to-transparent skew-x-[-25deg] pointer-events-none" />
 
               <Download className="w-5 h-5 stroke-[2.5]" />
-              <span>{isDownloading ? 'Downloading...' : 'Download for Android'}</span>
-            </button>
+              <span>Download for Android</span>
+            </a>
 
             {/* Under button version string */}
             <span className="text-[11px] font-mono text-slate-400 tracking-tight">
@@ -509,14 +493,14 @@ export default function MobileRestrictedPage() {
             {/* Sheet Footer: Repeats Solid White Download Button */}
             {!isNativeApp && (
               <div className="p-4 border-t border-white/[0.08] bg-[#0B0D13] shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
-                <button
-                  type="button"
-                  onClick={handleDownload}
+                <a
+                  href="/studyio.apk"
+                  download="study.io.apk"
                   className="w-full h-[52px] rounded-xl bg-white text-[#07090E] font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-md hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4 stroke-[2.5]" />
-                  <span>{isDownloading ? 'Downloading...' : 'Download for Android'}</span>
-                </button>
+                  <span>Download for Android</span>
+                </a>
               </div>
             )}
           </div>
