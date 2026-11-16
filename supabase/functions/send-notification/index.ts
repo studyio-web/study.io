@@ -180,6 +180,12 @@ Deno.serve(async (req: Request) => {
       },
       android: {
         priority: 'high' as const,
+        notification: {
+          channelId: 'social_nudges',
+          sound: 'default',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
     };
 
