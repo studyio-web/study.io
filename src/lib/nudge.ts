@@ -26,36 +26,14 @@ export function formatNudgeCooldown(seconds: number): string {
 }
 
 /**
- * Retrieve active nudge timestamps from localStorage for a given room and sender user.
- * Key: targetUserId -> epoch timestamp (ms)
- * Scoped per sender user ID so one user's nudge never places other users on cooldown.
+ * Retrieve active nudge timestamps (cooldown disabled - returns empty map).
  */
 export function loadStoredNudgeTimestamps(roomId?: string, senderUserId?: string): Record<string, number> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const key = senderUserId
-      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
-      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
-    const raw = localStorage.getItem(key);
-    if (!raw) return {};
-    const parsed: Record<string, number> = JSON.parse(raw);
-    const now = Date.now();
-    const active: Record<string, number> = {};
-
-    for (const [targetId, ts] of Object.entries(parsed)) {
-      if (typeof ts === 'number' && now - ts < THREE_HOURS_MS) {
-        active[targetId] = ts;
-      }
-    }
-    return active;
-  } catch {
-    return {};
-  }
+  return {};
 }
 
 /**
- * Persist a nudge event to localStorage so the 3-hour cooldown survives page reloads.
- * Cooldown is stored strictly for the sender user who initiated the nudge.
+ * Persist a nudge event (cooldown disabled - no-op).
  */
 export function persistNudgeTimestamp(
   targetUserId: string,
@@ -63,25 +41,14 @@ export function persistNudgeTimestamp(
   timestamp: number = Date.now(),
   senderUserId?: string
 ): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const key = senderUserId
-      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
-      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
-    const active = loadStoredNudgeTimestamps(roomId, senderUserId);
-    active[targetUserId] = timestamp;
-    localStorage.setItem(key, JSON.stringify(active));
-  } catch {}
+  // Cooldown disabled - no persistence needed
 }
 
 /**
- * Calculate remaining seconds of cooldown for a specific scholar.
+ * Calculate remaining seconds of cooldown (cooldown disabled - always returns 0).
  */
-export function getRemainingNudgeCooldownSeconds(timestamp: number): number {
-  if (!timestamp) return 0;
-  const elapsedMs = Date.now() - timestamp;
-  if (elapsedMs >= THREE_HOURS_MS) return 0;
-  return Math.ceil((THREE_HOURS_MS - elapsedMs) / 1000);
+export function getRemainingNudgeCooldownSeconds(timestamp?: number): number {
+  return 0;
 }
 
 import { notify, requestNotificationPermission } from './notifications';

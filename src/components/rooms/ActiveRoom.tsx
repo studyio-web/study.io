@@ -50,11 +50,6 @@ import { playClassicNudgeSound } from '../../lib/nudgeSound';
 import { triggerHaptic } from '../../lib/native-feel';
 import { hapticMedium, hapticTick, isHapticsEnabled, setHapticsEnabled } from '@/lib/haptics';
 import {
-  THREE_HOURS_MS,
-  formatNudgeCooldown,
-  loadStoredNudgeTimestamps,
-  persistNudgeTimestamp,
-  getRemainingNudgeCooldownSeconds,
   requestNudgeNotificationPermission,
   triggerNudgePushNotification,
 } from '../../lib/nudge';
@@ -264,55 +259,20 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   // Scholar profile modal state
   const [selectedScholar, setSelectedScholar] = useState<ScholarModalData | null>(null);
 
-  // Classic Nudge State & 3-Hour Rate Limiting
-  const [nudgeTimestamps, setNudgeTimestamps] = useState<Record<string, number>>(() => {
-    return loadStoredNudgeTimestamps(roomId, user?.id);
-  });
-  const [nudgeCooldowns, setNudgeCooldowns] = useState<Record<string, number>>({});
+  // Classic Nudge State
   const [recentlyNudgedUsers, setRecentlyNudgedUsers] = useState<Record<string, { fromUsername: string; timestamp: number }>>({});
   const [isScreenShaking, setIsScreenShaking] = useState(false);
-
-  // Sync stored nudge timestamps whenever user or room changes
-  useEffect(() => {
-    if (user?.id) {
-      setNudgeTimestamps(loadStoredNudgeTimestamps(roomId, user.id));
-    }
-  }, [roomId, user?.id]);
 
   // Request browser notification permission early on room entry
   useEffect(() => {
     requestNudgeNotificationPermission().catch(() => {});
   }, []);
 
-  // Compute live remaining cooldown seconds from timestamps
-  useEffect(() => {
-    const updateCooldowns = () => {
-      const next: Record<string, number> = {};
-      for (const [uid, ts] of Object.entries(nudgeTimestamps)) {
-        const remaining = getRemainingNudgeCooldownSeconds(ts);
-        if (remaining > 0) {
-          next[uid] = remaining;
-        }
-      }
-      setNudgeCooldowns(next);
-    };
-
-    updateCooldowns();
-    const timer = setInterval(updateCooldowns, 1000);
-    return () => clearInterval(timer);
-  }, [nudgeTimestamps]);
-
   const handleIncomingNudge = useCallback((payload: any) => {
     if (!payload || !payload.targetUserId) return;
     const ts = payload.timestamp || Date.now();
 
-    // 1. Mark target scholar as having a 3-hour cooldown ONLY if the current user sent the nudge
-    if (payload.fromUserId && payload.fromUserId === user?.id) {
-      setNudgeTimestamps((prev) => ({ ...prev, [payload.targetUserId]: ts }));
-      persistNudgeTimestamp(payload.targetUserId, roomId, ts, user.id);
-    }
-
-    // 2. Highlight target user's avatar card in the room with animated reaction for everyone in room
+    // 1. Highlight target user's avatar card in the room with animated reaction for everyone in room
     setRecentlyNudgedUsers((prev) => ({
       ...prev,
       [payload.targetUserId]: {
@@ -329,7 +289,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
       });
     }, 3500);
 
-    // 3. If the current logged-in user is the recipient of the nudge:
+    // 2. If the current logged-in user is the recipient of the nudge:
     if (payload.targetUserId === user?.id) {
       playClassicNudgeSound();
       triggerHaptic('heavy');
@@ -353,22 +313,12 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
         </div>
       ), { duration: 5500, position: 'top-center' });
     }
-  }, [user?.id, roomId]);
+  }, [user?.id]);
 
   const handleSendNudge = useCallback(async (targetUserId: string, targetUsername: string) => {
     if (!user?.id || targetUserId === user.id) return;
 
-    // Check if target is on 3-hour cooldown for the CURRENT sender
-    const remaining = getRemainingNudgeCooldownSeconds(nudgeTimestamps[targetUserId]);
-    if (remaining > 0) {
-      toast.error(`Nudge on cooldown for ${targetUsername} (${formatNudgeCooldown(remaining)} left)`);
-      return;
-    }
-
     const now = Date.now();
-    // 3-hour cooldown stored locally for current user only
-    persistNudgeTimestamp(targetUserId, roomId, now, user.id);
-    setNudgeTimestamps((prev) => ({ ...prev, [targetUserId]: now }));
 
     triggerHaptic('medium');
     playClassicNudgeSound();
@@ -440,7 +390,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     }
 
     toast.success(`Nudged ${targetUsername}!`, { duration: 2500 });
-  }, [user, roomId, nudgeTimestamps]);
+  }, [user, roomId]);
 
   const handleOpenScholarModal = (u: any) => {
     if (!u || !u.user_id) return;
@@ -1306,32 +1256,6 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       const chronological = [...data].reverse();
       setMessages(chronological);
-
-      // Sync any active [SYSTEM_NUDGE] cooldowns from the past 3 hours for the CURRENT user only
-      const now = Date.now();
-      const nudgeMap: Record<string, number> = {};
-      data.forEach((m: any) => {
-        if (m.content?.startsWith('[SYSTEM_NUDGE]:')) {
-          try {
-            const parsed = JSON.parse(m.content.replace('[SYSTEM_NUDGE]:', ''));
-            // Enforce cooldown ONLY if the current logged-in user was the sender of that nudge
-            if (
-              user?.id &&
-              parsed.fromUserId === user.id &&
-              parsed.targetUserId &&
-              parsed.timestamp &&
-              now - parsed.timestamp < THREE_HOURS_MS
-            ) {
-              if (!nudgeMap[parsed.targetUserId] || parsed.timestamp > nudgeMap[parsed.targetUserId]) {
-                nudgeMap[parsed.targetUserId] = parsed.timestamp;
-              }
-            }
-          } catch {}
-        }
-      });
-      if (Object.keys(nudgeMap).length > 0) {
-        setNudgeTimestamps((prev) => ({ ...prev, ...nudgeMap }));
-      }
 
       if (data.length < 50) {
         setHasMoreMessages(false);
@@ -3015,7 +2939,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 e.stopPropagation();
                                 handleSendNudge(member.user_id, member.username);
                               }}
-                              cooldownSeconds={nudgeCooldowns[member.user_id] || 0}
+                              cooldownSeconds={0}
                               size="sm"
                             />
                           )}
@@ -3331,7 +3255,7 @@ CREATE POLICY "Hosts can update their own study rooms"
         isOpen={Boolean(selectedScholar)}
         onClose={() => setSelectedScholar(null)}
         onNudge={(uid, name) => handleSendNudge(uid, name)}
-        nudgeCooldown={selectedScholar ? (nudgeCooldowns[selectedScholar.userId] || 0) : 0}
+        nudgeCooldown={0}
         isSelf={selectedScholar?.userId === user?.id}
         isHost={isHost}
         onBan={(uid, name) => {
