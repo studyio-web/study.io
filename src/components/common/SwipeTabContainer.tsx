@@ -30,38 +30,58 @@ export function SwipeTabContainer({
   const activeIndex = Math.max(0, TABS.indexOf(activeTab));
   const [currentTabIdx, setCurrentTabIdx] = useState(activeIndex);
 
-  // Mutable refs for tracking gesture without ANY React re-renders during motion
+  // Mutable refs for zero-overhead, 120fps gesture tracking
   const isDraggingRef = useRef(false);
+  const isSwipeTransitioningRef = useRef(false);
   const dragXRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const isHorizontalLockRef = useRef<boolean | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentIdxRef = useRef(activeIndex);
+  const containerWidthRef = useRef(0);
 
-  // Keep track of which tabs have been visited so we preserve their mounted state
-  // On cold start, mount ONLY the active tab for instant sub-second first-frame paint
+  // Keep track of visited tabs to keep them mounted
   const [visitedIndices, setVisitedIndices] = useState<Set<number>>(() => new Set([activeIndex]));
 
-  // Idle background prefetch of neighbor tabs so swipe interactions stay silky smooth
+  // Progressive background prefetching:
+  // 1. Initial paint mounts only active tab for sub-500ms startup.
+  // 2. At 150ms, prefetch immediate neighbors so initial swipe is instantaneous.
+  // 3. At 800ms / idle, prefetch all remaining tabs so subsequent swipes have 0 lag.
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t1 = setTimeout(() => {
       setVisitedIndices((prev) => {
         const next = new Set(prev);
-        if (currentIdxRef.current > 0) next.add(currentIdxRef.current - 1);
-        if (currentIdxRef.current < TABS.length - 1) next.add(currentIdxRef.current + 1);
+        const idx = currentIdxRef.current;
+        if (idx > 0) next.add(idx - 1);
+        if (idx < TABS.length - 1) next.add(idx + 1);
         return next;
       });
-    }, 1200);
-    return () => clearTimeout(timer);
+    }, 150);
+
+    const t2 = setTimeout(() => {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => {
+          setVisitedIndices(new Set(TABS.map((_, i) => i)));
+        });
+      } else {
+        setVisitedIndices(new Set(TABS.map((_, i) => i)));
+      }
+    }, 800);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
-  // Synchronize track position when activeTab prop updates (e.g. from navbar clicks)
+  // Synchronize track position when activeTab prop updates (e.g. from navbar clicks or deep links)
   useEffect(() => {
     const idx = Math.max(0, TABS.indexOf(activeTab));
     currentIdxRef.current = idx;
     setCurrentTabIdx(idx);
 
     setVisitedIndices((prev) => {
+      if (prev.has(idx)) return prev;
       const next = new Set(prev);
       next.add(idx);
       if (idx > 0) next.add(idx - 1);
@@ -69,8 +89,9 @@ export function SwipeTabContainer({
       return next;
     });
 
-    if (trackRef.current && !isDraggingRef.current) {
-      trackRef.current.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1)';
+    // Don't interrupt if user is actively dragging or a swipe transition is in flight
+    if (trackRef.current && !isDraggingRef.current && !isSwipeTransitioningRef.current) {
+      trackRef.current.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
       trackRef.current.style.transform = `translate3d(-${idx * (100 / TABS.length)}%, 0, 0)`;
     }
   }, [activeTab]);
@@ -82,26 +103,25 @@ export function SwipeTabContainer({
     }
   }, []);
 
-  // Check if touch originated from a non-swipable element (horizontal carousels, sliders, text inputs)
+  // Fast native check for non-swipable elements without layout thrashing / getComputedStyle loops
   const isNonSwipable = useCallback((target: HTMLElement | null): boolean => {
-    let curr = target;
-    while (curr && curr !== containerRef.current && curr !== document.body) {
-      if (curr.getAttribute('data-no-swipe') === 'true') return true;
-      if (curr.tagName === 'INPUT' || curr.tagName === 'TEXTAREA' || curr.tagName === 'SELECT') return true;
-      // If element is horizontally scrollable
-      const style = window.getComputedStyle(curr);
-      if (
-        (style.overflowX === 'auto' || style.overflowX === 'scroll') &&
-        curr.scrollWidth > curr.clientWidth
-      ) {
+    if (!target) return false;
+    const nonSwipable = target.closest(
+      'input, textarea, select, [data-no-swipe="true"], .overflow-x-auto, .overflow-x-scroll'
+    );
+    if (nonSwipable) {
+      if (nonSwipable.getAttribute('data-no-swipe') === 'true') return true;
+      if (nonSwipable.tagName === 'INPUT' || nonSwipable.tagName === 'TEXTAREA' || nonSwipable.tagName === 'SELECT') {
         return true;
       }
-      curr = curr.parentElement;
+      if (nonSwipable.scrollWidth > nonSwipable.clientWidth) {
+        return true;
+      }
     }
     return false;
   }, []);
 
-  // Native non-passive touch listeners for 120fps hardware-accelerated direct DOM manipulation
+  // Native non-passive touch listeners for 120fps direct hardware compositing
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -114,6 +134,9 @@ export function SwipeTabContainer({
         return;
       }
 
+      // Cache container width once on touchstart to avoid any layout thrashing during touchmove
+      containerWidthRef.current = container.clientWidth || window.innerWidth || 360;
+
       touchStartRef.current = {
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
@@ -122,15 +145,6 @@ export function SwipeTabContainer({
       isHorizontalLockRef.current = null;
       isDraggingRef.current = false;
       dragXRef.current = 0;
-
-      // Ensure neighbor tabs are rendered as soon as user touches to drag
-      setVisitedIndices((prev) => {
-        const idx = currentIdxRef.current;
-        const next = new Set(prev);
-        if (idx > 0) next.add(idx - 1);
-        if (idx < TABS.length - 1) next.add(idx + 1);
-        return next;
-      });
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -140,48 +154,52 @@ export function SwipeTabContainer({
       const currentY = e.touches[0].clientY;
       const dx = currentX - touchStartRef.current.x;
       const dy = currentY - touchStartRef.current.y;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
 
-      // Disambiguate horizontal swipe vs vertical scroll with slight threshold
+      // Disambiguate horizontal swipe vs vertical scroll
       if (isHorizontalLockRef.current === null) {
-        const absDx = Math.abs(dx);
-        const absDy = Math.abs(dy);
+        // Wait until touch has moved at least 8px before deciding direction
+        if (absDx < 8 && absDy < 8) {
+          return;
+        }
 
-        if (absDx > 6 || absDy > 6) {
-          if (absDx > absDy * 1.1) {
-            isHorizontalLockRef.current = true;
-            isDraggingRef.current = true;
-            if (trackRef.current) {
-              trackRef.current.style.transition = 'none';
-            }
-          } else {
-            isHorizontalLockRef.current = false;
-            touchStartRef.current = null;
-            return;
+        if (absDx > absDy) {
+          isHorizontalLockRef.current = true;
+          isDraggingRef.current = true;
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'none';
           }
+        } else {
+          // Vertical scroll dominant: pass control entirely to browser native scroll
+          isHorizontalLockRef.current = false;
+          touchStartRef.current = null;
+          return;
         }
       }
 
       if (isHorizontalLockRef.current) {
-        // Prevent vertical page scroll or Android browser gesture conflicts while horizontally dragging
         if (e.cancelable) {
           e.preventDefault();
         }
 
         const idx = currentIdxRef.current;
+        const width = containerWidthRef.current;
+
         // Rubber-band resistance at boundary edges
         let effectiveDx = dx;
         if ((idx === 0 && dx > 0) || (idx === TABS.length - 1 && dx < 0)) {
-          effectiveDx = dx * 0.22;
+          effectiveDx = dx * 0.25;
         }
 
         dragXRef.current = effectiveDx;
 
-        // Decouple touch event stream from GPU render loop via requestAnimationFrame
+        // Pure pixel matrix translation — 0 layout calculations, direct GPU compositor execution
         if (rafIdRef.current === null) {
           rafIdRef.current = requestAnimationFrame(() => {
             if (trackRef.current && isDraggingRef.current) {
-              const basePercent = -(idx * (100 / TABS.length));
-              trackRef.current.style.transform = `translate3d(calc(${basePercent}% + ${dragXRef.current}px), 0, 0)`;
+              const currentPx = -(idx * width) + dragXRef.current;
+              trackRef.current.style.transform = `translate3d(${currentPx}px, 0, 0)`;
             }
             rafIdRef.current = null;
           });
@@ -205,13 +223,13 @@ export function SwipeTabContainer({
       const dt = Math.max(1, performance.now() - touchStartRef.current.time);
       const finalDx = dragXRef.current;
       const velocity = Math.abs(finalDx) / dt; // px/ms
-      const distanceThreshold = 36; // px (responsive flick)
-      const velocityThreshold = 0.18; // px/ms
+      const distanceThreshold = (containerWidthRef.current || 360) * 0.2; // 20% of screen width
+      const velocityThreshold = 0.22; // flick velocity
 
       const currentIdx = currentIdxRef.current;
       let targetIdx = currentIdx;
 
-      if ((Math.abs(finalDx) > distanceThreshold || velocity > velocityThreshold) && Math.abs(finalDx) > 14) {
+      if ((Math.abs(finalDx) > distanceThreshold || velocity > velocityThreshold) && Math.abs(finalDx) > 15) {
         if (finalDx < 0 && currentIdx < TABS.length - 1) {
           targetIdx = currentIdx + 1;
         } else if (finalDx > 0 && currentIdx > 0) {
@@ -219,9 +237,12 @@ export function SwipeTabContainer({
         }
       }
 
-      // Smoothly animate track directly to target position with natural spring curve
+      // Mark transition as active to prevent effect interference
+      isSwipeTransitioningRef.current = true;
+
+      // Animate track to final resting position
       if (trackRef.current) {
-        trackRef.current.style.transition = 'transform 0.26s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        trackRef.current.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
         trackRef.current.style.transform = `translate3d(-${targetIdx * (100 / TABS.length)}%, 0, 0)`;
       }
 
@@ -235,11 +256,20 @@ export function SwipeTabContainer({
         currentIdxRef.current = targetIdx;
         setCurrentTabIdx(targetIdx);
         hapticTick();
-        onChangeTab(TABS[targetIdx]);
+
+        // Delay tab change dispatch until slide animation has visually settled (~170ms)
+        // This ensures the GPU compositor is not interrupted by heavy React renders or API calls mid-flight
+        setTimeout(() => {
+          isSwipeTransitioningRef.current = false;
+          onChangeTab(TABS[targetIdx]);
+        }, 170);
+      } else {
+        setTimeout(() => {
+          isSwipeTransitioningRef.current = false;
+        }, 240);
       }
     };
 
-    // Attach native touch listeners with passive: false for touchmove to allow preventing vertical scroll interference
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchmove', onTouchMove, { passive: false });
     container.addEventListener('touchend', onTouchEnd, { passive: true });
@@ -266,7 +296,7 @@ export function SwipeTabContainer({
         contain: 'layout size',
       }}
     >
-      {/* Dynamic Sliding Track (GPU-accelerated direct translate3d compositor) */}
+      {/* Dynamic Sliding Track (GPU-accelerated translate3d compositor) */}
       <div
         ref={trackRef}
         className="flex w-full h-full min-h-0 flex-1 will-change-transform"
@@ -275,8 +305,6 @@ export function SwipeTabContainer({
           transform: `translate3d(-${currentTabIdx * (100 / TABS.length)}%, 0, 0)`,
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          perspective: 1000,
-          WebkitPerspective: 1000,
         }}
       >
         {TABS.map((tab, idx) => {
@@ -284,15 +312,19 @@ export function SwipeTabContainer({
           const isNeighbor = Math.abs(idx - currentTabIdx) <= 1;
           const shouldRender = isActive || visitedIndices.has(idx);
 
+          // Dedicated per-tab layout and padding: stays stable across all swipes
+          let tabPaddingClasses = 'overflow-y-auto pt-3.5 px-3 sm:px-4 md:px-0 pb-28 md:pb-12';
+          if (tab === 'timer') {
+            tabPaddingClasses = 'overflow-hidden justify-center pt-1 md:pt-2 px-3 sm:px-4 md:px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-2';
+          } else if (tab === 'rooms') {
+            tabPaddingClasses = 'overflow-hidden pt-0 px-0 pb-0';
+          }
+
           return (
             <div
               key={tab}
-              className={`flex-shrink-0 flex flex-col h-full min-h-0 ${
-                isActive
-                  ? (tab === 'timer' || tab === 'rooms')
-                    ? 'overflow-hidden pb-0'
-                    : 'overflow-y-auto pb-28 md:pb-12'
-                  : 'overflow-hidden pointer-events-none'
+              className={`flex-shrink-0 flex flex-col h-full min-h-0 ${tabPaddingClasses} ${
+                !isActive ? 'pointer-events-none' : ''
               }`}
               style={{
                 width: `${100 / TABS.length}%`,
@@ -301,7 +333,7 @@ export function SwipeTabContainer({
                 contain: 'content',
               }}
             >
-              <div className="w-full h-full flex-1 min-h-0">
+              <div className="w-full h-full flex-1 min-h-0 flex flex-col items-center">
                 {shouldRender ? children[tab] : null}
               </div>
             </div>

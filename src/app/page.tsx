@@ -337,13 +337,7 @@ export default function Home() {
         )}
 
         {/* Main Content Area with Mobile Swipe Navigation */}
-        <main className={`w-full flex flex-col items-center relative z-10 px-0 md:px-8 flex-1 min-h-0 overflow-hidden ${
-          activeTab === "timer" 
-            ? "justify-center pt-1 md:pt-2 px-3 sm:px-4 md:px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-2" 
-            : activeTab === "rooms"
-            ? "pt-0 px-0"
-            : "pt-3.5 px-3 sm:px-4 md:px-0"
-        }`}>
+        <main className="w-full flex flex-col items-center relative z-10 px-0 md:px-8 flex-1 min-h-0 overflow-hidden pt-0 pb-0">
           <SwipeTabContainer activeTab={activeTab} onChangeTab={handleTabChange}>
             {{
               timer: (
@@ -359,7 +353,7 @@ export default function Home() {
               analytics: (
                 <ErrorBoundary fallbackTitle="Analytics Dashboard">
                   <AnalyticsDashboard
-                    onStartSession={() => setActiveTab('timer')}
+                    onStartSession={() => handleTabChange('timer')}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                   />
                 </ErrorBoundary>
@@ -371,7 +365,7 @@ export default function Home() {
               ),
               rooms: (
                 <ErrorBoundary fallbackTitle="Study Rooms">
-                  <StudyRoomsTab onBackToDashboard={() => setActiveTab('timer')} isActiveTab={activeTab === 'rooms'} />
+                  <StudyRoomsTab onBackToDashboard={() => handleTabChange('timer')} isActiveTab={activeTab === 'rooms'} />
                 </ErrorBoundary>
               ),
               settings: (
