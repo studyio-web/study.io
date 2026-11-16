@@ -377,51 +377,63 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
     try {
       const supabase = getSupabase();
-      if (supabase && roomId) {
-        const hubChannel = supabase.channel(`room_members_hub_${roomId}`);
-        await hubChannel.send({
-          type: 'broadcast',
-          event: 'member_nudged',
-          payload: {
-            fromUserId: user.id,
-            fromUsername: senderName,
-            fromAvatarUrl: user.user_metadata?.avatar_url,
-            targetUserId,
-            targetUsername,
-            timestamp: now,
-          },
+      if (supabase) {
+        // Standard Supabase insert to trigger outbound FCM push notification Edge Function via DB trigger
+        const { error: insertError } = await supabase.from('nudges').insert({
+          sender_id: user.id,
+          receiver_id: targetUserId,
+          message: 'nudged you to focus!',
         });
+        if (insertError) {
+          console.warn('[ActiveRoom] Error inserting into nudges table:', insertError);
+        }
 
-        // Broadcast to target user's personal notifications channel
-        const userNotifChannel = supabase.channel(`user_notifications_${targetUserId}`);
-        await userNotifChannel.send({
-          type: 'broadcast',
-          event: 'nudge_received',
-          payload: {
-            id: `nudge-${now}`,
-            fromUserId: user.id,
-            fromUsername: senderName,
-            fromAvatarUrl: user.user_metadata?.avatar_url,
-            targetUserId,
-            targetUsername,
-            roomId,
-            roomName: roomInfo?.name || 'Study Room',
-            timestamp: now,
-          },
-        });
+        if (roomId) {
+          const hubChannel = supabase.channel(`room_members_hub_${roomId}`);
+          await hubChannel.send({
+            type: 'broadcast',
+            event: 'member_nudged',
+            payload: {
+              fromUserId: user.id,
+              fromUsername: senderName,
+              fromAvatarUrl: user.user_metadata?.avatar_url,
+              targetUserId,
+              targetUsername,
+              timestamp: now,
+            },
+          });
 
-        // Persist system message to room_messages so other users & page refreshes sync the 3-hour cooldown
-        await supabase.from('room_messages').insert({
-          room_id: roomId,
-          user_id: user.id,
-          content: `[SYSTEM_NUDGE]:${JSON.stringify({
-            fromUserId: user.id,
-            fromUsername: senderName,
-            targetUserId,
-            targetUsername,
-            timestamp: now,
-          })}`,
-        });
+          // Broadcast to target user's personal notifications channel
+          const userNotifChannel = supabase.channel(`user_notifications_${targetUserId}`);
+          await userNotifChannel.send({
+            type: 'broadcast',
+            event: 'nudge_received',
+            payload: {
+              id: `nudge-${now}`,
+              fromUserId: user.id,
+              fromUsername: senderName,
+              fromAvatarUrl: user.user_metadata?.avatar_url,
+              targetUserId,
+              targetUsername,
+              roomId,
+              roomName: roomInfo?.name || 'Study Room',
+              timestamp: now,
+            },
+          });
+
+          // Persist system message to room_messages so other users & page refreshes sync the 3-hour cooldown
+          await supabase.from('room_messages').insert({
+            room_id: roomId,
+            user_id: user.id,
+            content: `[SYSTEM_NUDGE]:${JSON.stringify({
+              fromUserId: user.id,
+              fromUsername: senderName,
+              targetUserId,
+              targetUsername,
+              timestamp: now,
+            })}`,
+          });
+        }
       }
     } catch (err) {
       console.warn('Failed to broadcast nudge:', err);
