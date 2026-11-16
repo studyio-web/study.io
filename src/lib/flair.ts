@@ -46,12 +46,29 @@ export const FLAIR_FRAMES: Record<FlairFrame, FlairConfig> = {
   },
 };
 
-// In-memory cache for resolved flair map entries to avoid redundant queries across tab switches
-const flairMemoryCache: Record<string, FlairFrame> = {};
+interface CacheEntry {
+  frame: FlairFrame | null;
+  expiresAt: number;
+}
+
+// In-memory cache with TTL (60s) for resolved flair map entries to avoid redundant queries
+const flairMemoryCache: Record<string, CacheEntry> = {};
+const CACHE_TTL_MS = 60 * 1000;
+
+export function clearFlairCache(userId?: string) {
+  if (userId) {
+    delete flairMemoryCache[userId];
+  } else {
+    for (const k of Object.keys(flairMemoryCache)) {
+      delete flairMemoryCache[k];
+    }
+  }
+}
 
 /**
  * Fetch flair frames for an array of user IDs via security definer RPC get_flair,
  * with a resilient direct query fallback on public.subscriptions.
+ * Strictly verifies that subscriptions are unexpired (premium_until > now).
  * Never throws — returns empty map on any error or offline state.
  */
 export async function fetchFlairMap(userIds: string[]): Promise<Record<string, FlairFrame>> {
@@ -68,53 +85,88 @@ export async function fetchFlairMap(userIds: string[]): Promise<Record<string, F
     const validUids = Array.from(new Set(userIds.map((u) => String(u).trim()).filter(isUuid))).slice(0, 100);
     if (validUids.length === 0) return {};
 
+    const now = Date.now();
     const map: Record<string, FlairFrame> = {};
 
-    // 1. Populate from memory cache first if available
+    // 1. Populate from memory cache first if available and unexpired
+    const uncachedUids: string[] = [];
     for (const uid of validUids) {
-      if (flairMemoryCache[uid]) {
-        map[uid] = flairMemoryCache[uid];
+      const entry = flairMemoryCache[uid];
+      if (entry && entry.expiresAt > now) {
+        if (entry.frame) {
+          map[uid] = entry.frame;
+        }
+      } else {
+        uncachedUids.push(uid);
       }
+    }
+
+    if (uncachedUids.length === 0) {
+      return map;
     }
 
     // 2. Try get_flair RPC (Primary path)
     let rpcWorked = false;
     try {
-      const { data, error } = await supabase.rpc('get_flair', { p_user_ids: validUids });
+      const { data, error } = await supabase.rpc('get_flair', { p_user_ids: uncachedUids });
 
       if (!error && Array.isArray(data)) {
         rpcWorked = true;
+        const foundUids = new Set<string>();
         for (const row of data) {
           if (row?.user_id) {
+            foundUids.add(row.user_id);
             const frame = (row.frame as FlairFrame) || 'gold';
             map[row.user_id] = frame;
-            flairMemoryCache[row.user_id] = frame;
+            flairMemoryCache[row.user_id] = { frame, expiresAt: now + CACHE_TTL_MS };
+          }
+        }
+        for (const uid of uncachedUids) {
+          if (!foundUids.has(uid)) {
+            flairMemoryCache[uid] = { frame: null, expiresAt: now + CACHE_TTL_MS };
           }
         }
       } else if (error) {
-        console.warn('[Flair] get_flair notice:', error.message);
+        // Fallback below will resolve
       }
     } catch (rpcErr) {
-      console.warn('[Flair] get_flair exception:', rpcErr);
+      // Proceed to fallback
     }
 
     // 3. Resilient fallback to public.subscriptions for any user IDs not resolved via get_flair
-    const missingUids = validUids.filter((uid) => !map[uid]);
-    if (missingUids.length > 0) {
+    if (!rpcWorked) {
       try {
         const { data: subRows, error: subError } = await supabase
           .from('subscriptions')
           .select('user_id, status, premium_until')
-          .in('user_id', missingUids);
+          .in('user_id', uncachedUids);
 
         if (!subError && subRows && Array.isArray(subRows)) {
-          const now = Date.now();
+          const resolvedUids = new Set<string>();
           for (const s of subRows) {
-            const isUntilValid = s.premium_until && new Date(s.premium_until).getTime() > now;
+            if (!s?.user_id) continue;
+            resolvedUids.add(s.user_id);
+
+            const hasExpiry = Boolean(s.premium_until);
+            const isFuture = hasExpiry ? new Date(s.premium_until).getTime() > now : false;
             const isStatusActive = s.status === 'active' || s.status === 'trialing';
-            if ((isUntilValid || isStatusActive) && s.user_id) {
-              map[s.user_id] = 'gold';
-              flairMemoryCache[s.user_id] = 'gold';
+
+            // CRITICAL: If premium_until is specified, it MUST strictly be in the future.
+            // If premium_until is past, the subscription is expired regardless of the status column.
+            const isValid = hasExpiry ? isFuture : isStatusActive;
+
+            if (isValid) {
+              const frame: FlairFrame = 'gold';
+              map[s.user_id] = frame;
+              flairMemoryCache[s.user_id] = { frame, expiresAt: now + CACHE_TTL_MS };
+            } else {
+              flairMemoryCache[s.user_id] = { frame: null, expiresAt: now + CACHE_TTL_MS };
+            }
+          }
+
+          for (const uid of uncachedUids) {
+            if (!resolvedUids.has(uid)) {
+              flairMemoryCache[uid] = { frame: null, expiresAt: now + CACHE_TTL_MS };
             }
           }
         }

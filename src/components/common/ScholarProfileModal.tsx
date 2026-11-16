@@ -115,7 +115,7 @@ export function ScholarProfileModal({
     // Initial state from passed scholar data
     const initialSecs = scholar.currentPeriodSeconds ?? 0;
     setTotalStudySeconds(initialSecs);
-    setVerifiedPro(Boolean(scholar.isPro || scholar.flairFrame));
+    setVerifiedPro(Boolean(scholar.isPro));
 
     const loadScholarMetrics = async () => {
       try {
@@ -125,8 +125,8 @@ export function ScholarProfileModal({
         // Check Pro status resolution in parallel
         fetchFlairMap([uid])
           .then((map) => {
-            if (active && map[uid]) {
-              setVerifiedPro(true);
+            if (active) {
+              setVerifiedPro(Boolean(map[uid]));
             }
           })
           .catch(() => {});

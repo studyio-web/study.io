@@ -423,8 +423,8 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
   const handleOpenScholarModal = (u: any) => {
     if (!u || !u.user_id) return;
-    const isMe = u.user_id === user?.id;
-    const isPro = Boolean(flairMap[u.user_id] || (isMe && isPremium));
+    const isMe = u.user_id === user?.id || u.is_current_user;
+    const isPro = isMe ? isPremium : Boolean(flairMap[u.user_id]);
     setSelectedScholar({
       userId: String(u.user_id),
       name: u.username || u.name,
@@ -1063,9 +1063,9 @@ CREATE POLICY "Hosts can update their own study rooms"
       const flat = Object.values(state).flat();
       setPresentUsers(flat);
 
-      // Merge real-time presence flair for room members
+      // Merge real-time presence flair for other room members (never override current user's local state)
       for (const p of flat as any[]) {
-        if (p?.user_id && (p.is_premium || p.flair_frame)) {
+        if (p?.user_id && p.user_id !== user?.id && (p.is_premium || p.flair_frame)) {
           setFlairMap((prev) => (prev[p.user_id] ? prev : { ...prev, [p.user_id]: p.flair_frame || 'gold' }));
         }
       }
@@ -1846,9 +1846,11 @@ CREATE POLICY "Hosts can update their own study rooms"
         if (active) {
           if (isPremium && user?.id) {
             map[user.id] = map[user.id] || 'gold';
+          } else if (!isPremium && user?.id) {
+            delete map[user.id];
           }
           for (const pu of presentUsers as any[]) {
-            if (pu?.user_id && (pu.is_premium || pu.flair_frame)) {
+            if (pu?.user_id && pu.user_id !== user?.id && (pu.is_premium || pu.flair_frame)) {
               map[pu.user_id] = map[pu.user_id] || pu.flair_frame || 'gold';
             }
           }
@@ -2164,6 +2166,11 @@ CREATE POLICY "Hosts can update their own study rooms"
               const sessionSec = u.session_seconds || 0;
               const todaySec = u.today_seconds || 0;
               const totalFocusSec = u.total_focus_seconds ?? (isStudying ? todaySec + sessionSec : todaySec);
+              const isCurrentUser = Boolean(u.is_current_user || (user?.id && u.user_id === user.id));
+              const isUserPro = isCurrentUser ? isPremium : Boolean(flairMap[u.user_id]);
+              const userFlairFrame = isCurrentUser
+                ? (isPremium ? (flairMap[u.user_id] || 'gold') : null)
+                : flairMap[u.user_id];
 
               return (
                 <div
@@ -2180,7 +2187,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                     className={`relative cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 ${
                       recentlyNudgedUsers[u.user_id] ? 'animate-nudged-avatar' : ''
                     }`}
-                    title={u.is_current_user ? 'View your profile' : `View ${u.username}'s profile & nudge`}
+                    title={isCurrentUser ? 'View your profile' : `View ${u.username}'s profile & nudge`}
                   >
                     {recentlyNudgedUsers[u.user_id] && (
                       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none whitespace-nowrap bg-amber-500 text-black font-mono font-black text-[9px] px-2.5 py-0.5 rounded-full shadow-[0_0_12px_#f59e0b] border border-amber-300 flex items-center justify-center animate-bounce">
@@ -2188,7 +2195,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                       </div>
                     )}
                     <ProAvatarRing
-                      isPro={Boolean(u.is_premium || flairMap[u.user_id] || (u.is_current_user && isPremium))}
+                      isPro={Boolean(isUserPro)}
                       isStudying={isStudying}
                       size="md"
                       defaultBorder
@@ -2208,7 +2215,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                       <div className="inline-flex items-center gap-1 justify-center min-w-0">
                         <p
                           className={`text-sm font-bold truncate max-w-[100px] ${
-                            u.is_current_user
+                            isCurrentUser
                               ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.45)]'
                               : 'text-slate-200'
                           }`}
@@ -2216,8 +2223,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                         >
                           {u.username}
                         </p>
-                        {flairMap[u.user_id] && (
-                          <FlairCrown frame={flairMap[u.user_id]} size={13.5} className="-ml-0.5" />
+                        {userFlairFrame && (
+                          <FlairCrown frame={userFlairFrame} size={13.5} className="-ml-0.5" />
                         )}
                       </div>
                       {u.is_host && (
@@ -2378,8 +2385,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                               <span className={`text-xs font-hud font-bold tracking-tight ${isMe ? 'text-amber-400' : 'text-slate-200'}`}>
                                 {isMe ? `${username} (YOU)` : username}
                               </span>
-                              {flairMap[firstMsg.user_id] && (
-                                <FlairCrown frame={flairMap[firstMsg.user_id]} size={12} className="-ml-0.5" />
+                              {(isMe ? isPremium : Boolean(flairMap[firstMsg.user_id])) && (
+                                <FlairCrown frame={flairMap[firstMsg.user_id] || 'gold'} size={12} className="-ml-0.5" />
                               )}
                             </div>
                             {isHostUser && (
@@ -2955,8 +2962,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 }`}>
                                   {member.username} {member.is_current_user ? '(You)' : ''}
                                 </span>
-                                {flairMap[member.user_id] && (
-                                  <FlairCrown frame={flairMap[member.user_id]} size={13} className="-ml-0.5" />
+                                {(member.is_current_user ? isPremium : Boolean(flairMap[member.user_id])) && (
+                                  <FlairCrown frame={flairMap[member.user_id] || 'gold'} size={13} className="-ml-0.5" />
                                 )}
                               </div>
                               {member.is_host && (

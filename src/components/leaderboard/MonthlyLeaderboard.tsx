@@ -613,6 +613,8 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     fetchFlairMap(userIds).then((map) => {
       if (isPremium && user?.id) {
         map[user.id] = map[user.id] || 'gold';
+      } else if (!isPremium && user?.id) {
+        delete map[user.id];
       }
       setFlairMap(map);
     });
@@ -922,10 +924,14 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                         myRowRef={isCurrentUser ? myRowRef : undefined}
                         index={idx}
                         shouldReduceMotion={shouldReduceMotion}
-                        flairFrame={flairMap[row.user_id] || (row.is_premium ? 'gold' : null)}
+                        flairFrame={
+                          isCurrentUser
+                            ? (isPremium ? (flairMap[row.user_id] || 'gold') : null)
+                            : (flairMap[row.user_id] || (row.is_premium ? 'gold' : null))
+                        }
                         onSelectScholar={(selectedRow) => {
                           const isMe = checkIsCurrentUser(selectedRow);
-                          const isPro = Boolean(flairMap[selectedRow.user_id] || selectedRow.is_premium || (isMe && isPremium));
+                          const isPro = isMe ? isPremium : Boolean(flairMap[selectedRow.user_id] || selectedRow.is_premium);
                           setSelectedScholar({
                             userId: String(selectedRow.user_id),
                             name: selectedRow.name,

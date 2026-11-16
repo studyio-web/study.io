@@ -13,6 +13,7 @@ import { getSupabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { PremiumModal } from '../components/premium/PremiumModal';
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
+import { clearFlairCache } from '../lib/flair';
 
 export interface PremiumContextType {
   isPremium: boolean;
@@ -127,6 +128,9 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
 
         setRawIsPremium(isPrem);
         saveCachedUserState({ isPro: isPrem });
+        if (!isPrem) {
+          clearFlairCache();
+        }
         setPremiumUntilDate(isValidDate ? parsedUntil : null);
         setPlan(mappedPlan);
         setStatus(mappedStatus);
@@ -172,6 +176,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
         setCancelAtCycleEnd(false);
         setLoading(false);
         saveCachedUserState({ isPro: false });
+        clearFlairCache();
       }
     });
 
