@@ -328,7 +328,20 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     try {
       const supabase = getSupabase();
       if (supabase) {
-        // Standard Supabase insert to trigger outbound FCM push notification Edge Function via DB trigger
+        // 1. Directly invoke Edge Function for guaranteed FCM push notification delivery
+        supabase.functions.invoke('send-notification', {
+          body: {
+            sender_id: user.id,
+            receiver_id: targetUserId,
+            type: 'nudge',
+            message: 'nudged you to focus!',
+          },
+        }).then(({ data, error }) => {
+          if (error) console.warn('[ActiveRoom] Direct send-notification error:', error);
+          else console.log('[ActiveRoom] Direct send-notification result:', data);
+        }).catch((err) => console.warn('[ActiveRoom] Direct send-notification error:', err));
+
+        // 2. Standard Supabase insert to trigger outbound FCM push notification Edge Function via DB trigger
         const { error: insertError } = await supabase.from('nudges').insert({
           sender_id: user.id,
           receiver_id: targetUserId,

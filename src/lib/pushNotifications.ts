@@ -94,7 +94,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
           if (targetId && !targetId.startsWith('guest')) {
             const { error } = await supabase
               .from('profiles')
-              .update({ fcm_token: token.value, fcm_updated_at: new Date().toISOString() })
+              .update({ fcm_token: token.value })
               .eq('id', targetId);
 
             if (error) {
@@ -197,7 +197,7 @@ export async function syncPushTokenToAccount(userId: string, token: string): Pro
     if (supabase) {
       const { error } = await supabase
         .from('profiles')
-        .update({ fcm_token: token, fcm_updated_at: new Date().toISOString() })
+        .update({ fcm_token: token })
         .eq('id', userId);
 
       if (error) {
@@ -230,7 +230,7 @@ export async function clearPushTokenOnLogout(userId?: string): Promise<void> {
       if (supabase) {
         await supabase
           .from('profiles')
-          .update({ fcm_token: null, fcm_updated_at: new Date().toISOString() })
+          .update({ fcm_token: null })
           .eq('id', userId);
       }
     }

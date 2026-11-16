@@ -87,7 +87,6 @@ export function PushNotificationBridge() {
                   .from('profiles')
                   .update({
                     fcm_token: token.value,
-                    fcm_updated_at: new Date().toISOString(),
                   })
                   .eq('id', targetId);
 
@@ -162,7 +161,6 @@ export function PushNotificationBridge() {
           .from('profiles')
           .update({
             fcm_token: cachedToken,
-            fcm_updated_at: new Date().toISOString(),
           })
           .eq('id', user.id)
           .then(({ error }) => {

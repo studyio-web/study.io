@@ -213,7 +213,7 @@ Deno.serve(async (req: Request) => {
           console.log(`[send-notification] Clearing invalid token for receiver ${body.receiver_id}`);
           await supabase
             .from("profiles")
-            .update({ fcm_token: null, fcm_updated_at: new Date().toISOString() })
+            .update({ fcm_token: null })
             .eq("id", body.receiver_id);
         }
       } catch (cleanErr) {
