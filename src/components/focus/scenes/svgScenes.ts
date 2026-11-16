@@ -500,3 +500,13 @@ ${campfireEmbers(r, 36)}`);
   return markup;
 }
 
+// Pre-warm the cache for all scenes on module load to guarantee 0ms instant theme switching
+try {
+  ['dusk', 'forest', 'neon', 'sakura', 'campfire'].forEach((k) => {
+    getSvgScene(k);
+  });
+} catch {
+  // Gracefully ignore in non-browser or test environments
+}
+
+

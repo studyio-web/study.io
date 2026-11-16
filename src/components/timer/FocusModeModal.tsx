@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { formatSeconds } from '../../lib/utils';
-import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, Sparkles } from 'lucide-react';
+import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2 } from 'lucide-react';
 import { FocusSceneLayer } from '../focus/FocusSceneLayer';
 import { useFocusScene } from '../focus/useFocusScene';
 import { ScenePicker, ScenePreviewPill } from '../focus/ScenePicker';
@@ -380,11 +380,12 @@ export function FocusModeModal() {
 
         {/* Soft GPU-accelerated ambient glow layer behind clock */}
         <div
-          className="absolute inset-0 -z-10 pointer-events-none scale-125"
+          className="absolute inset-0 -z-10 pointer-events-none scale-125 transition-colors duration-500 ease-out"
           style={{
-            background: `radial-gradient(ellipse 65% 45% at 50% 50%, ${sceneGlow} 0%, transparent 70%)`,
+            backgroundColor: sceneGlow,
+            maskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
             opacity: 0.45,
-            transition: 'background 0.9s ease',
           }}
         />
 
@@ -584,8 +585,7 @@ export function FocusModeModal() {
             title={isAnimated ? 'Pause background animation' : 'Resume background animation'}
             aria-label={isAnimated ? 'Pause background animation' : 'Resume background animation'}
           >
-            <Sparkles className={`w-3.5 h-3.5 ${isAnimated ? 'text-amber-400' : 'text-zinc-500'}`} />
-            <span className="hidden sm:inline">Animation</span>
+            <span>Animation</span>
             <span
               className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
                 isAnimated

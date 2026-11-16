@@ -1615,6 +1615,43 @@ html.light ::selection,
   animation-play-state: paused !important;
 }
 
+/* Focus Scene Smooth Cross-Fade Transitions */
+@keyframes focusSceneFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes focusSceneFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes sceneFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes sceneFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Header Telemetry Status Capsule Animations */
 @keyframes proChipShimmer {
   0% {

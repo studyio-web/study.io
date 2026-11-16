@@ -18,19 +18,38 @@ function resolveSceneKey(id: string): string {
   return id;
 }
 
+function renderSceneContent(id: string) {
+  const key = resolveSceneKey(id);
+  const markup = getSvgScene(key);
+
+  if (markup) {
+    return (
+      <div
+        className="w-full h-full pointer-events-none select-none [&_svg]:w-full [&_svg]:h-full"
+        dangerouslySetInnerHTML={{ __html: markup }}
+      />
+    );
+  }
+
+  // Default Scene: Pure focus obsidian background
+  return (
+    <div
+      className="w-full h-full pointer-events-none select-none"
+      style={{
+        background:
+          'radial-gradient(ellipse at 50% 50%, #171b29 0%, #0c0e17 60%, #05060a 100%)',
+      }}
+    />
+  );
+}
+
 function FocusSceneLayerComponent({
   sceneId,
   dim = 20,
   isAnimated = true,
 }: FocusSceneLayerProps) {
-  // Track current scene and any previous scene being cross-faded over 900ms
-  const [sceneState, setSceneState] = useState<{
-    current: string;
-    previous: string | null;
-  }>({
-    current: sceneId,
-    previous: null,
-  });
+  const [currentScene, setCurrentScene] = useState<string>(sceneId);
+  const [previousScene, setPreviousScene] = useState<string | null>(null);
 
   // Pause animations when document tab is hidden to save 100% of GPU/battery
   const [isPageHidden, setIsPageHidden] = useState(false);
@@ -42,41 +61,29 @@ function FocusSceneLayerComponent({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // When sceneId prop changes, update transition state during render (React 19 pattern)
-  if (sceneState.current !== sceneId) {
-    setSceneState({
-      current: sceneId,
-      previous: sceneState.current,
-    });
-  }
-
-  // Clear previous scene after 900ms cross-fade completes
+  // Smoothly cross-fade when sceneId changes
   useEffect(() => {
-    if (!sceneState.previous) return;
+    if (sceneId === currentScene) return;
+
+    if (!isAnimated) {
+      setCurrentScene(sceneId);
+      setPreviousScene(null);
+      return;
+    }
+
+    setPreviousScene(currentScene);
+    setCurrentScene(sceneId);
 
     const timer = setTimeout(() => {
-      setSceneState((prev) => ({
-        current: prev.current,
-        previous: null,
-      }));
-    }, 900);
+      setPreviousScene(null);
+    }, 350);
 
     return () => clearTimeout(timer);
-  }, [sceneState.previous]);
+  }, [sceneId, currentScene, isAnimated]);
 
   // Clamp dim between 0 and 60
   const clampedDim = Math.max(0, Math.min(60, dim));
   const dimOpacity = clampedDim / 100;
-
-  // Retrieve SVG markup (pure, deterministic, and cached)
-  const currentKey = resolveSceneKey(sceneState.current);
-  const previousKey = sceneState.previous ? resolveSceneKey(sceneState.previous) : null;
-
-  const currentSvg = useMemo(() => getSvgScene(currentKey), [currentKey]);
-  const previousSvg = useMemo(
-    () => (previousKey ? getSvgScene(previousKey) : null),
-    [previousKey]
-  );
 
   return (
     <div
@@ -86,54 +93,64 @@ function FocusSceneLayerComponent({
       style={{
         contain: 'strict',
         transform: 'translate3d(0, 0, 0)',
-        willChange: 'transform',
         isolation: 'isolate',
       }}
     >
-      {/* Previous Scene Layer Fading Out over 900ms */}
-      {sceneState.previous && previousSvg && (
+      <style>{`
+        @keyframes focusSceneFadeIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes focusSceneFadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
+
+      {/* 1. Base Obsidian canvas that never unmounts (prevents any blank/white/black flashes) */}
+      <div
+        className="absolute inset-0 pointer-events-none select-none"
+        style={{
+          background:
+            'radial-gradient(ellipse at 50% 50%, #171b29 0%, #0c0e17 60%, #05060a 100%)',
+          contain: 'strict',
+          transform: 'translate3d(0, 0, 0)',
+        }}
+      />
+
+      {/* 2. Previous Scene Layer (fading out smoothly over 350ms) */}
+      {previousScene && (
         <div
-          key={`prev-${sceneState.previous}`}
-          className="absolute inset-0 pointer-events-none select-none [&_svg]:w-full [&_svg]:h-full"
+          key={`prev-${previousScene}`}
+          className="absolute inset-0 pointer-events-none select-none"
           style={{
-            animation: 'sceneFadeOut 900ms ease forwards',
+            animation: 'focusSceneFadeOut 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
             contain: 'strict',
             transform: 'translate3d(0, 0, 0)',
             willChange: 'opacity',
           }}
-          dangerouslySetInnerHTML={{ __html: previousSvg }}
-        />
+        >
+          {renderSceneContent(previousScene)}
+        </div>
       )}
 
-      {/* Current Active Scene Layer Fading In over 900ms */}
-      {currentSvg ? (
-        <div
-          key={`curr-${sceneState.current}`}
-          className="absolute inset-0 pointer-events-none select-none [&_svg]:w-full [&_svg]:h-full"
-          style={{
-            animation: sceneState.previous ? 'sceneFadeIn 900ms ease forwards' : 'none',
-            contain: 'strict',
-            transform: 'translate3d(0, 0, 0)',
-            willChange: sceneState.previous ? 'opacity' : 'auto',
-          }}
-          dangerouslySetInnerHTML={{ __html: currentSvg }}
-        />
-      ) : (
-        /* Default Scene: Pure focus obsidian background */
-        <div
-          key="curr-default"
-          className="absolute inset-0 pointer-events-none select-none"
-          style={{
-            background:
-              'radial-gradient(ellipse at 50% 50%, #171b29 0%, #0c0e17 60%, #05060a 100%)',
-            animation: sceneState.previous ? 'sceneFadeIn 900ms ease forwards' : 'none',
-            contain: 'strict',
-            transform: 'translate3d(0, 0, 0)',
-          }}
-        />
-      )}
+      {/* 3. Current Active Scene Layer (fading in smoothly over 350ms if transitioning) */}
+      <div
+        key={`curr-${currentScene}`}
+        className="absolute inset-0 pointer-events-none select-none"
+        style={{
+          animation: previousScene
+            ? 'focusSceneFadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards'
+            : 'none',
+          contain: 'strict',
+          transform: 'translate3d(0, 0, 0)',
+          willChange: previousScene ? 'opacity' : 'auto',
+        }}
+      >
+        {renderSceneContent(currentScene)}
+      </div>
 
-      {/* Dual Radial Vignette to protect center contrast */}
+      {/* 4. Dual Radial Vignette to protect center contrast */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -144,7 +161,7 @@ function FocusSceneLayerComponent({
         }}
       />
 
-      {/* Background Dim Layer (0 to 60%) */}
+      {/* 5. Background Dim Layer (0 to 60%) */}
       <div
         className="absolute inset-0 bg-black pointer-events-none"
         style={{
@@ -166,4 +183,3 @@ export const FocusSceneLayer = React.memo(
     prev.dim === next.dim &&
     prev.isAnimated === next.isAnimated
 );
-
