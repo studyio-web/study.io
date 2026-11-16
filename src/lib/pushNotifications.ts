@@ -195,15 +195,24 @@ export async function syncPushTokenToAccount(userId: string, token: string): Pro
   try {
     const supabase = getSupabase();
     if (supabase) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ fcm_token: token })
-        .eq('id', userId);
+      const { error: rpcError } = await supabase.rpc('register_fcm_token', {
+        p_user_id: userId,
+        p_fcm_token: token,
+      });
 
-      if (error) {
-        console.warn('[Push] Failed to sync FCM token to Supabase profile:', error);
+      if (rpcError) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ fcm_token: token })
+          .eq('id', userId);
+
+        if (error) {
+          console.warn('[Push] Failed to sync FCM token to Supabase profile:', error);
+        } else {
+          console.log('[Push] Successfully synced FCM token to Supabase for user:', userId);
+        }
       } else {
-        console.log('[Push] Successfully synced FCM token to Supabase for user:', userId);
+        console.log('[Push] Successfully synced FCM token via RPC for user:', userId);
       }
     }
   } catch (err) {

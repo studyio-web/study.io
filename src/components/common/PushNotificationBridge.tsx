@@ -83,17 +83,27 @@ export function PushNotificationBridge() {
               }
 
               if (targetId && !targetId.startsWith('guest')) {
-                const { error } = await supabase
-                  .from('profiles')
-                  .update({
-                    fcm_token: token.value,
-                  })
-                  .eq('id', targetId);
+                // Try SECURITY DEFINER RPC first to bypass RLS, fallback to table update
+                const rpcRes = await supabase.rpc('register_fcm_token', {
+                  p_user_id: targetId,
+                  p_fcm_token: token.value,
+                });
 
-                if (error) {
-                  console.warn('[Push] Error updating profiles fcm_token:', error);
+                if (rpcRes.error) {
+                  const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                      fcm_token: token.value,
+                    })
+                    .eq('id', targetId);
+
+                  if (error) {
+                    console.warn('[Push] Error updating profiles fcm_token:', error);
+                  } else {
+                    console.log('[Push] Successfully saved FCM token to Supabase profiles for user:', targetId);
+                  }
                 } else {
-                  console.log('[Push] Successfully saved FCM token to Supabase profiles for user:', targetId);
+                  console.log('[Push] Successfully registered FCM token via RPC for user:', targetId);
                 }
               }
             } catch (saveErr) {
@@ -157,21 +167,28 @@ export function PushNotificationBridge() {
     if (cachedToken) {
       const supabase = getSupabase();
       if (supabase) {
-        supabase
-          .from('profiles')
-          .update({
-            fcm_token: cachedToken,
-          })
-          .eq('id', user.id)
-          .then(({ error }) => {
-            if (error) {
-              console.warn('[Push] Error syncing cached FCM token on auth change:', error);
-            } else {
-              console.log('[Push] Synced cached FCM token to user profile:', user.id);
-            }
-          }, (err) => {
-            console.warn('[Push] Error during token sync on auth change:', err);
-          });
+        supabase.rpc('register_fcm_token', {
+          p_user_id: user.id,
+          p_fcm_token: cachedToken,
+        }).then(({ error }) => {
+          if (!error) {
+            console.log('[Push] Synced cached FCM token via RPC for user:', user.id);
+            return;
+          }
+          // Fallback to table update
+          return supabase
+            .from('profiles')
+            .update({ fcm_token: cachedToken })
+            .eq('id', user.id);
+        }).then((res) => {
+          if (res && (res as any).error) {
+            console.warn('[Push] Error syncing cached FCM token on auth change:', (res as any).error);
+          } else if (res) {
+            console.log('[Push] Synced cached FCM token to user profile:', user.id);
+          }
+        }, (err) => {
+          console.warn('[Push] Error during token sync on auth change:', err);
+        });
       }
     }
   }, [isAuthenticated, user?.id]);
