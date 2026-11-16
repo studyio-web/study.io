@@ -81,6 +81,7 @@ interface NotificationPayload {
   sender_name?: string;
   receiver_id?: string;
   room_id?: string;
+  room_name?: string;
   type?: "chat" | "nudge" | string;
   message?: string;
   // Database Webhook support:
@@ -109,6 +110,7 @@ Deno.serve(async (req: Request) => {
     let sender_username = body.sender_username || body.sender_name;
     let receiver_id = body.receiver_id;
     let room_id = body.room_id;
+    let room_name = body.room_name;
     let type = body.type;
     let message = body.message;
 
@@ -117,6 +119,7 @@ Deno.serve(async (req: Request) => {
       sender_id = sender_id || rec.sender_id || rec.user_id;
       receiver_id = receiver_id || rec.receiver_id;
       room_id = room_id || rec.room_id;
+      room_name = room_name || rec.room_name || rec.room_title;
       message = message || rec.message || rec.content;
 
       if (!type) {
@@ -202,12 +205,16 @@ Deno.serve(async (req: Request) => {
         .select("user_id")
         .eq("room_id", room_id);
 
-      // Also get room host to guarantee delivery if host isn't in room_members
+      // Also get room host to guarantee delivery if host isn't in room_members, and query room name
       const { data: roomData } = await supabase
         .from("study_rooms")
-        .select("host_id")
+        .select("host_id, name")
         .eq("id", room_id)
         .maybeSingle();
+
+      if (roomData?.name && !room_name) {
+        room_name = roomData.name;
+      }
 
       const memberUserIds = new Set<string>();
       if (members) {
@@ -255,8 +262,27 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const title = type === 'nudge' ? 'New Nudge!' : `New message from @${cleanUsername}`;
-    const bodyText = type === 'nudge' ? `@${cleanUsername} nudged you to focus!` : (message || 'Sent you a message');
+    let resolvedRoomName = (room_name || "").trim();
+    if (!resolvedRoomName && room_id) {
+      const { data: rData } = await supabase
+        .from("study_rooms")
+        .select("name")
+        .eq("id", room_id)
+        .maybeSingle();
+      if (rData?.name) {
+        resolvedRoomName = rData.name.trim();
+      }
+    }
+    if (!resolvedRoomName) {
+      resolvedRoomName = "Study Room";
+    }
+
+    const cleanMsg = (message || "").trim().replace(/^"(.*)"$/, "$1");
+    const title = type === "nudge" ? "New Nudge!" : resolvedRoomName;
+    const bodyText =
+      type === "nudge"
+        ? `@${cleanUsername} nudged you to focus!`
+        : `${cleanUsername}: "${cleanMsg}"`;
 
     const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => ({
       token: recipient.fcmToken,
@@ -269,6 +295,8 @@ Deno.serve(async (req: Request) => {
         room_id: String(room_id || ""),
         sender_id: String(sender_id || ""),
         tab: "rooms",
+        title: title,
+        body: bodyText,
       },
       android: {
         priority: 'high',

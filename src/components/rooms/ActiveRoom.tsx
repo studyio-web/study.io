@@ -1649,6 +1649,7 @@ CREATE POLICY "Hosts can update their own study rooms"
       supabase.functions.invoke('send-notification', {
         body: {
           room_id: roomId,
+          room_name: roomName || roomInfo?.name,
           sender_id: user.id,
           sender_username: myUsername,
           type: 'chat',
