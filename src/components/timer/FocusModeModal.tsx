@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { formatSeconds } from '../../lib/utils';
-import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2 } from 'lucide-react';
+import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, Palette } from 'lucide-react';
 import { FocusSceneLayer } from '../focus/FocusSceneLayer';
 import { useFocusScene } from '../focus/useFocusScene';
 import { ScenePicker, ScenePreviewPill } from '../focus/ScenePicker';
@@ -361,6 +361,23 @@ export function FocusModeModal() {
         }}
       />
 
+      {/* Subtle Top-Right Exit Button */}
+      <button
+        type="button"
+        onClick={() => {
+          hapticTick();
+          setIsFocusModeOpen(false);
+          exitFullscreenSafely();
+        }}
+        className={`absolute top-[max(env(safe-area-inset-top,0px)+12px,20px)] right-6 z-20 p-2 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 text-white/60 hover:text-white transition-opacity duration-250 cursor-pointer ${
+          isIdle && !isPickerOpen && !isAtmosphereOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+        title="Exit Fullscreen (ESC)"
+        aria-label="Exit Fullscreen"
+      >
+        <Minimize2 className="w-4 h-4" />
+      </button>
+
       {/* 3. Big Clock with Space Grotesk tabular digits and scene-specific ambient glow */}
       <div
         className="relative z-10 flex flex-col items-center justify-center text-center pointer-events-none landscape:my-1"
@@ -479,82 +496,9 @@ export function FocusModeModal() {
           )}
         </div>
 
-        {/* Sleek Centered Glassmorphic Scene Selector Bar */}
-        <div
-          role="group"
-          aria-label="Scene selector"
-          className="max-w-[92vw] sm:max-w-fit mx-auto flex items-center gap-1 p-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-3 landscape:mb-1.5"
-        >
-          {AVAILABLE_SCENES.map((scene) => {
-            const isActive = activeSceneId === scene.id;
-            const isLocked = scene.premium && !isPremium;
-
-            return (
-              <button
-                key={scene.id}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => {
-                  hapticTick();
-                  selectScene(scene.id);
-                }}
-                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  isActive
-                    ? 'bg-white/15 text-white shadow-sm border border-white/10'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-                }`}
-                style={{ fontFamily: "'Outfit', sans-serif" }}
-              >
-                <span>{scene.name}</span>
-                {isLocked && (
-                  <Crown className="w-3 h-3 text-[#E6C15A] fill-[#E6C15A] shrink-0" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Action Controls: Atmosphere, Dim, Rotate Screen & Exit Fullscreen */}
-        <div className="flex items-center gap-2">
-          {/* Atmosphere Audio Soundscapes Toggle */}
-          <button
-            ref={atmosphereButtonRef}
-            type="button"
-            onClick={() => {
-              hapticTick();
-              setIsAtmosphereOpen((prev) => !prev);
-              if (isPickerOpen) setIsPickerOpen(false);
-            }}
-            aria-haspopup="dialog"
-            aria-expanded={isAtmosphereOpen}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer ${
-              ambientSound !== 'none'
-                ? 'bg-white/20 text-white border-white/35 font-semibold'
-                : 'bg-[#090b14]/92 hover:bg-white/15 border-white/15 text-white/80 hover:text-white'
-            }`}
-            title="Atmosphere soundscapes"
-          >
-            {isAtmosphereLoading ? (
-              <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-            ) : (
-              <Music className={`w-3.5 h-3.5 ${ambientSound !== 'none' ? 'text-amber-400' : 'text-white/80'}`} />
-            )}
-            <span>{isAtmosphereLoading ? 'Loading Atmosphere...' : 'Atmosphere'}</span>
-            {ambientSound !== 'none' && !isAtmosphereLoading ? (
-              <span className="flex items-center gap-1">
-                <span className="font-mono text-[11px] text-white/80 max-w-[95px] truncate hidden sm:inline">
-                  {activeAtmosphereOption?.label} {isPaused ? '(Paused)' : ''}
-                </span>
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ml-0.5 ${
-                    isPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'
-                  }`}
-                />
-              </span>
-            ) : null}
-          </button>
-
-          {/* Dim & Scene Drawer Toggle */}
+        {/* Sleek Minimalist Focus Control Dock */}
+        <div className="flex items-center gap-1.5 p-1 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+          {/* Theme & Scene Drawer */}
           <button
             ref={settingsButtonRef}
             type="button"
@@ -563,39 +507,39 @@ export function FocusModeModal() {
               setIsPickerOpen((prev) => !prev);
               if (isAtmosphereOpen) setIsAtmosphereOpen(false);
             }}
-            aria-haspopup="dialog"
-            aria-expanded={isPickerOpen}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#090b14]/92 hover:bg-white/15 border border-white/15 text-white/80 hover:text-white text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer"
-            title="Adjust dim & options"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full hover:bg-white/10 text-white/90 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+            title="Themes, dimming & animation"
           >
-            <Sliders className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Dim</span>
-            <span className="font-mono text-[11px] text-white/60">{dim}%</span>
+            <Palette className="w-3.5 h-3.5 text-amber-400" />
+            <span>{activeScene?.name || 'Theme'}</span>
           </button>
 
-          {/* Background Animation Toggle Button */}
+          <span className="w-px h-3.5 bg-white/15" />
+
+          {/* Atmosphere Ambient Soundscapes */}
           <button
+            ref={atmosphereButtonRef}
             type="button"
-            onClick={handleToggleAnimation}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer ${
-              isAnimated
-                ? 'bg-[#090b14]/92 hover:bg-white/15 border-white/15 text-white/90 hover:text-white'
-                : 'bg-white/10 hover:bg-white/20 border-white/25 text-white/60 hover:text-white'
-            }`}
-            title={isAnimated ? 'Pause background animation' : 'Resume background animation'}
-            aria-label={isAnimated ? 'Pause background animation' : 'Resume background animation'}
+            onClick={() => {
+              hapticTick();
+              setIsAtmosphereOpen((prev) => !prev);
+              if (isPickerOpen) setIsPickerOpen(false);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full hover:bg-white/10 text-white/90 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+            title="Ambient atmosphere soundscape"
           >
-            <span>Animation</span>
-            <span
-              className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
-                isAnimated
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-white/10 text-zinc-400 border border-white/10'
-              }`}
-            >
-              {isAnimated ? 'On' : 'Off'}
-            </span>
+            {isAtmosphereLoading ? (
+              <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            ) : (
+              <Music className={`w-3.5 h-3.5 ${ambientSound !== 'none' ? 'text-emerald-400' : 'text-zinc-400'}`} />
+            )}
+            <span>Atmosphere</span>
+            {ambientSound !== 'none' && !isAtmosphereLoading && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+            )}
           </button>
+
+          <span className="w-px h-3.5 bg-white/15" />
 
           {/* Exit Fullscreen */}
           <button
@@ -605,14 +549,11 @@ export function FocusModeModal() {
               setIsFocusModeOpen(false);
               exitFullscreenSafely();
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#090b14]/92 hover:bg-white/15 border border-white/15 text-white/80 hover:text-white text-xs sm:text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-white/10 text-white/60 hover:text-white text-xs font-medium transition-colors cursor-pointer"
             title="Exit Fullscreen (ESC)"
           >
             <Minimize2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Exit</span>
-            <span className="ml-1 px-1 py-0.2 rounded text-[10px] bg-black/40 text-white/50 font-mono">
-              ESC
-            </span>
           </button>
         </div>
 
@@ -633,6 +574,8 @@ export function FocusModeModal() {
           onDimChange={setDim}
           isPremium={isPremium}
           triggerButtonRef={settingsButtonRef}
+          isAnimated={isAnimated}
+          onToggleAnimation={handleToggleAnimation}
         />
       </div>
     </div>

@@ -30,6 +30,8 @@ interface ScenePickerProps {
   isPremium: boolean;
   triggerButtonRef?: React.RefObject<HTMLButtonElement | null>;
   initialTab?: 'scenes' | 'atmosphere';
+  isAnimated?: boolean;
+  onToggleAnimation?: () => void;
 }
 
 export function ScenePicker({
@@ -42,6 +44,8 @@ export function ScenePicker({
   isPremium,
   triggerButtonRef,
   initialTab = 'scenes',
+  isAnimated = true,
+  onToggleAnimation,
 }: ScenePickerProps) {
   const [activeTab, setActiveTab] = useState<'scenes' | 'atmosphere'>(initialTab);
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -297,6 +301,26 @@ export function ScenePicker({
                 aria-label="Background Dim"
               />
             </div>
+
+            {/* Background Animation Toggle */}
+            {onToggleAnimation && (
+              <div className="flex items-center justify-between pt-2.5 border-t border-white/10 mb-2.5">
+                <span className="text-xs text-neutral-300 font-medium">
+                  Background Animation
+                </span>
+                <button
+                  type="button"
+                  onClick={onToggleAnimation}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    isAnimated
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-white/10 text-neutral-400 border border-white/10'
+                  }`}
+                >
+                  {isAnimated ? 'On' : 'Off'}
+                </button>
+              </div>
+            )}
 
             {/* Quiet battery consumption note */}
             <div className="text-[10px] text-neutral-400 text-center tracking-tight">
