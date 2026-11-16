@@ -1,5 +1,7 @@
 package com.studyio.app;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
@@ -20,6 +22,23 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(TimerNotificationPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Ensure social_nudges notification channel exists natively for FCM background delivery
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
+                NotificationChannel channel = new NotificationChannel(
+                    "social_nudges",
+                    "Study Room Nudges",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("Alerts when other scholars nudge you in active study rooms");
+                channel.enableVibration(true);
+                channel.enableLights(true);
+                channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
 
         // Enable drawing the web app directly under the status and navigation bars
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);

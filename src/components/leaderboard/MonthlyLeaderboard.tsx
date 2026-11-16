@@ -319,7 +319,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
       localStorage.setItem('has_seen_recap_current', 'true');
       localStorage.setItem('studypulse_recap_viewed', 'true');
       localStorage.setItem(`season_reset_alert_acknowledged_${safeKey}`, 'true');
-    } catch {}
+    } catch { }
     setHasSeenRecap(true);
   }, []);
 
@@ -467,7 +467,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
   const currentUserEntry = useMemo(() => {
     if (!contenders || contenders.length === 0) return null;
     const idx = contenders.findIndex(row => checkIsCurrentUser(row));
-    
+
     const activeRankName = sharedUserRank.rankTitle;
     const resolvedTierConfig = sharedUserRank.tier;
 
@@ -493,12 +493,12 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
         tierConfig: resolvedTierConfig,
       };
     }
-    
+
     const row = contenders[idx];
     const actualRank = idx + 1;
     const tierConfig = resolvedTierConfig;
     const { h, m } = parseTimeHoursMinutes(row.total_seconds);
-    
+
     return { rank: actualRank, row, h, m, tierConfig };
   }, [contenders, checkIsCurrentUser, sharedUserRank, user]);
 
@@ -539,7 +539,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 setIsOpeningRecap(true);
                 try {
                   soundFx.resumeContext();
-                } catch {}
+                } catch { }
               }}
               className="inline-block w-full py-4 rounded-xl font-hud font-bold tracking-widest transition-all shadow-lg active:scale-95 hover:brightness-110 text-center"
               style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--glow)' }}
@@ -562,11 +562,10 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
 
   return (
     <div
-      className={`w-full text-[var(--text)] font-sans ${
-        isEmbedded
-          ? 'max-w-[1100px] mx-auto flex flex-col gap-6 py-4'
-          : 'bg-[var(--bg)] min-h-screen p-4 sm:p-6 flex flex-col items-center'
-      } pb-28 sm:pb-12`}
+      className={`w-full text-[var(--text)] font-sans ${isEmbedded
+        ? 'max-w-[1100px] mx-auto flex flex-col gap-6 py-4'
+        : 'bg-[var(--bg)] min-h-screen p-4 sm:p-6 flex flex-col items-center'
+        } pb-28 sm:pb-12`}
     >
       <div className="w-full max-w-[1100px] flex flex-col gap-6 relative">
         {/* Loading State */}
@@ -606,9 +605,8 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
           </div>
         ) : (
           <div
-            className={`w-full flex flex-col gap-6 transition-opacity duration-200 ${
-              isFetching ? 'opacity-70' : 'opacity-100'
-            }`}
+            className={`w-full flex flex-col gap-6 transition-opacity duration-200 ${isFetching ? 'opacity-70' : 'opacity-100'
+              }`}
           >
             {/* ══════════════════════════════════════════════════════════ */}
             {/* PAGE HEADER & CONTROLS                                     */}
@@ -631,7 +629,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                     setIsOpeningRecap(true);
                     try {
                       soundFx.resumeContext();
-                    } catch {}
+                    } catch { }
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] text-xs font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-all duration-150 active:scale-95 cursor-pointer shrink-0 shadow-card"
                   title="Watch your recap from the previous completed season"
@@ -664,9 +662,8 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                         key={tab.value}
                         type="button"
                         onClick={() => setTimeframe(tab.value)}
-                        className={`relative px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer shrink-0 z-10 ${
-                          isActive ? 'text-[var(--text)] font-semibold' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-                        }`}
+                        className={`relative px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer shrink-0 z-10 ${isActive ? 'text-[var(--text)] font-semibold' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                          }`}
                       >
                         {isActive && (
                           <motion.div

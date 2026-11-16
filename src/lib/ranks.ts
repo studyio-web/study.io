@@ -134,7 +134,7 @@ export function getMaxRpForTier(tierName: string): number {
   const clean = tierName.trim().toLowerCase();
   const idx = RANK_TIERS.findIndex(
     r => r.name.toLowerCase() === clean ||
-         (r.division === '' && r.tier.toLowerCase() === clean)
+      (r.division === '' && r.tier.toLowerCase() === clean)
   );
   if (idx === -1 || idx === RANK_TIERS.length - 1) return 999999;
   return RANK_TIERS[idx + 1].minRp;
@@ -145,7 +145,7 @@ export function getNextTier(tierName: string): RankTier | null {
   const clean = tierName.trim().toLowerCase();
   const idx = RANK_TIERS.findIndex(
     r => r.name.toLowerCase() === clean ||
-         (r.division === '' && r.tier.toLowerCase() === clean)
+      (r.division === '' && r.tier.toLowerCase() === clean)
   );
   if (idx === -1 || idx === RANK_TIERS.length - 1) return null;
   return RANK_TIERS[idx + 1];

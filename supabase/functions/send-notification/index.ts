@@ -187,6 +187,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // FCM Message Payload
+    // Top-level 'notification' block is CRITICAL for Android background & locked-screen system tray delivery
     const fcmMessage: admin.messaging.Message = {
       token: receiverProfile.fcm_token,
       notification: {
@@ -194,9 +195,12 @@ Deno.serve(async (req: Request) => {
         body: bodyText,
       },
       data: {
+        title: String(title),
+        body: String(bodyText),
         type: String(type || "notification"),
         sender_id: String(sender_id || ""),
         receiver_id: String(receiver_id),
+        channelId: String(channelId),
         tab: "rooms",
         url: "/?tab=rooms",
       },

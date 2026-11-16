@@ -41,6 +41,17 @@ export async function initPushNotifications(userId?: string): Promise<void> {
 
   // Pre-initialize Android notification channels
   await initNotificationChannels().catch(() => {});
+  try {
+    await PushNotifications.createChannel({
+      id: 'social_nudges',
+      name: 'Study Room Nudges',
+      description: 'Alerts when other scholars nudge you in active study rooms',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+    });
+  } catch {}
 
   // If listeners are already attached, trigger register() again if needed and exit
   if (isPushInitialized) {

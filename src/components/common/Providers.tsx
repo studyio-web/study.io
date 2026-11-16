@@ -15,6 +15,7 @@ import { Toaster } from 'react-hot-toast';
 import { TimerSWBridge } from './TimerSWBridge';
 import { RankBadgePreloader } from './RankBadgePreloader';
 import { NativeFeelBridge } from './NativeFeelBridge';
+import { PushNotificationBridge } from './PushNotificationBridge';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -34,6 +35,8 @@ export function Providers({ children }: { children: ReactNode }) {
                         <RankBadgePreloader />
                         {/* Native Android StatusBar, back button & touch bridge */}
                         <NativeFeelBridge />
+                        {/* Native Android FCM background push notification registration & listeners */}
+                        <PushNotificationBridge />
                         {children}
                       </RankProvider>
                     </TimetableProvider>
