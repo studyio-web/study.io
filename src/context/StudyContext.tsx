@@ -36,6 +36,7 @@ import {
   resolveLiveSeasonStats,
 } from '../lib/ranks';
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
+import { fetchAuthoritativeServerTime, saveValidatedSession } from '../lib/serverTime';
 
 export const showPushNotification = async (title: string, options?: NotificationOptions) => {
   if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -101,6 +102,7 @@ interface StudyContextType {
   isRunning: boolean;
   startTimeRef: React.MutableRefObject<number | null>;
   elapsedSeconds: number;
+  syncTimerWithServerTime: (serverTimestamp?: number) => Promise<number | null>;
   pomodoroPhase: PomodoroPhase;
   setPomodoroPhase: (phase: PomodoroPhase) => void;
   pomodoroWorkDuration: number;
@@ -1265,140 +1267,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     };
   }, [isStudying, isPaused, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
 
-  // Window Focus / Tab Visibility Resync:
-  // When document.visibilityState === 'visible' and timer is running, immediately recalculate elapsed seconds from Date.now() - startTimeRef.current
-  useEffect(() => {
-    const handleVisibilityOrFocus = () => {
-      // 1. ZOMBIE KILLER: Check if the timer was legitimately cleared from persistent storage during a save.
-      // If the timer state is still active in React memory but wiped from localStorage, it's a zombie.
-      const hasStorageState = Boolean(
-        localStorage.getItem('studyio_timer_seconds') || 
-        localStorage.getItem('studyio_timer_mode') || 
-        localStorage.getItem('timer-is-active')
-      );
-
-      if (
-        document.visibilityState === 'visible' &&
-        isStudying &&
-        !isPaused &&
-        startTimeRef.current !== null
-      ) {
-        if (!hasStorageState) {
-           console.warn('[ZOMBIE KILLER]: Aborted timer recalculation on window focus because persistent storage is empty. Forcing memory reset.');
-           // Force reset memory state
-           setIsStudying(false);
-           setIsPaused(false);
-           setElapsedSeconds(0);
-           startTimeRef.current = null;
-           if (timerIntervalRef.current) {
-             clearInterval(timerIntervalRef.current);
-             timerIntervalRef.current = null;
-           }
-           return;
-        }
-
-        const now = Date.now();
-        if (lastTickTimeRef.current) {
-          const delta = now - lastTickTimeRef.current;
-        }
-        lastTickTimeRef.current = now;
-
-        const actualElapsed = Math.floor((now - startTimeRef.current) / 1000);
-
-        const prevWaterCount = Math.floor(accumulatedSecondsRef.current / 1800);
-        const newWaterCount = Math.floor(actualElapsed / 1800);
-        if (newWaterCount > prevWaterCount && newWaterCount > 0) {
-          toast('Time to drink water! 💧', { icon: '🚰', duration: 5000 });
-        }
-
-        accumulatedSecondsRef.current = actualElapsed;
-
-        // 4-hour idle check
-        if (actualElapsed >= 14400 && !idleCheckFiredRef.current && timerMode !== 'pomodoro') {
-          idleCheckFiredRef.current = true;
-          
-          // Clamp the elapsed time to 14400 if the device was asleep and jumped way past 4 hours
-          if (actualElapsed > 14405) {
-            accumulatedSecondsRef.current = 14400;
-            setElapsedSeconds(14400);
-            if (startTimeRef.current !== null) {
-              startTimeRef.current = Date.now() - (14400 * 1000);
-            }
-          }
-          
-          setIsIdleCheckActive(true);
-          
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            const iconUrl = window.location.origin + '/icon-192.png';
-            showPushNotification('Are you still studying?', { body: 'Timer reached 4 hours and auto-paused. Confirm to resume.', icon: iconUrl, requireInteraction: true });
-          }
-
-          if (pauseTimerRef.current) {
-            pauseTimerRef.current();
-          } else {
-            setIsPaused(true);
-            if (timerIntervalRef.current) {
-              clearInterval(timerIntervalRef.current);
-              timerIntervalRef.current = null;
-            }
-            startTimeRef.current = null;
-          }
-        }
-
-
-        if (timerMode === 'pomodoro') {
-          const target = pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration;
-          if (actualElapsed >= target) {
-            if (pomodoroPhase === 'work') {
-              if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-              }
-              accumulatedSecondsRef.current = target;
-              setElapsedSeconds(target);
-              startTimeRef.current = null;
-    clientSessionIdRef.current = null;
-              setIsPaused(true);
-              setPomodoroCompletedPhase('work');
-              hapticSuccess();
-              soundFx.playMilestoneBell();
-              toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
-              confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
-              return;
-            } else {
-              if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-              }
-              startTimeRef.current = null;
-    clientSessionIdRef.current = null;
-              accumulatedSecondsRef.current = 0;
-              setElapsedSeconds(0);
-              setPomodoroPhase('work');
-              setIsStudying(false);
-              setIsPaused(false);
-              soundFx.playMilestoneBell();
-              toast.success('Break time is over! Ready to focus? 🚀', { duration: 5000 });
-              confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-              syncActiveSessionToDb('stopped');
-              return;
-            }
-          }
-        }
-
-        setElapsedSeconds(actualElapsed);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-    };
-  }, [isStudying, isPaused, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
-
   // Auto-pause timer on tab close (pagehide) using a reliable keepalive fetch
   useEffect(() => {
     const handlePageHide = () => {
@@ -1716,6 +1584,185 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }, 1000);
     }
   }, [user?.id, selectedSubjectId, subjects, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
+
+
+  // Authoritative Server Time Synchronization Engine
+  // Fetches current server time from Supabase / server endpoint to reconcile elapsed time,
+  // preventing client-side clock tampering and mobile WebView background sleep stalls.
+  const syncTimerWithServerTime = useCallback(async (providedServerTime?: number): Promise<number | null> => {
+    // 1. ZOMBIE KILLER: Check if the timer was legitimately cleared from persistent storage during a save.
+    const hasStorageState = Boolean(
+      localStorage.getItem('studyio_timer_seconds') || 
+      localStorage.getItem('studyio_timer_mode') || 
+      localStorage.getItem('timer-is-active')
+    );
+
+    if (!isStudying || isPaused || startTimeRef.current === null) {
+      return null;
+    }
+
+    if (!hasStorageState) {
+      console.warn('[ZOMBIE KILLER]: Aborted timer recalculation on background sync because persistent storage is empty. Forcing memory reset.');
+      setIsStudying(false);
+      setIsPaused(false);
+      setElapsedSeconds(0);
+      startTimeRef.current = null;
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      return 0;
+    }
+
+    const serverNow = typeof providedServerTime === 'number' && providedServerTime > 0
+      ? providedServerTime
+      : await fetchAuthoritativeServerTime();
+
+    if (lastTickTimeRef.current) {
+      const delta = serverNow - lastTickTimeRef.current;
+    }
+    lastTickTimeRef.current = serverNow;
+
+    let actualElapsed = Math.max(0, Math.floor((serverNow - startTimeRef.current) / 1000));
+
+    // Cap single session at 12 hours (43,200s)
+    if (actualElapsed > 43200) {
+      actualElapsed = 43200;
+      startTimeRef.current = serverNow - (43200 * 1000);
+    }
+
+    const prevWaterCount = Math.floor(accumulatedSecondsRef.current / 1800);
+    const newWaterCount = Math.floor(actualElapsed / 1800);
+    if (newWaterCount > prevWaterCount && newWaterCount > 0) {
+      toast('Time to drink water! 💧', { icon: '🚰', duration: 5000 });
+    }
+
+    accumulatedSecondsRef.current = actualElapsed;
+
+    // 4-hour idle check
+    if (actualElapsed >= 14400 && !idleCheckFiredRef.current && timerMode !== 'pomodoro') {
+      idleCheckFiredRef.current = true;
+      if (actualElapsed > 14405) {
+        accumulatedSecondsRef.current = 14400;
+        actualElapsed = 14400;
+        setElapsedSeconds(14400);
+        startTimeRef.current = serverNow - (14400 * 1000);
+      }
+      setIsIdleCheckActive(true);
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        const iconUrl = window.location.origin + '/icon-192.png';
+        showPushNotification('Are you still studying?', { body: 'Timer reached 4 hours and auto-paused. Confirm to resume.', icon: iconUrl, requireInteraction: true });
+      }
+      if (pauseTimerRef.current) {
+        pauseTimerRef.current();
+      } else {
+        setIsPaused(true);
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        startTimeRef.current = null;
+      }
+      return actualElapsed;
+    }
+
+    // Pomodoro target check
+    if (timerMode === 'pomodoro') {
+      const target = pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration;
+      if (actualElapsed >= target) {
+        if (pomodoroPhase === 'work') {
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+          accumulatedSecondsRef.current = target;
+          setElapsedSeconds(target);
+          startTimeRef.current = null;
+          clientSessionIdRef.current = null;
+          setIsPaused(true);
+          setPomodoroCompletedPhase('work');
+          hapticSuccess();
+          soundFx.playMilestoneBell();
+          toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
+          confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+          return target;
+        } else {
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+          startTimeRef.current = null;
+          clientSessionIdRef.current = null;
+          accumulatedSecondsRef.current = 0;
+          setElapsedSeconds(0);
+          setPomodoroPhase('work');
+          setIsStudying(false);
+          setIsPaused(false);
+          soundFx.playMilestoneBell();
+          toast.success('Break time is over! Ready to focus? 🚀', { duration: 5000 });
+          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+          syncActiveSessionToDb('stopped');
+          return 0;
+        }
+      }
+    }
+
+    // Countdown target check
+    if (timerMode === 'countdown' && countdownTarget > 0) {
+      if (actualElapsed >= countdownTarget) {
+        accumulatedSecondsRef.current = countdownTarget;
+        setElapsedSeconds(countdownTarget);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('studyio_timer_countdown_completed', 'true');
+          } catch {}
+        }
+        return countdownTarget;
+      }
+    }
+
+    setElapsedSeconds(actualElapsed);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('studyio_timer_seconds', String(actualElapsed));
+      } catch {}
+    }
+    return actualElapsed;
+  }, [
+    isStudying,
+    isPaused,
+    timerMode,
+    pomodoroPhase,
+    pomodoroWorkDuration,
+    pomodoroBreakDuration,
+    countdownTarget,
+    syncActiveSessionToDb,
+  ]);
+
+  // Window Focus / Tab Visibility Resync:
+  // When document.visibilityState === 'visible' and timer is running, immediately fetch server time and resync
+  useEffect(() => {
+    const handleVisibilityOrFocus = async () => {
+      if (document.visibilityState === 'visible' && isStudying && !isPaused) {
+        try {
+          const serverNow = await fetchAuthoritativeServerTime();
+          await syncTimerWithServerTime(serverNow);
+        } catch (err) {
+          console.warn('[StudyContext]: Error syncing timer on visibility change:', err);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('resume', handleVisibilityOrFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('resume', handleVisibilityOrFocus);
+    };
+  }, [isStudying, isPaused, syncTimerWithServerTime]);
 
   // single source of truth: only RPCs write accumulated_seconds; realtime handler is read-only
   // Multi-Device Realtime Sync: Server-Authoritative synchronized payload handler
@@ -2409,15 +2456,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               mode: item.mode || 'stopwatch',
             }));
             
-            // Insert one by one to avoid whole batch failing due to one FK violation (e.g. missing subject_id)
+            // Migrate via server validation to enforce 12h/24h caps
             inserts.forEach(insert => {
-               supabase.from('study_sessions').insert(insert).then(({error}) => {
-                  if (error) {
-                     console.warn('Error migrating local session (retrying without subject_id):', error);
-                     if (insert.subject_id) {
-                        supabase.from('study_sessions').insert({ ...insert, subject_id: null }).then();
-                     }
-                  }
+               saveValidatedSession({
+                 started_at: insert.started_at,
+                 ended_at: insert.ended_at,
+                 subject_id: insert.subject_id,
+                 notes: insert.notes,
+                 mode: insert.mode,
+               }).catch(err => {
+                 console.warn('Error migrating local session via server validation:', err);
                });
             });
           }
@@ -3016,18 +3064,25 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     let insertedRecordIds: string[] = [];
 
     if (activeUser?.id) {
-      if (!supabase) return false;
       try {
-        const { data, error } = await supabase.from('study_sessions').upsert(sessionPayloads, { onConflict: 'client_session_id', ignoreDuplicates: true }).select();
-        if (error) {
-          console.error("Supabase session insert error:", error);
-          return false;
-        } else if (data) {
-          insertedRecordIds = data.map(d => d.id);
+        for (const payload of sessionPayloads) {
+          const saveRes = await saveValidatedSession({
+            started_at: payload.started_at,
+            ended_at: payload.ended_at,
+            subject_id: payload.subject_id,
+            notes: payload.notes,
+            mode: payload.mode,
+            client_session_id: payload.client_session_id,
+          });
+          if (saveRes.success && saveRes.session?.id) {
+            insertedRecordIds.push(saveRes.session.id);
+            if (typeof saveRes.calculatedSeconds === 'number') {
+              payload.duration_seconds = saveRes.calculatedSeconds;
+            }
+          }
         }
       } catch (err) {
-        console.error('StudyContext: Exception inserting session:', err);
-        return false;
+        console.error('StudyContext: Exception inserting validated session:', err);
       }
     }
 
@@ -3845,6 +3900,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setIsFocusModeOpen,
         isRunning,
         startTimeRef,
+        syncTimerWithServerTime,
         startTimer,
         pauseTimer,
         resumeTimer,

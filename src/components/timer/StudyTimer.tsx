@@ -47,6 +47,7 @@ import confetti from 'canvas-confetti';
 import { CountdownEditor } from './CountdownEditor';
 import { enterFullscreenSafely, exitFullscreenSafely } from './FocusModeModal';
 import { getSupabase } from '../../lib/supabase';
+import { fetchAuthoritativeServerTime, saveValidatedSession } from '../../lib/serverTime';
 import { getDailyQuote } from '../../lib/quotes';
 import { motion, useReducedMotion } from 'framer-motion';
 import { TimerDial } from './TimerDial';
@@ -88,6 +89,7 @@ export function StudyTimer() {
     isRunning,
     isBlockedByOtherTab,
     startTimeRef,
+    syncTimerWithServerTime,
     elapsedSeconds,
     pomodoroPhase,
     pomodoroWorkDuration,
@@ -169,6 +171,37 @@ export function StudyTimer() {
       else mql.removeListener(handleOrientation);
     };
   }, [setIsFocusModeOpen]);
+
+  // Client-Side Background Sync (Anti-Tamper & Sleep Reconcile):
+  // When mobile WebView or browser tab awakens from sleep/background, fetch authoritative
+  // server time from Supabase/API and immediately reconcile the timer instead of relying on paused setInterval.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleVisibilitySync = async () => {
+      if (document.visibilityState === 'visible' && isStudying && !isPaused) {
+        console.log('[TIMER Background Sync]: App returned to foreground, fetching server time from Supabase/API...');
+        try {
+          const serverTime = await fetchAuthoritativeServerTime();
+          if (syncTimerWithServerTime) {
+            await syncTimerWithServerTime(serverTime);
+          }
+        } catch (syncErr) {
+          console.warn('[TIMER Background Sync]: Error syncing server time:', syncErr);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+    window.addEventListener('focus', handleVisibilitySync);
+    window.addEventListener('resume' as any, handleVisibilitySync);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
+      window.removeEventListener('focus', handleVisibilitySync);
+      window.removeEventListener('resume' as any, handleVisibilitySync);
+    };
+  }, [isStudying, isPaused, syncTimerWithServerTime]);
   const [overviewView, setOverviewView] = useState<'today' | 'yesterday'>('today');
   const [isSaving, setIsSaving] = useState(false);
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
@@ -398,20 +431,39 @@ export function StudyTimer() {
         sessionPayload,
       });
 
-      // 3. Insert the record into study_sessions matching exact column names
+      // 3. Save via server-side validation to enforce server-calculated duration and 12h/24h caps
       let insertedRecordId: string | null = null;
+      let finalDurationSeconds = Math.min(seconds, 43200); // Strict 12-hour single session cap
+      let finalStartedAt = startedAt;
+      let finalEndedAt = endedAt;
 
-      if (supabase && activeUser?.id) {
+      if (activeUser?.id) {
         try {
-          const { data, error } = await supabase.from('study_sessions').insert([sessionPayload]).select();
-          if (error) {
-            console.error("Supabase session insert error:", error);
+          const saveResult = await saveValidatedSession({
+            started_at: startedAt,
+            ended_at: endedAt,
+            subject_id: subjectId,
+            notes: notesToSave,
+            mode: currentMode,
+          });
+
+          if (saveResult.success) {
+            insertedRecordId = saveResult.session?.id || null;
+            if (typeof saveResult.calculatedSeconds === 'number') {
+              finalDurationSeconds = saveResult.calculatedSeconds;
+            }
+            if (saveResult.session?.started_at) {
+              finalStartedAt = saveResult.session.started_at;
+            }
+            if (saveResult.session?.ended_at) {
+              finalEndedAt = saveResult.session.ended_at;
+            }
+            console.log('Session validated and persisted via server:', saveResult);
           } else {
-            insertedRecordId = data?.[0]?.id || null;
-            console.log('Session successfully persisted to Supabase:', data);
+            console.warn('Server session validation returned error:', saveResult.error);
           }
         } catch (err) {
-          console.error('Exception during Supabase study_sessions insert:', err);
+          console.error('Exception during Supabase study_sessions validated save:', err);
         }
       }
 
@@ -425,9 +477,9 @@ export function StudyTimer() {
         subjectName: selectedSub.name || 'General Study',
         subjectColor: selectedSub.color || '#10b981',
         subject_name: selectedSub.name || 'General Study',
-        startTime: startedAt,
-        endTime: endedAt,
-        durationSeconds: sessionPayload.duration_seconds,
+        startTime: finalStartedAt,
+        endTime: finalEndedAt,
+        durationSeconds: finalDurationSeconds,
         notes: notesToSave || '',
         mode: currentMode,
         createdAt: new Date().toISOString(),
@@ -461,7 +513,7 @@ export function StudyTimer() {
         .reduce((sum, s) => sum + s.durationSeconds, 0);
 
       const dailyGoalSeconds = (user?.dailyGoalHours || 2) * 3600;
-      if (totalToday >= dailyGoalSeconds && totalToday - seconds < dailyGoalSeconds) {
+      if (totalToday >= dailyGoalSeconds && totalToday - finalDurationSeconds < dailyGoalSeconds) {
         confetti({
           particleCount: 120,
           spread: 80,
@@ -478,7 +530,7 @@ export function StudyTimer() {
       const lastStreakBonusDate = user?.last_streak_bonus_date || user?.lastStreakBonusDate || localStreakBonusDate;
       const hasStreakOrGoal = (user?.streakDays || 0) > 0 || totalToday >= dailyGoalSeconds;
       const hasCompletedTask = Boolean(activeTaskId);
-      const rpBreakdown = calculateSessionRP(seconds, {
+      const rpBreakdown = calculateSessionRP(finalDurationSeconds, {
         hasStreakOrGoal,
         hasCompletedTask,
         lastStreakBonusDate,
@@ -493,8 +545,8 @@ export function StudyTimer() {
       // Award rate: 10 XP per full minute of recorded focus time: Math.floor(duration_seconds / 60) * 10
       // Duration gate: If session duration is under 60 seconds (< 1 min), earned focus XP is strictly 0.
       // Daily consistency streak bonus (+100 XP): First valid session (>= 60s) of the day
-      const isValidSession = seconds >= 60;
-      const focusXP = isValidSession ? Math.floor(seconds / 60) * 10 : 0;
+      const isValidSession = finalDurationSeconds >= 60;
+      const focusXP = isValidSession ? Math.floor(finalDurationSeconds / 60) * 10 : 0;
       const appliedStreakBonus = isValidSession && (lastStreakBonusDate !== todayString);
       const totalEarnedXP = focusXP + (appliedStreakBonus ? 100 : 0);
 
@@ -506,7 +558,7 @@ export function StudyTimer() {
 
       // Trigger celebratory XP gain notification
       if (totalEarnedXP > 0) {
-        const mins = Math.floor(seconds / 60);
+        const mins = Math.floor(finalDurationSeconds / 60);
         const reason = appliedStreakBonus
           ? `${mins} min Focus (+100 Daily Streak)`
           : `${mins} min Focus Session`;
@@ -576,7 +628,7 @@ export function StudyTimer() {
         try {
           await refetchSessions();
           if (isPremium) {
-            checkGoalReached(seconds);
+            checkGoalReached(finalDurationSeconds);
             await refreshGoals();
           }
         } catch (refetchErr) {
@@ -590,6 +642,7 @@ export function StudyTimer() {
     isSaving,
     isRunning,
     startTimeRef,
+    syncTimerWithServerTime,
     elapsedSeconds,
     selectedSubject,
     timerMode,
