@@ -54,6 +54,9 @@ scripts/backups/*.json
 # rank normalization backups
 **/ranks/original/
 
+# Supabase CLI temp files
+supabase/.temp/
+
 # APK binaries (ignore android build intermediates, but track public release APK)
 *.apk
 !public/studyio.apk

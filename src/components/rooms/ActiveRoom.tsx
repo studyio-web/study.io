@@ -266,11 +266,18 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
   // Classic Nudge State & 3-Hour Rate Limiting
   const [nudgeTimestamps, setNudgeTimestamps] = useState<Record<string, number>>(() => {
-    return loadStoredNudgeTimestamps(roomId);
+    return loadStoredNudgeTimestamps(roomId, user?.id);
   });
   const [nudgeCooldowns, setNudgeCooldowns] = useState<Record<string, number>>({});
   const [recentlyNudgedUsers, setRecentlyNudgedUsers] = useState<Record<string, { fromUsername: string; timestamp: number }>>({});
   const [isScreenShaking, setIsScreenShaking] = useState(false);
+
+  // Sync stored nudge timestamps whenever user or room changes
+  useEffect(() => {
+    if (user?.id) {
+      setNudgeTimestamps(loadStoredNudgeTimestamps(roomId, user.id));
+    }
+  }, [roomId, user?.id]);
 
   // Request browser notification permission early on room entry
   useEffect(() => {
@@ -299,11 +306,13 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     if (!payload || !payload.targetUserId) return;
     const ts = payload.timestamp || Date.now();
 
-    // 1. Mark target scholar as having a 3-hour cooldown
-    setNudgeTimestamps((prev) => ({ ...prev, [payload.targetUserId]: ts }));
-    persistNudgeTimestamp(payload.targetUserId, roomId, ts);
+    // 1. Mark target scholar as having a 3-hour cooldown ONLY if the current user sent the nudge
+    if (payload.fromUserId && payload.fromUserId === user?.id) {
+      setNudgeTimestamps((prev) => ({ ...prev, [payload.targetUserId]: ts }));
+      persistNudgeTimestamp(payload.targetUserId, roomId, ts, user.id);
+    }
 
-    // 2. Highlight target user's avatar card in the room with animated reaction
+    // 2. Highlight target user's avatar card in the room with animated reaction for everyone in room
     setRecentlyNudgedUsers((prev) => ({
       ...prev,
       [payload.targetUserId]: {
@@ -349,7 +358,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   const handleSendNudge = useCallback(async (targetUserId: string, targetUsername: string) => {
     if (!user?.id || targetUserId === user.id) return;
 
-    // Check if target is on 3-hour cooldown
+    // Check if target is on 3-hour cooldown for the CURRENT sender
     const remaining = getRemainingNudgeCooldownSeconds(nudgeTimestamps[targetUserId]);
     if (remaining > 0) {
       toast.error(`Nudge on cooldown for ${targetUsername} (${formatNudgeCooldown(remaining)} left)`);
@@ -357,8 +366,8 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     }
 
     const now = Date.now();
-    // 3-hour cooldown stored locally and broadcasted
-    persistNudgeTimestamp(targetUserId, roomId, now);
+    // 3-hour cooldown stored locally for current user only
+    persistNudgeTimestamp(targetUserId, roomId, now, user.id);
     setNudgeTimestamps((prev) => ({ ...prev, [targetUserId]: now }));
 
     triggerHaptic('medium');
@@ -1286,14 +1295,21 @@ CREATE POLICY "Hosts can update their own study rooms"
       const chronological = [...data].reverse();
       setMessages(chronological);
 
-      // Sync any active [SYSTEM_NUDGE] cooldowns from the past 3 hours
+      // Sync any active [SYSTEM_NUDGE] cooldowns from the past 3 hours for the CURRENT user only
       const now = Date.now();
       const nudgeMap: Record<string, number> = {};
       data.forEach((m: any) => {
         if (m.content?.startsWith('[SYSTEM_NUDGE]:')) {
           try {
             const parsed = JSON.parse(m.content.replace('[SYSTEM_NUDGE]:', ''));
-            if (parsed.targetUserId && parsed.timestamp && now - parsed.timestamp < THREE_HOURS_MS) {
+            // Enforce cooldown ONLY if the current logged-in user was the sender of that nudge
+            if (
+              user?.id &&
+              parsed.fromUserId === user.id &&
+              parsed.targetUserId &&
+              parsed.timestamp &&
+              now - parsed.timestamp < THREE_HOURS_MS
+            ) {
               if (!nudgeMap[parsed.targetUserId] || parsed.timestamp > nudgeMap[parsed.targetUserId]) {
                 nudgeMap[parsed.targetUserId] = parsed.timestamp;
               }

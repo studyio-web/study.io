@@ -26,13 +26,16 @@ export function formatNudgeCooldown(seconds: number): string {
 }
 
 /**
- * Retrieve active nudge timestamps from localStorage for a given room.
+ * Retrieve active nudge timestamps from localStorage for a given room and sender user.
  * Key: targetUserId -> epoch timestamp (ms)
+ * Scoped per sender user ID so one user's nudge never places other users on cooldown.
  */
-export function loadStoredNudgeTimestamps(roomId?: string): Record<string, number> {
+export function loadStoredNudgeTimestamps(roomId?: string, senderUserId?: string): Record<string, number> {
   if (typeof window === 'undefined') return {};
   try {
-    const key = roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
+    const key = senderUserId
+      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
+      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
     const raw = localStorage.getItem(key);
     if (!raw) return {};
     const parsed: Record<string, number> = JSON.parse(raw);
@@ -52,12 +55,20 @@ export function loadStoredNudgeTimestamps(roomId?: string): Record<string, numbe
 
 /**
  * Persist a nudge event to localStorage so the 3-hour cooldown survives page reloads.
+ * Cooldown is stored strictly for the sender user who initiated the nudge.
  */
-export function persistNudgeTimestamp(targetUserId: string, roomId?: string, timestamp: number = Date.now()): void {
+export function persistNudgeTimestamp(
+  targetUserId: string,
+  roomId?: string,
+  timestamp: number = Date.now(),
+  senderUserId?: string
+): void {
   if (typeof window === 'undefined') return;
   try {
-    const key = roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
-    const active = loadStoredNudgeTimestamps(roomId);
+    const key = senderUserId
+      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
+      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
+    const active = loadStoredNudgeTimestamps(roomId, senderUserId);
     active[targetUserId] = timestamp;
     localStorage.setItem(key, JSON.stringify(active));
   } catch {}
