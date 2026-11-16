@@ -338,8 +338,10 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
       const sender = payload.fromUsername || 'A scholar';
 
-      // Operating System / Browser Level Push Notification
-      triggerNudgePushNotification(sender);
+      // Operating System / Browser Level Push Notification (only if app is hidden / in background)
+      if (typeof document !== 'undefined' && document.hidden) {
+        triggerNudgePushNotification(sender);
+      }
 
       // In-App Attention Toast
       toast((t) => (

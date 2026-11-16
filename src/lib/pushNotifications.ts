@@ -121,13 +121,20 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       async (notification: PushNotificationSchema) => {
         console.log('[Push] pushNotificationReceived:', notification);
 
+        // Deduplication: If the FCM message has a notification payload (title/body),
+        // Android / Capacitor presentationOptions already rendered it in the system tray.
+        // Only schedule a LocalNotification if it was a data-only push payload to prevent duplicate notifications.
+        const hasSystemNotification = Boolean(notification.title || notification.body);
+        if (hasSystemNotification) {
+          console.log('[Push] System notification already rendered by OS/Capacitor presentationOptions. Skipping local duplicate.');
+          return;
+        }
+
         try {
           const title =
-            notification.title ||
             notification.data?.title ||
             'study.io';
           const body =
-            notification.body ||
             notification.data?.body ||
             '';
           const channelId =
