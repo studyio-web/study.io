@@ -289,7 +289,6 @@ Deno.serve(async (req: Request) => {
       notification: {
         title,
         body: bodyText,
-        imageUrl: "https://studyio-web.vercel.app/icon-192.png",
       },
       data: {
         type: String(type || "notification"),
@@ -299,7 +298,6 @@ Deno.serve(async (req: Request) => {
         title: title,
         body: bodyText,
         icon: "ic_stat_studyio",
-        image: "https://studyio-web.vercel.app/icon-192.png",
       },
       android: {
         priority: 'high',
