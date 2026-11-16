@@ -1,12 +1,18 @@
 'use client';
 
-export const THREE_HOURS_SECONDS = 3 * 60 * 60; // 10,800 seconds
-export const THREE_HOURS_MS = THREE_HOURS_SECONDS * 1000; // 10,800,000 ms
+export const NUDGE_COOLDOWN_SECONDS = 15 * 60; // 900 seconds (15 minutes)
+export const NUDGE_COOLDOWN_MS = NUDGE_COOLDOWN_SECONDS * 1000; // 900,000 ms
+
+// Backward-compatible aliases
+export const FIFTEEN_MINUTES_SECONDS = NUDGE_COOLDOWN_SECONDS;
+export const FIFTEEN_MINUTES_MS = NUDGE_COOLDOWN_MS;
+export const THREE_HOURS_SECONDS = NUDGE_COOLDOWN_SECONDS;
+export const THREE_HOURS_MS = NUDGE_COOLDOWN_MS;
 
 /**
  * Formats a remaining cooldown (in seconds) into human-readable compact format:
- * - 2h 45m
- * - 48m
+ * - 14m
+ * - 4m 32s
  * - 32s
  */
 export function formatNudgeCooldown(seconds: number): string {
@@ -26,14 +32,36 @@ export function formatNudgeCooldown(seconds: number): string {
 }
 
 /**
- * Retrieve active nudge timestamps (cooldown disabled - returns empty map).
+ * Retrieve active nudge timestamps from localStorage for a given room and sender user.
+ * Key: targetUserId -> epoch timestamp (ms)
+ * Scoped per sender user ID so one user's nudge never places other users on cooldown.
  */
 export function loadStoredNudgeTimestamps(roomId?: string, senderUserId?: string): Record<string, number> {
-  return {};
+  if (typeof window === 'undefined') return {};
+  try {
+    const key = senderUserId
+      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
+      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed: Record<string, number> = JSON.parse(raw);
+    const now = Date.now();
+    const active: Record<string, number> = {};
+
+    for (const [targetId, ts] of Object.entries(parsed)) {
+      if (typeof ts === 'number' && now - ts < NUDGE_COOLDOWN_MS) {
+        active[targetId] = ts;
+      }
+    }
+    return active;
+  } catch {
+    return {};
+  }
 }
 
 /**
- * Persist a nudge event (cooldown disabled - no-op).
+ * Persist a nudge event to localStorage so the 15-minute cooldown survives page reloads.
+ * Cooldown is stored strictly for the sender user who initiated the nudge.
  */
 export function persistNudgeTimestamp(
   targetUserId: string,
@@ -41,14 +69,25 @@ export function persistNudgeTimestamp(
   timestamp: number = Date.now(),
   senderUserId?: string
 ): void {
-  // Cooldown disabled - no persistence needed
+  if (typeof window === 'undefined') return;
+  try {
+    const key = senderUserId
+      ? `studyio_nudges_${senderUserId}_${roomId || 'global'}`
+      : roomId ? `studyio_nudges_${roomId}` : 'studyio_nudges_global';
+    const active = loadStoredNudgeTimestamps(roomId, senderUserId);
+    active[targetUserId] = timestamp;
+    localStorage.setItem(key, JSON.stringify(active));
+  } catch {}
 }
 
 /**
- * Calculate remaining seconds of cooldown (cooldown disabled - always returns 0).
+ * Calculate remaining seconds of cooldown for a specific scholar.
  */
 export function getRemainingNudgeCooldownSeconds(timestamp?: number): number {
-  return 0;
+  if (!timestamp) return 0;
+  const elapsedMs = Date.now() - timestamp;
+  if (elapsedMs >= NUDGE_COOLDOWN_MS) return 0;
+  return Math.ceil((NUDGE_COOLDOWN_MS - elapsedMs) / 1000);
 }
 
 import { notify, requestNotificationPermission } from './notifications';
