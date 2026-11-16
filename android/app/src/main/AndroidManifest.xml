@@ -54,6 +54,17 @@
                 android:value="Focus study timer tracking background elapsed and countdown time for user productivity" />
         </service>
 
+        <!-- FCM Default Notification Metadata for Background / Locked-Screen Delivery -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="social_nudges" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_timer" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/colorPrimary" />
+
         <!-- Broadcast Receiver for Timer Notification actions and Android 14 dismissal recovery -->
         <receiver
             android:name=".TimerNotificationReceiver"

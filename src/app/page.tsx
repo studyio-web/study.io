@@ -24,6 +24,7 @@ import { DevRankSwitcher } from '../components/common/DevRankSwitcher';
 import { useStudyMode } from '../context/StudyModeContext';
 import { getCachedUserState } from '../lib/userCache';
 import { setupNotificationListeners } from '../lib/notifications';
+import { initPushNotifications } from '../lib/pushNotifications';
 
 // Lazy-load inactive tabs so chart, tasks, leaderboard, and WebRTC room libraries are deferred
 const TasksOverview = dynamic(
@@ -170,8 +171,10 @@ export default function Home() {
     }
   }, []);
 
-  // Listen for notification deep link / tab navigation events
+  // Listen for notification deep link / tab navigation events and initialize native push
   useEffect(() => {
+    initPushNotifications().catch(() => {});
+
     const handleNavEvent = (e: any) => {
       const targetTab = e?.detail?.tab;
       if (targetTab && ['timer', 'tasks', 'analytics', 'leaderboard', 'settings', 'rooms', 'timetable'].includes(targetTab)) {
