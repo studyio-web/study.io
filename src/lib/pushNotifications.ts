@@ -17,17 +17,21 @@ let currentActiveUserId: string | null = null;
 
 /**
  * Initialize Push Notifications for Capacitor Native Android using @capacitor/push-notifications.
- * - Requests POST_NOTIFICATIONS permission
- * - Registers device token with Firebase Cloud Messaging
- * - Adds native listeners for pushNotificationReceived & pushNotificationActionPerformed
+ * - Listens for native registration event BEFORE calling register()
+ * - Saves device token directly to Supabase profiles table
+ * - Sets up listeners for pushNotificationReceived & pushNotificationActionPerformed
  */
 export async function initPushNotifications(userId?: string): Promise<void> {
   if (userId) {
     currentActiveUserId = userId;
-    // If a token was already obtained, sync it immediately
-    const existingToken = typeof window !== 'undefined' ? localStorage.getItem('studyio_fcm_token') : null;
-    if (existingToken) {
-      syncPushTokenToAccount(userId, existingToken).catch(() => {});
+  }
+
+  // If a token was already saved in localStorage, sync it directly to Supabase profiles
+  if (typeof window !== 'undefined') {
+    const existingToken = localStorage.getItem('studyio_fcm_token');
+    const targetId = currentActiveUserId || userId;
+    if (existingToken && targetId && !targetId.startsWith('guest')) {
+      syncPushTokenToAccount(targetId, existingToken).catch(() => {});
     }
   }
 
@@ -35,10 +39,14 @@ export async function initPushNotifications(userId?: string): Promise<void> {
     return;
   }
 
-  // Ensure notification channels are registered on the Android OS first
+  // Pre-initialize Android notification channels
   await initNotificationChannels().catch(() => {});
 
+  // If listeners are already attached, trigger register() again if needed and exit
   if (isPushInitialized) {
+    try {
+      await PushNotifications.register();
+    } catch {}
     return;
   }
   isPushInitialized = true;
@@ -47,7 +55,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
     // 1. Check existing permission status
     let permStatus = await PushNotifications.checkPermissions();
 
-    // 2. Request permission if not determined
+    // 2. Request permission if needed
     if (permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
       permStatus = await PushNotifications.requestPermissions();
     }
@@ -57,30 +65,45 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       return;
     }
 
-    // 3. Register device token natively with FCM
-    await PushNotifications.register();
-    console.log('[Push] PushNotifications.register() invoked successfully');
-
-    // 4. Native Listener: Registration Token
+    // 3. Attach listeners BEFORE calling register()
+    // Native Listener: Registration Token
     await PushNotifications.addListener('registration', async (token: Token) => {
       console.log('[Push] Native FCM registration token received:', token.value);
       try {
         localStorage.setItem('studyio_fcm_token', token.value);
-        const targetUser = currentActiveUserId || userId;
-        if (targetUser) {
-          await syncPushTokenToAccount(targetUser, token.value);
+
+        const supabase = getSupabase();
+        if (supabase) {
+          let targetId = currentActiveUserId || userId;
+          if (!targetId) {
+            const { data } = await supabase.auth.getUser();
+            targetId = data?.user?.id;
+          }
+
+          if (targetId && !targetId.startsWith('guest')) {
+            const { error } = await supabase
+              .from('profiles')
+              .update({ fcm_token: token.value, fcm_updated_at: new Date().toISOString() })
+              .eq('id', targetId);
+
+            if (error) {
+              console.warn('[Push] Error updating profiles with fcm_token:', error);
+            } else {
+              console.log('[Push] Successfully saved FCM token to Supabase profiles for user:', targetId);
+            }
+          }
         }
       } catch (err) {
-        console.warn('[Push] Error storing/syncing token:', err);
+        console.warn('[Push] Failed to store/sync token on registration:', err);
       }
     });
 
-    // 5. Native Listener: Registration Error
+    // Native Listener: Registration Error
     await PushNotifications.addListener('registrationError', (error: any) => {
       console.error('[Push] FCM Registration Error:', error);
     });
 
-    // 6. Native Listener: pushNotificationReceived
+    // Native Listener: pushNotificationReceived
     // Dispatched when an FCM push is delivered (foreground or background wake)
     await PushNotifications.addListener(
       'pushNotificationReceived',
@@ -88,7 +111,6 @@ export async function initPushNotifications(userId?: string): Promise<void> {
         console.log('[Push] pushNotificationReceived:', notification);
 
         try {
-          // Extract title, body, and custom data from incoming FCM payload
           const title =
             notification.title ||
             notification.data?.title ||
@@ -103,7 +125,6 @@ export async function initPushNotifications(userId?: string): Promise<void> {
               ? 'social_nudges'
               : 'reminders');
 
-          // Schedule local notification to guarantee display in notification tray with icon and sound
           await LocalNotifications.schedule({
             notifications: [
               {
@@ -128,7 +149,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       }
     );
 
-    // 7. Native Listener: pushNotificationActionPerformed
+    // Native Listener: pushNotificationActionPerformed
     // Dispatched when the user taps the push notification from the notification drawer / lockscreen
     await PushNotifications.addListener(
       'pushNotificationActionPerformed',
@@ -146,6 +167,10 @@ export async function initPushNotifications(userId?: string): Promise<void> {
         }
       }
     );
+
+    // 4. Call register() AFTER all listeners are attached so the registration event is never dropped
+    await PushNotifications.register();
+    console.log('[Push] PushNotifications.register() called after listeners established');
   } catch (err) {
     console.error('[Push] Fatal error initializing native push notifications:', err);
   }
@@ -155,15 +180,20 @@ export async function initPushNotifications(userId?: string): Promise<void> {
  * Syncs the FCM token to the user profile in Supabase.
  */
 export async function syncPushTokenToAccount(userId: string, token: string): Promise<void> {
-  if (!userId || !token) return;
+  if (!userId || !token || userId.startsWith('guest')) return;
   try {
     const supabase = getSupabase();
     if (supabase) {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
-        .update({ fcm_token: token, fcm_updated_at: new Date().toISOString() } as any)
+        .update({ fcm_token: token, fcm_updated_at: new Date().toISOString() })
         .eq('id', userId);
-      console.log('[Push] Successfully synced FCM token to Supabase for user:', userId);
+
+      if (error) {
+        console.warn('[Push] Failed to sync FCM token to Supabase profile:', error);
+      } else {
+        console.log('[Push] Successfully synced FCM token to Supabase for user:', userId);
+      }
     }
   } catch (err) {
     console.warn('[Push] Failed to sync FCM token to Supabase profile:', err);
@@ -189,7 +219,7 @@ export async function clearPushTokenOnLogout(userId?: string): Promise<void> {
       if (supabase) {
         await supabase
           .from('profiles')
-          .update({ fcm_token: null, fcm_updated_at: new Date().toISOString() } as any)
+          .update({ fcm_token: null, fcm_updated_at: new Date().toISOString() })
           .eq('id', userId);
       }
     }
