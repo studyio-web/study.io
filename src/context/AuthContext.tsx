@@ -6,6 +6,7 @@ import { UserProfile, StudyMode } from '../types';
 import { INITIAL_USER, cleanupLegacyDemoData, calculateStreak, getCachedStreak, setCachedStreak } from '../lib/mockData';
 import { getSupabase } from '../lib/supabase';
 import { getRankFromRp, getSoftResetRp, HARD_RESET_CAP_RP, calculateSeasonRp, getCurrentMonthFocusSeconds, getRankTier, resolveLiveSeasonStats } from '../lib/ranks';
+import { clearRankCache } from './RankContext';
 import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '../lib/rankedSystem';
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
 import { resolveAppAvatar, isAppAvatar, getDeterministicDefaultAvatar } from '../lib/avatars';
@@ -1045,6 +1046,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUser(INITIAL_USER);
     setIsAuthenticated(false);
     clearCachedUserState();
+    clearRankCache();
     try {
       localStorage.removeItem('studypulse_is_authenticated');
       localStorage.removeItem('studypulse_active_user');
@@ -1092,6 +1094,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUser(INITIAL_USER);
     setIsAuthenticated(false);
     clearCachedUserState();
+    clearRankCache();
   }, [saveUser]);
 
   const deleteAccount = useCallback(async () => {

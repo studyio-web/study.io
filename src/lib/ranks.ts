@@ -177,7 +177,7 @@ export function resolveLiveSeasonStats(
   currentMonthSeconds: number;
   rankTitle: string;
 } {
-  const rawCarryover = Number(user?.season_base_rp ?? user?.carryover_rp ?? user?.season_rp ?? 0);
+  const rawCarryover = Number(user?.season_base_rp ?? user?.carryover_rp ?? 0);
   const startingRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, rawCarryover));
 
   const currentMonthSeconds = getCurrentMonthFocusSeconds(sessions || []);

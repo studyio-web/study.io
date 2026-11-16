@@ -3262,6 +3262,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+      }
+
       return true;
   }, [
     selectedSubject,

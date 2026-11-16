@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
+import { useRank } from '../../context/RankContext';
 import { getSupabase } from '../../lib/supabase';
 import { getRankTier, calculateSeasonRp, calculateRpFromSeconds, RankTierName, RankDivision, RankTier, RANKS, resolveLiveSeasonStats, HARD_RESET_CAP_RP } from '../../lib/ranks';
 import { getRankTheme } from '../../lib/rankTheme';
@@ -254,14 +255,17 @@ import { usePremium } from '../../context/PremiumContext';
 export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: MonthlyLeaderboardProps) {
   const { user } = useAuth();
   const { sessions } = useStudy();
-  const { userRank } = useRankTheme();
-  const { previewRp, isPreviewActive } = useDevRankPreview();
   const { isPremium } = usePremium();
+  const {
+    leaderboard,
+    timeframe,
+    setTimeframe,
+    isLoading,
+    isFetching,
+    userRank: sharedUserRank,
+    refetchRank,
+  } = useRank();
 
-  const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('month');
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isFetching, setIsFetching] = useState<boolean>(false);
   const [animationKey, setAnimationKey] = useState<number>(0);
   const [hasSeenRecap, setHasSeenRecap] = useState<boolean | null>(null);
   const [isOpeningRecap, setIsOpeningRecap] = useState<boolean>(false);
@@ -364,194 +368,17 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     }
   }, [timeframe]);
 
-  // Fetch leaderboard data based on selected timeframe
+  // Refetch live leaderboard data from shared rank context
   const fetchLeaderboard = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
+    await refetchRank();
+  }, [refetchRank]);
 
-    if (leaderboard.length === 0) {
-      setIsLoading(true);
-    }
-    setIsFetching(true);
-
-    const supabase = getSupabase();
-    let entries: LeaderboardEntry[] = [];
-    let rpcSucceeded = false;
-    const currentUser = userRef.current;
-    const currentSessions = sessionsRef.current;
-
-    try {
-      if (supabase) {
-        try {
-          let res = await supabase.rpc('get_leaderboard', { timeframe });
-          if (res.error && timeframe === 'month') {
-            res = await supabase.rpc('get_monthly_leaderboard');
-          }
-
-          if (!res.error && Array.isArray(res.data)) {
-            rpcSucceeded = true;
-            entries = res.data.map((row: any) => {
-              const isMe = Boolean(
-                row.is_current_user ||
-                (currentUser?.id && String(row.user_id) === String(currentUser.id)) ||
-                (currentUser?.username && row.username && currentUser.username.toLowerCase().trim() === String(row.username).toLowerCase().trim()) ||
-                (currentUser?.displayName && (row.display_name || row.name) && currentUser.displayName.toLowerCase().trim() === String(row.display_name || row.name).toLowerCase().trim()) ||
-                (currentUser?.name && (row.display_name || row.name) && currentUser.name.toLowerCase().trim() === String(row.display_name || row.name).toLowerCase().trim())
-              );
-              
-              const totalSec = Number(row.total_seconds || 0);
-              let seasonRp = 0;
-              let computedRank = 'Bronze I';
-
-              if (isMe && currentUser) {
-                const live = resolveLiveSeasonStats(currentUser, currentSessions);
-                seasonRp = live.seasonRp;
-                computedRank = live.rankTier.name;
-              } else {
-                const carryoverRp = Math.min(HARD_RESET_CAP_RP, Number(row.season_base_rp ?? row.carryover_rp ?? 0));
-                const earnedRp = Math.floor(totalSec / 36);
-                seasonRp = carryoverRp + earnedRp;
-                computedRank = getRankTier(seasonRp).name;
-              }
-              
-              return {
-                user_id: String(row.user_id),
-                name: String(row.display_name || row.name || 'Scholar'),
-                display_name: row.display_name || row.name || null,
-                username: row.username ? String(row.username) : null,
-                avatar_url: row.avatar_url ? String(row.avatar_url) : null,
-                level: row.level ? Number(row.level) : undefined,
-                lifetime_xp: Number(row.lifetime_xp || 0),
-                rank_title: computedRank,
-                total_seconds: totalSec,
-                season_rp: seasonRp,
-                focus_minutes: Math.floor(totalSec / 60),
-                is_current_user: isMe,
-                is_premium: Boolean(row.is_premium),
-                flair_frame: row.flair_frame || (row.is_premium ? 'gold' : null),
-              };
-            });
-          } else if (res.error) {
-            console.warn('[Leaderboard] RPC get_leaderboard notice:', res.error.message);
-          }
-        } catch (err: any) {
-          console.warn('[Leaderboard] RPC get_leaderboard call error:', err);
-        }
-      }
-
-      // Fallback for local development or offline mode
-      if (!rpcSucceeded) {
-        try {
-          if (supabase && currentUser?.id && !currentUser.id.startsWith('user-scholar')) {
-            const filterStartDate = getFilterStartDate(timeframe);
-
-            let query = supabase
-              .from('study_sessions')
-              .select('user_id, duration_seconds, started_at');
-
-            if (filterStartDate) {
-              query = query.gte('started_at', filterStartDate.toISOString());
-            }
-
-            const { data: dbSessions } = await query;
-
-            if (dbSessions && dbSessions.length > 0) {
-              const userTotals: Record<string, number> = {};
-              dbSessions.forEach((s: any) => {
-                if (s.user_id) {
-                  userTotals[s.user_id] = (userTotals[s.user_id] || 0) + Number(s.duration_seconds || 0);
-                }
-              });
-
-              const uids = Object.keys(userTotals);
-              const { data: dbProfiles } = await supabase
-                .from('profiles')
-                .select('id, name, username, avatar_url, lifetime_xp, xp, rank_title, level, season_rp, season_base_rp, current_rank')
-                .in('id', uids);
-
-              if (dbProfiles) {
-                entries = dbProfiles.map((p: any) => {
-                  const isMe = Boolean(
-                    p.id === currentUser?.id ||
-                    (currentUser?.username && p.username && currentUser.username.toLowerCase().trim() === String(p.username).toLowerCase().trim()) ||
-                    (currentUser?.displayName && (p.display_name || p.name) && currentUser.displayName.toLowerCase().trim() === String(p.display_name || p.name).toLowerCase().trim()) ||
-                    (currentUser?.name && (p.display_name || p.name) && currentUser.name.toLowerCase().trim() === String(p.display_name || p.name).toLowerCase().trim())
-                  );
-                  const totalSec = userTotals[p.id] || 0;
-                  let seasonRp = 0;
-                  let computedRank = 'Bronze I';
-
-                  if (isMe && currentUser) {
-                    const live = resolveLiveSeasonStats(currentUser, currentSessions);
-                    seasonRp = live.seasonRp;
-                    computedRank = live.rankTier.name;
-                  } else {
-                    const carryoverRp = Math.min(HARD_RESET_CAP_RP, Number(p.season_base_rp ?? p.carryover_rp ?? 0));
-                    const earnedRp = Math.floor(totalSec / 36);
-                    seasonRp = carryoverRp + earnedRp;
-                    computedRank = getRankTier(seasonRp).name;
-                  }
-
-                  return {
-                    user_id: p.id,
-                    name: p.name || 'Scholar',
-                    display_name: p.name || 'Scholar',
-                    username: p.username || null,
-                    avatar_url: p.avatar_url || null,
-                    level: p.level ? Number(p.level) : undefined,
-                    lifetime_xp: Number(p.lifetime_xp ?? p.xp ?? 0),
-                    rank_title: computedRank,
-                    total_seconds: totalSec,
-                    season_rp: seasonRp,
-                    focus_minutes: Math.floor(totalSec / 60),
-                    is_current_user: isMe,
-                  };
-                });
-                entries.sort((a, b) => b.total_seconds - a.total_seconds);
-              }
-            }
-          }
-        } catch (fallbackErr) {
-          console.warn('[Leaderboard] Fallback query error:', fallbackErr);
-        }
-
-        if (entries.length === 0 && currentUser?.id) {
-          const filterStartDate = getFilterStartDate(timeframe);
-          const currentPeriodSeconds = currentSessions
-            .filter((s) => !filterStartDate || new Date(s.startTime).getTime() >= filterStartDate.getTime())
-            .reduce((sum, s) => sum + (s.durationSeconds || 0), 0);
-
-          if (currentPeriodSeconds >= 0) {
-            const live = resolveLiveSeasonStats(currentUser, currentSessions);
-            entries = [
-              {
-                user_id: currentUser.id,
-                name: currentUser.displayName || currentUser.name || 'You',
-                display_name: currentUser.displayName || currentUser.name || 'You',
-                username: currentUser.username || null,
-                avatar_url: currentUser.avatarUrl || null,
-                level: currentUser.level,
-                lifetime_xp: Number(currentUser.lifetime_xp ?? currentUser.lifetimeXp ?? currentUser.xp ?? 0),
-                rank_title: live.rankTier.name,
-                total_seconds: currentPeriodSeconds,
-                season_rp: live.seasonRp,
-                focus_minutes: Math.floor(currentPeriodSeconds / 60),
-                is_current_user: true,
-              },
-            ];
-          }
-        }
-      }
-
-      setLeaderboard(entries);
-      saveRankSnapshot(entries, timeframe);
+  useEffect(() => {
+    if (leaderboard.length > 0) {
+      saveRankSnapshot(leaderboard, timeframe);
       setAnimationKey((prev) => prev + 1);
-    } finally {
-      setIsLoading(false);
-      setIsFetching(false);
-      inFlightRef.current = false;
     }
-  }, [timeframe]);
+  }, [leaderboard, timeframe]);
 
   useEffect(() => {
     if (isActiveTab) {
@@ -641,9 +468,8 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     if (!contenders || contenders.length === 0) return null;
     const idx = contenders.findIndex(row => checkIsCurrentUser(row));
     
-    const live = resolveLiveSeasonStats(user, sessions);
-    const activeRankName = live.rankTier.name;
-    const resolvedTierConfig = live.rankTier;
+    const activeRankName = sharedUserRank.rankTitle;
+    const resolvedTierConfig = sharedUserRank.tier;
 
     if (idx === -1) {
       const { h, m } = parseTimeHoursMinutes(0);
@@ -659,7 +485,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
           lifetime_xp: Number(user?.lifetime_xp ?? user?.lifetimeXp ?? user?.xp ?? 0),
           rank_title: activeRankName,
           total_seconds: 0,
-          season_rp: live.seasonRp,
+          season_rp: sharedUserRank.seasonRp,
           is_current_user: true,
         },
         h,
@@ -674,7 +500,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     const { h, m } = parseTimeHoursMinutes(row.total_seconds);
     
     return { rank: actualRank, row, h, m, tierConfig };
-  }, [contenders, checkIsCurrentUser, userRank, user, sessions]);
+  }, [contenders, checkIsCurrentUser, sharedUserRank, user]);
 
 
 
@@ -920,7 +746,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                         topSeconds={topSeconds}
                         hasAnyDelta={hasAnyDelta}
                         deltaInfo={deltaInfo}
-                        userRankName={userRank?.name}
+                        userRankName={sharedUserRank.rankTitle}
                         myRowRef={isCurrentUser ? myRowRef : undefined}
                         index={idx}
                         shouldReduceMotion={shouldReduceMotion}

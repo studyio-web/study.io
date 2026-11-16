@@ -33,10 +33,9 @@ import { HelpFeedbackModal } from './HelpFeedbackModal';
 
 import { Logo } from '../Logo';
 import { calculateStreak, getCachedStreak, setCachedStreak } from '../../lib/mockData';
-import { getRankTier, calculateSeasonRp, getCurrentMonthFocusSeconds, resolveLiveSeasonStats } from '../../lib/ranks';
+import { useRank } from '../../context/RankContext';
 import { getTierBadge, getLevelTitle } from '../../lib/gamification';
 import { useRankTheme } from '../../hooks/useRankTheme';
-import { useDevRankPreview } from '../../lib/devRankPreview';
 import { TierIcon } from './TierIcon';
 import { RankCrestBadge } from './RankCrestBadge';
 import Image from 'next/image';
@@ -79,7 +78,6 @@ export function Navbar({
   const { isStudying, setIsFocusModeOpen, gamification, sessions } = useStudy();
   const { theme, userRank, totalRP } = useRankTheme();
   const { isPremium } = usePremium();
-  const { previewRp, isPreviewActive } = useDevRankPreview();
 
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -259,13 +257,9 @@ export function Navbar({
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (gamification.progressPercent / 100) * circumference;
 
-  const { liveSeasonRp, liveRank } = useMemo(() => {
-    if (isPreviewActive && previewRp !== null) {
-      return { liveSeasonRp: previewRp, liveRank: getRankTier(previewRp) };
-    }
-    const live = resolveLiveSeasonStats(user, sessions || []);
-    return { liveSeasonRp: live.seasonRp, liveRank: live.rankTier };
-  }, [isPreviewActive, previewRp, sessions, user]);
+  const { userRank: sharedRank } = useRank();
+  const liveSeasonRp = sharedRank.seasonRp;
+  const liveRank = sharedRank.tier;
 
   return (
     <>

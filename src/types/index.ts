@@ -226,6 +226,12 @@ export type LeaderboardEntry = {
   is_current_user?: boolean;
   is_premium?: boolean;
   flair_frame?: string | null;
+  tier?: string;
+  division?: string;
+  badge?: string;
+  badge_url?: string;
+  rank?: number;
+  this_month_seconds?: number;
 };
 
 export * from './timetable';

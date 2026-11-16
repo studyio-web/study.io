@@ -1,30 +1,19 @@
 'use client';
 
 import { useMemo, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useStudy } from '../context/StudyContext';
-import { getRankFromRp, RankTier, resolveLiveSeasonStats } from '../lib/ranks';
+import { useRank } from '../context/RankContext';
+import { RankTier } from '../lib/ranks';
 import { getRankTheme, RankThemePalette } from '../lib/rankTheme';
-import { useDevRankPreview } from '../lib/devRankPreview';
 
 export function useRankTheme(): {
   theme: RankThemePalette;
   userRank: RankTier;
   totalRP: number;
 } {
-  const { user } = useAuth();
-  const { sessions } = useStudy();
-  const { previewRp, isPreviewActive } = useDevRankPreview();
+  const { userRank: liveRank } = useRank();
 
-  const { totalRP, userRank } = useMemo(() => {
-    // Development preview override: returns simulated RP if active
-    if (isPreviewActive && previewRp !== null) {
-      return { totalRP: previewRp, userRank: getRankFromRp(previewRp) };
-    }
-
-    const live = resolveLiveSeasonStats(user, sessions || []);
-    return { totalRP: live.seasonRp, userRank: live.rankTier };
-  }, [isPreviewActive, previewRp, user, sessions]);
+  const userRank = liveRank.tier;
+  const totalRP = liveRank.seasonRp;
 
   const rankPalette = useMemo(() => {
     return getRankTheme(userRank.tier);

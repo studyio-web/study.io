@@ -84,6 +84,9 @@ export async function saveValidatedSession(
   try {
     const result = await recordStudySession(safeInput);
     if (result && result.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+      }
       return result;
     }
     // If unauthorized or specific error, check if we should try API route
@@ -122,6 +125,9 @@ export async function saveValidatedSession(
       });
 
       const json = await res.json();
+      if (json && json.success && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+      }
       return json;
     } catch (apiErr: any) {
       console.error('[Session Save] API fallback failed:', apiErr);

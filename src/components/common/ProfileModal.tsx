@@ -7,7 +7,7 @@ import { useStudy } from '../../context/StudyContext';
 import { usePremium } from '../../context/PremiumContext';
 import { X, Target, User, Loader2, Save, Plus, Dices, Crown, Lock, Sparkles, Check, Gem } from 'lucide-react';
 
-import { getRankTier, calculateSeasonRp, getCurrentMonthFocusSeconds, resolveLiveSeasonStats } from '../../lib/ranks';
+import { useRank } from '../../context/RankContext';
 import { useDevRankPreview } from '../../lib/devRankPreview';
 import { getRankTheme } from '../../lib/rankTheme';
 import { getSupabase } from '../../lib/supabase';
@@ -50,15 +50,8 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   const { isPremium, openPremiumModal } = usePremium();
   const user = parentUser || contextUser; // Use parentUser if provided, fallback to contextUser
   const { gamification, sessions } = useStudy();
-  const { previewRp, isPreviewActive } = useDevRankPreview();
-
-  const userRank = useMemo(() => {
-    if (isPreviewActive && previewRp !== null) {
-      return getRankTier(previewRp);
-    }
-    const live = resolveLiveSeasonStats(user, sessions || []);
-    return live.rankTier;
-  }, [isPreviewActive, previewRp, sessions, user]);
+  const { userRank: sharedRank } = useRank();
+  const userRank = sharedRank.tier;
 
   const [displayName, setDisplayName] = useState(user.name || user.displayName || '');
   const [username, setUsername] = useState(user.username || '');
