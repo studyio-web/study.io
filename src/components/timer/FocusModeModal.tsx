@@ -337,7 +337,7 @@ export function FocusModeModal() {
   return (
     <div
       style={{ colorScheme: 'dark' }}
-      className={`fixed inset-0 w-screen h-dvh z-[100] flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-[#05060a] ${
+      className={`fixed inset-0 w-screen h-dvh z-[100] flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-black ${
         isIdle && !isPickerOpen && !isAtmosphereOpen ? 'cursor-none' : 'cursor-default'
       }`}
     >
@@ -387,24 +387,28 @@ export function FocusModeModal() {
           isolation: 'isolate',
         }}
       >
-        {/* Deep contrast backdrop scrim to guarantee 100% crystal clarity over any scene */}
-        <div
-          className="absolute inset-0 -z-20 pointer-events-none scale-150 rounded-full"
-          style={{
-            background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.4) 45%, transparent 75%)',
-          }}
-        />
+        {/* Deep contrast backdrop scrim to guarantee 100% crystal clarity over living scenes */}
+        {activeSceneId !== 'default' && (
+          <div
+            className="absolute inset-0 -z-20 pointer-events-none scale-150 rounded-full"
+            style={{
+              background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.4) 45%, transparent 75%)',
+            }}
+          />
+        )}
 
-        {/* Soft GPU-accelerated ambient glow layer behind clock */}
-        <div
-          className="absolute inset-0 -z-10 pointer-events-none scale-125 transition-colors duration-500 ease-out"
-          style={{
-            backgroundColor: sceneGlow,
-            maskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
-            opacity: 0.45,
-          }}
-        />
+        {/* Soft GPU-accelerated ambient glow layer behind clock (only for living scenes) */}
+        {activeSceneId !== 'default' && (
+          <div
+            className="absolute inset-0 -z-10 pointer-events-none scale-125 transition-colors duration-500 ease-out"
+            style={{
+              backgroundColor: sceneGlow,
+              maskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 65% 45% at 50% 50%, black 0%, transparent 70%)',
+              opacity: 0.45,
+            }}
+          />
+        )}
 
         {timerMode === 'pomodoro' && (
           <div className="mb-3 landscape:mb-1 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md">

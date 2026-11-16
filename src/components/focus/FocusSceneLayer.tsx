@@ -31,14 +31,10 @@ function renderSceneContent(id: string) {
     );
   }
 
-  // Default Scene: Pure focus obsidian background
+  // Default Scene: Pure solid black AMOLED background
   return (
     <div
-      className="w-full h-full pointer-events-none select-none"
-      style={{
-        background:
-          'radial-gradient(ellipse at 50% 50%, #171b29 0%, #0c0e17 60%, #05060a 100%)',
-      }}
+      className="w-full h-full pointer-events-none select-none bg-black"
     />
   );
 }
@@ -87,7 +83,7 @@ function FocusSceneLayerComponent({
 
   return (
     <div
-      className={`fixed inset-0 z-0 pointer-events-none select-none overflow-hidden bg-[#05060a] ${
+      className={`fixed inset-0 z-0 pointer-events-none select-none overflow-hidden bg-black ${
         isPageHidden || !isAnimated ? 'scene-hidden' : ''
       }`}
       style={{
@@ -107,12 +103,10 @@ function FocusSceneLayerComponent({
         }
       `}</style>
 
-      {/* 1. Base Obsidian canvas that never unmounts (prevents any blank/white/black flashes) */}
+      {/* 1. Base canvas (Pure solid black) */}
       <div
-        className="absolute inset-0 pointer-events-none select-none"
+        className="absolute inset-0 pointer-events-none select-none bg-black"
         style={{
-          background:
-            'radial-gradient(ellipse at 50% 50%, #171b29 0%, #0c0e17 60%, #05060a 100%)',
           contain: 'strict',
           transform: 'translate3d(0, 0, 0)',
         }}
@@ -150,27 +144,31 @@ function FocusSceneLayerComponent({
         {renderSceneContent(currentScene)}
       </div>
 
-      {/* 4. Dual Radial Vignette to protect center contrast */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 65% 50% at center, rgba(0,0,0,0.42) 0%, transparent 65%), radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.65) 100%)',
-          contain: 'strict',
-          transform: 'translate3d(0, 0, 0)',
-        }}
-      />
+      {/* 4. Dual Radial Vignette over living scenes */}
+      {currentScene !== 'default' && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(ellipse 65% 50% at center, rgba(0,0,0,0.42) 0%, transparent 65%), radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.65) 100%)',
+            contain: 'strict',
+            transform: 'translate3d(0, 0, 0)',
+          }}
+        />
+      )}
 
-      {/* 5. Background Dim Layer (0 to 60%) */}
-      <div
-        className="absolute inset-0 bg-black pointer-events-none"
-        style={{
-          opacity: dimOpacity,
-          transition: 'opacity 200ms ease',
-          contain: 'strict',
-          transform: 'translate3d(0, 0, 0)',
-        }}
-      />
+      {/* 5. Background Dim Layer (0 to 60%) - only for living scenes; default is always pure black */}
+      {currentScene !== 'default' && (
+        <div
+          className="absolute inset-0 bg-black pointer-events-none"
+          style={{
+            opacity: dimOpacity,
+            transition: 'opacity 200ms ease',
+            contain: 'strict',
+            transform: 'translate3d(0, 0, 0)',
+          }}
+        />
+      )}
     </div>
   );
 }

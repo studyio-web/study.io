@@ -14,9 +14,8 @@ export const FOCUS_SCENES: readonly FocusScene[] = [
     name: 'Default',
     description: 'Your usual focus background.',
     premium: false,
-    glow: 'rgba(255, 255, 255, 0.15)',
-    thumbnail:
-      'radial-gradient(ellipse at 50% 50%, #232738 0%, #0f121d 60%, #05060a 100%)',
+    glow: 'transparent',
+    thumbnail: '#000000',
   },
   {
     id: 'dusk',
