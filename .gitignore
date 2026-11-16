@@ -44,6 +44,9 @@ next-env.d.ts
 # scratch
 scratch/
 
+# database backups
+scripts/backups/*.json
+
 .vercel
 .env*
 !.env.example

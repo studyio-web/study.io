@@ -626,51 +626,41 @@ export function resolveUserSeasonReset(
   newRankTitle: string;
   startingRP: number;
 } {
-  const isWren =
-    user?.username?.toLowerCase() === 'wren' ||
-    user?.name?.toLowerCase() === 'wren' ||
-    user?.displayName?.toLowerCase() === 'wren' ||
-    user?.email?.toLowerCase().includes('wren');
-
-  const isTrial =
-    user?.username?.toLowerCase() === 'trial' ||
-    user?.name?.toLowerCase() === 'trial' ||
-    user?.displayName?.toLowerCase() === 'trial' ||
-    user?.email?.toLowerCase().includes('trial');
-
-  // Calculate previous month focus seconds if sessions are available
   const now = new Date();
-  const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const startOfCurrentMonthUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0);
+  const startOfPrevMonthUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0);
 
   let prevSeconds = 0;
   if (Array.isArray(sessions) && sessions.length > 0) {
     prevSeconds = sessions
       .filter((s) => {
         const raw = String(s.startTime || s.started_at || s.startedAt || s.createdAt || s.created_at || s.date || '');
-        if (raw.includes('2026-10') || raw.startsWith('2026-10')) return true;
         const t = raw ? new Date(raw).getTime() : 0;
-        return t >= startOfPrevMonth && t < startOfCurrentMonth;
+        return t >= startOfPrevMonthUTC && t < startOfCurrentMonthUTC;
       })
-      .reduce((sum, s) => sum + Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? 0), 0);
+      .reduce((sum, s) => sum + Math.max(0, Math.floor(Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? 0))), 0);
   }
 
-  const prevEarnedRP = Math.floor(prevSeconds / 36);
+  // Inactive decay rule: If the user logged 0 focus time in the expiring month, carryover RP decays to 0
+  if (prevSeconds === 0 && !user?.season_base_rp && !user?.carryover_rp) {
+    return {
+      previousRankTitle: 'BRONZE I',
+      previousRP: 0,
+      newRankTitle: 'BRONZE I',
+      startingRP: 0,
+    };
+  }
 
   let previousRP = 0;
   let matchedTier: RankTierConfig | undefined;
 
-  // 1. Exact calculation from actual previous month study sessions (Single Source of Truth)
   if (prevSeconds > 0) {
-    previousRP = prevEarnedRP;
+    previousRP = Math.floor(prevSeconds / 36);
     matchedTier = getRankTier(previousRP).config;
-  }
-  // 2. From last_season_rp or last_season_rank if explicitly recorded
-  else if (user?.last_season_rp && Number(user.last_season_rp) > 0) {
+  } else if (user?.last_season_rp && Number(user.last_season_rp) > 0) {
     previousRP = Number(user.last_season_rp);
     matchedTier = getRankTier(previousRP).config;
-  }
-  else if (
+  } else if (
     user?.last_season_rank &&
     typeof user.last_season_rank === 'string' &&
     user.last_season_rank.toUpperCase() !== 'NOVICE SCHOLAR' &&
@@ -686,33 +676,19 @@ export function resolveUserSeasonReset(
     if (matchedTier) {
       previousRP = matchedTier.minRP;
     }
-  }
-  // 3. Fallbacks for known accounts if sessions are not yet hydrated
-  else if (isTrial) {
-    matchedTier = RANK_TIERS.find((t) => t.fullTitle === 'SILVER IV');
-    previousRP = matchedTier ? matchedTier.minRP : 4200;
-  } else if (isWren) {
-    matchedTier = RANK_TIERS.find((t) => t.fullTitle === 'SILVER II');
-    previousRP = matchedTier ? matchedTier.minRP : 2500;
-  }
-  // 4. From profile season RP if recorded
-  else if (
+  } else if (
     (user?.season_rp && Number(user.season_rp) > 0) ||
     (user?.seasonRp && Number(user.seasonRp) > 0) ||
     (user?.rp && Number(user.rp) > 0)
   ) {
     previousRP = Number(user.season_rp ?? user.seasonRp ?? user.rp);
     matchedTier = getRankTier(previousRP).config;
-  }
-  // 5. From season_base_rp if user was already reset
-  else if (Number(user?.season_base_rp ?? user?.carryover_rp ?? 0) > 0) {
+  } else if (Number(user?.season_base_rp ?? user?.carryover_rp ?? 0) > 0) {
     const baseRp = Number(user.season_base_rp ?? user.carryover_rp);
     const tierWithReset = RANK_TIERS.find((t) => t.softResetRP === baseRp) || getRankTier(baseRp).config;
     previousRP = tierWithReset.minRP;
     matchedTier = tierWithReset;
-  }
-  // 6. Default baseline
-  else {
+  } else {
     previousRP = 0;
     matchedTier = getRankTier(0).config;
   }
@@ -722,6 +698,7 @@ export function resolveUserSeasonReset(
   }
 
   const previousRankTitle = matchedTier.fullTitle;
+  // Grandmaster Cap strictly enforced at 23,600 RP
   const startingRP = Math.min(HARD_RESET_CAP_RP, matchedTier.softResetRP ?? 0);
   const newRankTitle = matchedTier.softResetRank || getRankTier(startingRP).config.fullTitle;
 

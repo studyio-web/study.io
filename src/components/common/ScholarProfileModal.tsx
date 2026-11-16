@@ -235,6 +235,9 @@ export function ScholarProfileModal({
   const streak = profileDetails.streakDays ?? scholar?.streakDays ?? 0;
   const goalStreak = profileDetails.goalStreak ?? scholar?.goalStreak ?? 0;
   const rankTitle = useMemo(() => {
+    if (typeof scholar?.seasonRp === 'number') {
+      return getRankTier(scholar.seasonRp).name;
+    }
     if (scholar?.rankTitle) {
       return scholar.rankTitle;
     }
@@ -245,7 +248,7 @@ export function ScholarProfileModal({
       return getRankTier(Math.floor(totalStudySeconds / 36)).name;
     }
     return 'Bronze I';
-  }, [totalStudySeconds, scholar?.rankTitle, profileDetails.rankTitle]);
+  }, [totalStudySeconds, scholar?.seasonRp, scholar?.rankTitle, profileDetails.rankTitle]);
 
   // Tier configuration
   const tierConfig: RankTier = useMemo(() => {

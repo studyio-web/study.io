@@ -71,9 +71,18 @@ export async function fetchAuthoritativeServerTime(): Promise<number> {
 export async function saveValidatedSession(
   input: SessionValidationInput
 ): Promise<SessionValidationResult> {
+  const safeInput: SessionValidationInput = {
+    ...input,
+    client_session_id:
+      input.client_session_id ||
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : undefined),
+  };
+
   // 1. Try Server Action
   try {
-    const result = await recordStudySession(input);
+    const result = await recordStudySession(safeInput);
     if (result && result.success) {
       return result;
     }
@@ -109,7 +118,7 @@ export async function saveValidatedSession(
       const res = await fetch('/api/sessions/save', {
         method: 'POST',
         headers,
-        body: JSON.stringify(input),
+        body: JSON.stringify(safeInput),
       });
 
       const json = await res.json();

@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userReset = resolveUserSeasonReset(profile, dbSessions || []);
       
       const carryoverRp = userReset.startingRP;
-      const calculatedRP = calculateSeasonRp(currentMonthStudySeconds, carryoverRp);
+      const calculatedRP = calculateSeasonRp(carryoverRp, currentMonthStudySeconds);
       const currentRankObj = getRankTier(calculatedRP);
       const effectiveRankTitle = currentRankObj.name.toUpperCase();
       const effectiveBadge = currentRankObj.badge;

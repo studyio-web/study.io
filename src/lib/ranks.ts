@@ -4,14 +4,13 @@ import {
   RankDivision,
   RankTierConfig,
   HARD_RESET_CAP_RP,
-  resolveUserSeasonReset,
 } from './rankedSystem';
 
 export interface RankTier {
   tier: RankTierName;
   division: RankDivision;
   name: string;
-  fullTitle?: string;
+  fullTitle: string;
   minRp: number;
   maxRp: number;
   minHours: number;
@@ -66,13 +65,24 @@ export function getSessionDurationSeconds(s: any): number {
   return Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0);
 }
 
-export function getCurrentMonthFocusSeconds(sessions: any[]): number {
+/**
+ * Calculates current month focus seconds strictly using UTC month boundaries.
+ * Month boundaries must be strictly UTC:
+ * startOfMonth = Date.UTC(year, month, 1, 0, 0, 0)
+ * endOfMonth = Date.UTC(year, month + 1, 1, 0, 0, 0) - 1
+ */
+export function getCurrentMonthFocusSeconds(sessions: any[], referenceDate?: Date): number {
   if (!Array.isArray(sessions) || sessions.length === 0) return 0;
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const d = referenceDate || new Date();
+  const startOfMonth = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0);
+  const endOfMonth = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0) - 1;
+
   return sessions
-    .filter((s) => getSessionTimestamp(s) >= startOfMonth)
-    .reduce((sum, s) => sum + getSessionDurationSeconds(s), 0);
+    .filter((s) => {
+      const t = getSessionTimestamp(s);
+      return t >= startOfMonth && t <= endOfMonth;
+    })
+    .reduce((sum, s) => sum + Math.max(0, Math.floor(getSessionDurationSeconds(s))), 0);
 }
 
 /**
@@ -81,11 +91,28 @@ export function getCurrentMonthFocusSeconds(sessions: any[]): number {
  * - 1 Hour of Focus   = 100 RP
  * - 1 Minute of Focus = ~1.67 RP (100 / 60)
  * - 1 Second of Focus = 1 / 36 RP
- * - Carryover RP is strictly capped at 26,000 RP (Diamond IV)
+ * - Carryover RP is strictly capped at 23,600 RP (Grandmaster Soft Reset Cap)
+ * 
+ * Flexible signature supports:
+ * calculateSeasonRp(carryoverRp, currentMonthFocusSeconds)
+ * calculateSeasonRp(currentMonthFocusSeconds)
  */
-export function calculateSeasonRp(currentMonthSeconds: number, carryoverRp: number = 0): number {
+export function calculateSeasonRp(
+  carryoverOrSeconds: number = 0,
+  currentMonthSeconds?: number
+): number {
+  let carryoverRp = 0;
+  let seconds = 0;
+
+  if (typeof currentMonthSeconds === 'number') {
+    carryoverRp = carryoverOrSeconds;
+    seconds = currentMonthSeconds;
+  } else {
+    seconds = carryoverOrSeconds;
+  }
+
   const safeCarryover = Math.min(HARD_RESET_CAP_RP, Math.max(0, Math.round(carryoverRp || 0)));
-  const earnedRp = Math.floor(Math.max(0, currentMonthSeconds) / 36);
+  const earnedRp = Math.floor(Math.max(0, Math.floor(seconds || 0)) / 36);
   return safeCarryover + earnedRp;
 }
 
@@ -129,9 +156,8 @@ export type { RankTierName, RankDivision };
 
 export const RANKS = RANK_TIERS;
 export const getRankFromRp = getRankTier;
-export const calculateRpFromSeconds = (seconds: number) => calculateSeasonRp(seconds, 0);
+export const calculateRpFromSeconds = (seconds: number) => calculateSeasonRp(0, seconds);
 export const getSoftResetRp = (rp: number) => getRankTier(rp).softResetRp;
-export { resolveUserSeasonReset };
 
 /**
  * Resolves the user's accurate live season RP and rank tier in the current month.
@@ -143,28 +169,39 @@ export function resolveLiveSeasonStats(
   sessions: any[] = []
 ): {
   seasonRp: number;
+  currentTier: RankTier;
   rankTier: RankTier;
+  nextTier: RankTier | null;
+  progressPercent: number;
   startingRp: number;
   currentMonthSeconds: number;
   rankTitle: string;
 } {
-  const userReset = resolveUserSeasonReset(user, sessions);
-  const startingRp = Math.min(HARD_RESET_CAP_RP, userReset.startingRP || 0);
+  const rawCarryover = Number(user?.season_base_rp ?? user?.carryover_rp ?? user?.season_rp ?? 0);
+  const startingRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, rawCarryover));
 
   const currentMonthSeconds = getCurrentMonthFocusSeconds(sessions || []);
   const earnedThisMonthRp = Math.floor(currentMonthSeconds / 36);
 
   const finalSeasonRp = startingRp + earnedThisMonthRp;
-  const rankTier = getRankTier(finalSeasonRp);
-  const rankTitle = rankTier.name;
+  const currentTier = getRankTier(finalSeasonRp);
+  const nextTier = getNextTier(currentTier.name);
+
+  let progressPercent = 100;
+  if (nextTier) {
+    const tierMin = currentTier.minRp;
+    const tierMax = nextTier.minRp;
+    progressPercent = Math.min(100, Math.max(0, Math.round(((finalSeasonRp - tierMin) / (tierMax - tierMin)) * 100)));
+  }
 
   return {
     seasonRp: finalSeasonRp,
-    rankTier,
+    currentTier,
+    rankTier: currentTier,
+    nextTier,
+    progressPercent,
     startingRp,
     currentMonthSeconds,
-    rankTitle,
+    rankTitle: currentTier.name,
   };
 }
-
-

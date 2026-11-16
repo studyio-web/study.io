@@ -101,6 +101,7 @@ interface StudyContextType {
   isPaused: boolean;
   isRunning: boolean;
   startTimeRef: React.MutableRefObject<number | null>;
+  clientSessionIdRef: React.MutableRefObject<string | null>;
   elapsedSeconds: number;
   syncTimerWithServerTime: (serverTimestamp?: number) => Promise<number | null>;
   pomodoroPhase: PomodoroPhase;
@@ -1320,6 +1321,29 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     window.addEventListener('pagehide', handlePageHide);
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, [isStudying, isPaused]);
+
+  // Active session heartbeat: pings every 30s to update active_sessions.updated_at
+  // This ensures orphaned sessions can be closed at last heartbeat rather than now.
+  useEffect(() => {
+    if (!isStudying || isPaused) return;
+    const uid = realtimeUserId || userRef.current?.id || user?.id;
+    if (!uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
+
+    const interval = setInterval(() => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      supabase
+        .from('active_sessions')
+        .update({
+          updated_at: new Date().toISOString(),
+          accumulated_seconds: accumulatedSecondsRef.current || elapsedSeconds,
+        })
+        .eq('user_id', uid)
+        .then();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isStudying, isPaused, realtimeUserId, user?.id, elapsedSeconds]);
 
 
   // Cleanly wipe any persisted timer state from localStorage
@@ -2753,6 +2777,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setActiveTaskId(taskId);
     }
     setPomodoroCompletedPhase(null);
+    if (!clientSessionIdRef.current) {
+      clientSessionIdRef.current =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `sess-${Date.now()}`;
+    }
     // Record start anchor timestamp
     const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
     startTimeRef.current = nowAnchor;
@@ -3151,8 +3181,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const currentMonthSeconds = getCurrentMonthFocusSeconds(allSessionsNow);
       const currentMonthSecondsBefore = Math.max(0, currentMonthSeconds - secondsToSave);
 
-      const prevRP = calculateSeasonRp(currentMonthSecondsBefore, carryoverRp);
-      const newRP = calculateSeasonRp(currentMonthSeconds, carryoverRp);
+      const prevRP = calculateSeasonRp(carryoverRp, currentMonthSecondsBefore);
+      const newRP = calculateSeasonRp(carryoverRp, currentMonthSeconds);
       const gainedRP = Math.max(0, newRP - prevRP);
 
       const rpBreakdown = calculateSessionRP(secondsToSave, {
@@ -3910,6 +3940,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setIsFocusModeOpen,
         isRunning,
         startTimeRef,
+        clientSessionIdRef,
         syncTimerWithServerTime,
         startTimer,
         pauseTimer,

@@ -11,6 +11,7 @@ export interface SessionValidationInput {
   subject_id?: string | null;
   notes?: string | null;
   mode?: string | null;
+  planned_duration_seconds?: number | null;
   client_session_id?: string | null;
 }
 
@@ -28,6 +29,7 @@ export interface SessionValidationResult {
     ended_at: string;
     notes: string | null;
     mode: string;
+    client_session_id?: string | null;
     created_at?: string;
   } | null;
   calculatedSeconds?: number;
@@ -38,12 +40,17 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /**
  * Validates and records a focus study session strictly using server timestamps.
  * 
- * Security & Anti-Manipulation Guarantees:
- * 1. The duration is NEVER trusted from client inputs. It is derived strictly
- *    from `ended_at - started_at` verified against the server's authoritative clock.
- * 2. Future timestamps beyond current server time (with small tolerance) are clamped.
- * 3. Single-Session Cap: Strictly capped at 12 hours (43,200 seconds). Excess time is discarded.
- * 4. Calendar-Day Cap: User's total study time per calendar day is strictly capped at 24 hours (86,400s).
+ * Anti-Tamper & Data Integrity Guarantees:
+ * 1. Authoritative Server Clock: Durations are never trusted from client inputs.
+ *    Derived strictly from server-verified timestamps.
+ * 2. Future Clamp: Timestamps beyond server time (with 30s network tolerance) are clamped.
+ * 3. Break Exclusion: Pomodoro breaks NEVER count towards focus time or RP.
+ * 4. Single-Session Cap: Strictly capped at 12 hours (43,200 seconds).
+ * 5. Daily Cap: User's total study time per calendar day (UTC) is capped at 24 hours (86,400s).
+ * 6. Planned Length Clamp: Countdown and Pomodoro cannot exceed planned duration + tolerance.
+ * 7. Idempotency: Unique client_session_id prevents duplicate saves from retries or race conditions.
+ * 8. Overlap Protection: Discards or clamps sessions overlapping with existing sessions.
+ * 9. Active Session Cleanup: Resets live active_sessions state to prevent zombie accumulation.
  */
 export async function validateAndSaveSession(
   client: SupabaseClient,
@@ -55,54 +62,18 @@ export async function validateAndSaveSession(
       return { success: false, error: 'Unauthorized: User ID is required.' };
     }
 
+    // 0. Pomodoro Break Time Exclusion: Breaks must NEVER count as focus sessions
+    if (input.mode === 'pomodoro_break' || input.mode === 'break') {
+      return {
+        success: true,
+        discarded: true,
+        reason: 'Pomodoro break time does not count toward focus sessions or RP.',
+        session: null,
+        calculatedSeconds: 0,
+      };
+    }
+
     const serverNow = new Date();
-
-    // 1. Resolve & validate started_at
-    if (!input.started_at) {
-      return { success: false, error: 'started_at timestamp is required.' };
-    }
-
-    let startTime = new Date(input.started_at);
-    if (isNaN(startTime.getTime())) {
-      return { success: false, error: 'Invalid started_at timestamp.' };
-    }
-
-    // A session cannot start in the future relative to server time (allow 30s jitter)
-    if (startTime.getTime() > serverNow.getTime() + 30 * 1000) {
-      startTime = new Date(serverNow.getTime());
-    }
-
-    // 2. Resolve & validate ended_at strictly using server timestamp
-    let endTime = input.ended_at ? new Date(input.ended_at) : serverNow;
-    if (isNaN(endTime.getTime())) {
-      endTime = serverNow;
-    }
-
-    // Clamp ended_at to current server time if in the future (30s tolerance for network lag)
-    if (endTime.getTime() > serverNow.getTime() + 30 * 1000) {
-      endTime = new Date(serverNow.getTime());
-    }
-
-    if (endTime.getTime() < startTime.getTime()) {
-      return { success: false, error: 'ended_at cannot precede started_at.' };
-    }
-
-    // 3. Authoritative duration calculation strictly based on server-verified timestamps
-    let calculatedSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
-
-    // 4. Enforce Single Session Strict 12-Hour Cap
-    if (calculatedSeconds > MAX_SESSION_SECONDS) {
-      console.warn(`[Anti-Tamper] Session duration (${calculatedSeconds}s) exceeds 12-hour limit. Capping at 43,200s.`);
-      calculatedSeconds = MAX_SESSION_SECONDS;
-      startTime = new Date(endTime.getTime() - MAX_SESSION_SECONDS * 1000);
-    }
-
-    // 5. Enforce 24-Hour Calendar Day Cap
-    // Determine the calendar day boundaries (UTC) for this session
-    const dayStart = new Date(startTime);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
     // Pick client: prefer admin client if configured to bypass RLS quirks, or fallback to user client
     let dbClient: SupabaseClient = client;
@@ -112,6 +83,91 @@ export async function validateAndSaveSession(
     } catch {
       // getSupabaseAdmin not configured, use client
     }
+
+    // 1. Idempotency Check: If client_session_id is provided, check if already recorded
+    const clientSessionId =
+      input.client_session_id && UUID_REGEX.test(input.client_session_id)
+        ? input.client_session_id
+        : null;
+
+    if (clientSessionId) {
+      const { data: existingSession, error: checkError } = await dbClient
+        .from('study_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('client_session_id', clientSessionId)
+        .maybeSingle();
+
+      if (!checkError && existingSession) {
+        return {
+          success: true,
+          session: existingSession,
+          calculatedSeconds: Number(existingSession.duration_seconds || 0),
+          reason: 'Session already recorded (idempotent duplicate request ignored).',
+        };
+      }
+    }
+
+    // 2. Resolve & validate started_at and ended_at
+    if (!input.started_at) {
+      return { success: false, error: 'started_at timestamp is required.' };
+    }
+
+    const rawStartTime = new Date(input.started_at);
+    if (isNaN(rawStartTime.getTime())) {
+      return { success: false, error: 'Invalid started_at timestamp.' };
+    }
+
+    const rawEndTime = input.ended_at ? new Date(input.ended_at) : serverNow;
+    if (isNaN(rawEndTime.getTime())) {
+      return { success: false, error: 'Invalid ended_at timestamp.' };
+    }
+
+    if (rawEndTime.getTime() < rawStartTime.getTime()) {
+      return { success: false, error: 'ended_at cannot precede started_at.' };
+    }
+
+    let startTime = rawStartTime;
+    let endTime = rawEndTime;
+
+    // A session cannot start in the future relative to server time (allow 30s jitter)
+    if (startTime.getTime() > serverNow.getTime() + 30 * 1000) {
+      startTime = new Date(serverNow.getTime());
+    }
+
+    // Clamp ended_at to current server time if in the future (30s tolerance for network lag)
+    if (endTime.getTime() > serverNow.getTime() + 30 * 1000) {
+      endTime = new Date(serverNow.getTime());
+    }
+
+    // 4. Authoritative duration calculation strictly based on server-verified timestamps
+    let calculatedSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
+
+    // 5. Enforce Countdown / Pomodoro planned duration limit
+    if (
+      (input.mode === 'countdown' || input.mode === 'pomodoro') &&
+      typeof input.planned_duration_seconds === 'number' &&
+      input.planned_duration_seconds > 0
+    ) {
+      const maxAllowed = input.planned_duration_seconds + 60; // 60s tolerance
+      if (calculatedSeconds > maxAllowed) {
+        calculatedSeconds = input.planned_duration_seconds;
+        startTime = new Date(endTime.getTime() - calculatedSeconds * 1000);
+      }
+    }
+
+    // 6. Enforce Single Session Strict 12-Hour Cap
+    if (calculatedSeconds > MAX_SESSION_SECONDS) {
+      console.warn(`[Anti-Tamper] Session duration (${calculatedSeconds}s) exceeds 12-hour limit. Capping at 43,200s.`);
+      calculatedSeconds = MAX_SESSION_SECONDS;
+      startTime = new Date(endTime.getTime() - MAX_SESSION_SECONDS * 1000);
+    }
+
+    // 7. Enforce 24-Hour Calendar Day Cap (UTC)
+    const dayStart = new Date(startTime);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
     const { data: daySessions, error: dayQueryError } = await dbClient
       .from('study_sessions')
@@ -139,7 +195,7 @@ export async function validateAndSaveSession(
       startTime = new Date(endTime.getTime() - calculatedSeconds * 1000);
     }
 
-    // If completely capped to 0, discard the session cleanly
+    // If completely capped to 0, discard cleanly
     if (calculatedSeconds <= 0) {
       return {
         success: true,
@@ -150,11 +206,39 @@ export async function validateAndSaveSession(
       };
     }
 
-    // 6. Validate subject_id
+    // 8. Overlap Protection: Check if this session overlaps with an existing session
+    const { data: overlapping } = await dbClient
+      .from('study_sessions')
+      .select('id, started_at, ended_at')
+      .eq('user_id', user.id)
+      .lt('started_at', endTime.toISOString())
+      .gt('ended_at', startTime.toISOString())
+      .limit(1);
+
+    if (overlapping && overlapping.length > 0) {
+      const prev = overlapping[0];
+      const prevEnd = new Date(prev.ended_at).getTime();
+      if (prevEnd > startTime.getTime()) {
+        // Shift start time to after previous session
+        startTime = new Date(prevEnd);
+        calculatedSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
+        if (calculatedSeconds <= 0) {
+          return {
+            success: true,
+            discarded: true,
+            reason: 'Session completely overlaps with an existing study session.',
+            session: null,
+            calculatedSeconds: 0,
+          };
+        }
+      }
+    }
+
+    // 9. Validate subject_id
     const subjectId =
       input.subject_id && UUID_REGEX.test(input.subject_id) ? input.subject_id : null;
 
-    const payload = {
+    const payload: any = {
       user_id: user.id,
       subject_id: subjectId,
       duration_seconds: calculatedSeconds,
@@ -162,6 +246,7 @@ export async function validateAndSaveSession(
       ended_at: endTime.toISOString(),
       notes: input.notes && input.notes.trim().length > 0 ? input.notes.trim() : null,
       mode: input.mode || 'stopwatch',
+      client_session_id: clientSessionId,
     };
 
     const { data, error: insertError } = await dbClient
@@ -170,11 +255,42 @@ export async function validateAndSaveSession(
       .select();
 
     if (insertError) {
+      // If code 23505 (unique constraint on client_session_id), retrieve the existing row
+      if (insertError.code === '23505' && clientSessionId) {
+        const { data: dup } = await dbClient
+          .from('study_sessions')
+          .select('*')
+          .eq('client_session_id', clientSessionId)
+          .maybeSingle();
+
+        if (dup) {
+          return {
+            success: true,
+            session: dup,
+            calculatedSeconds: Number(dup.duration_seconds || 0),
+            reason: 'Session already recorded (idempotent constraint hit).',
+          };
+        }
+      }
       console.error('[Anti-Tamper] Supabase insert error for study_sessions:', insertError);
       return { success: false, error: insertError.message };
     }
 
     const savedSession = data?.[0] || payload;
+
+    // 10. Clean up active_sessions to prevent orphaned zombie timer state
+    try {
+      await dbClient
+        .from('active_sessions')
+        .update({
+          status: 'idle',
+          started_at: null,
+          accumulated_seconds: 0,
+        })
+        .eq('user_id', user.id);
+    } catch {
+      // Non-fatal cleanup
+    }
 
     return {
       success: true,

@@ -89,6 +89,7 @@ export function StudyTimer() {
     isRunning,
     isBlockedByOtherTab,
     startTimeRef,
+    clientSessionIdRef,
     syncTimerWithServerTime,
     elapsedSeconds,
     pomodoroPhase,
@@ -439,12 +440,19 @@ export function StudyTimer() {
 
       if (activeUser?.id) {
         try {
+          const plannedDuration =
+            currentMode === 'countdown'
+              ? countdownTarget
+              : (currentMode === 'pomodoro' ? pomodoroWorkDuration : null);
+
           const saveResult = await saveValidatedSession({
             started_at: startedAt,
             ended_at: endedAt,
             subject_id: subjectId,
             notes: notesToSave,
             mode: currentMode,
+            planned_duration_seconds: plannedDuration,
+            client_session_id: clientSessionIdRef?.current || undefined,
           });
 
           if (saveResult.success) {
@@ -606,6 +614,7 @@ export function StudyTimer() {
       // Reset and stop active timer engine (syncs stopped to all devices)
       resetTimer();
       clearPersistedTimer();
+      if (clientSessionIdRef) clientSessionIdRef.current = null;
       setIsCountdownCompleted(false);
       setIsCountdownHalfwayNotified(false);
       try {
@@ -642,6 +651,7 @@ export function StudyTimer() {
     isSaving,
     isRunning,
     startTimeRef,
+    clientSessionIdRef,
     syncTimerWithServerTime,
     elapsedSeconds,
     selectedSubject,
