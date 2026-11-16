@@ -59,7 +59,10 @@ function getSupabaseClient() {
 
 interface NotificationPayload {
   sender_id?: string;
+  sender_username?: string;
+  sender_name?: string;
   receiver_id?: string;
+  room_id?: string;
   type?: "chat" | "nudge" | string;
   message?: string;
   // Database Webhook support:
@@ -85,7 +88,9 @@ Deno.serve(async (req: Request) => {
 
     // Normalize direct payload vs Supabase Database Webhook trigger record
     let sender_id = body.sender_id;
+    let sender_username = body.sender_username || body.sender_name;
     let receiver_id = body.receiver_id;
+    let room_id = body.room_id;
     let type = body.type;
     let message = body.message;
 
@@ -93,6 +98,7 @@ Deno.serve(async (req: Request) => {
       const rec = body.record;
       sender_id = sender_id || rec.sender_id || rec.user_id;
       receiver_id = receiver_id || rec.receiver_id;
+      room_id = room_id || rec.room_id;
       message = message || rec.message || rec.content;
 
       if (!type) {
@@ -105,10 +111,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (!receiver_id) {
+    if (!receiver_id && !room_id) {
       return new Response(
         JSON.stringify({
-          error: "Missing required parameter 'receiver_id'",
+          error: "Missing required parameter 'receiver_id' or 'room_id'",
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -117,69 +123,114 @@ Deno.serve(async (req: Request) => {
     const supabase = getSupabaseClient();
     getFirebaseAdmin();
 
-    // Query receiver's profile for FCM registration token
-    const { data: receiverProfile, error: receiverError } = await supabase
-      .from("profiles")
-      .select("id, fcm_token, username, name, display_name")
-      .eq("id", receiver_id)
-      .maybeSingle();
+    // 1. Query sender profile from database to strictly enforce the in-app username
+    let senderUsername = "";
+    if (sender_id) {
+      const { data: senderProfile } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, name")
+        .eq("id", sender_id)
+        .maybeSingle();
 
-    if (receiverError) {
-      console.error("[send-notification] Error fetching receiver profile:", receiverError);
-      return new Response(
-        JSON.stringify({ error: "Failed to query receiver profile", details: receiverError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (senderProfile) {
+        // STRICTLY prefer in-app username over Google OAuth account name
+        senderUsername =
+          senderProfile.username ||
+          senderProfile.display_name ||
+          "";
+      }
+    }
+    if (!senderUsername) {
+      senderUsername = sender_username || "A scholar";
+    }
+    // Strip leading @ so formatting is consistent
+    const cleanUsername = senderUsername.startsWith("@") ? senderUsername.substring(1) : senderUsername;
+
+    // Resolve target device tokens
+    interface TargetRecipient {
+      userId: string;
+      fcmToken: string;
+    }
+    const targetRecipients: TargetRecipient[] = [];
+    const seenTokens = new Set<string>();
+
+    if (receiver_id) {
+      const { data: receiverProfile } = await supabase
+        .from("profiles")
+        .select("id, fcm_token")
+        .eq("id", receiver_id)
+        .maybeSingle();
+
+      if (receiverProfile?.fcm_token) {
+        seenTokens.add(receiverProfile.fcm_token);
+        targetRecipients.push({
+          userId: receiverProfile.id,
+          fcmToken: receiverProfile.fcm_token,
+        });
+      }
+    } else if (room_id) {
+      // Find all room members except sender
+      let query = supabase
+        .from("room_members")
+        .select("user_id")
+        .eq("room_id", room_id);
+
+      if (sender_id) {
+        query = query.neq("user_id", sender_id);
+      }
+      const { data: members } = await query;
+
+      if (members && members.length > 0) {
+        const userIds = members.map((m: any) => m.user_id);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, fcm_token")
+          .in("id", userIds)
+          .not("fcm_token", "is", null);
+
+        if (profiles) {
+          for (const p of profiles) {
+            if (p.fcm_token && !seenTokens.has(p.fcm_token)) {
+              seenTokens.add(p.fcm_token);
+              targetRecipients.push({
+                userId: p.id,
+                fcmToken: p.fcm_token,
+              });
+            }
+          }
+        }
+      }
     }
 
-    if (!receiverProfile || !receiverProfile.fcm_token) {
-      console.log(`[send-notification] Receiver ${receiver_id} has no FCM token registered.`);
+    if (targetRecipients.length === 0) {
+      console.log(`[send-notification] No registered tokens found for receiver=${receiver_id} room=${room_id}`);
       return new Response(
         JSON.stringify({
           success: true,
           delivered: false,
-          reason: `No registered fcm_token found for receiver ${receiver_id}`,
+          reason: "No registered fcm_tokens found for recipients",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Query sender profile to format username
-    let senderName = "A scholar";
-    if (sender_id) {
-      const { data: senderProfile } = await supabase
-        .from("profiles")
-        .select("id, username, name, display_name")
-        .eq("id", sender_id)
-        .maybeSingle();
+    const title = type === 'nudge' ? 'New Nudge!' : `New message from @${cleanUsername}`;
+    const bodyText = type === 'nudge' ? `@${cleanUsername} nudged you to focus!` : (message || 'Sent you a message');
 
-      if (senderProfile) {
-        senderName =
-          senderProfile.username ||
-          senderProfile.display_name ||
-          senderProfile.name ||
-          "A scholar";
-      }
-    }
-
-    const receiverToken = receiverProfile.fcm_token;
-    const payload = {
-      type: type || "nudge",
-      message: message || "Sent you a message",
-    };
-
-    // Strict FCM Message Payload for reliable Android Doze mode background delivery
-    const fcmMessage = {
-      token: receiverToken,
+    const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => ({
+      token: recipient.fcmToken,
       notification: {
-        title: payload.type === 'nudge' ? 'New Nudge!' : `New message from ${senderName}`,
-        body: payload.type === 'nudge' ? `${senderName} nudged you to focus!` : payload.message,
+        title,
+        body: bodyText,
       },
       data: {
-        type: payload.type,
+        type: String(type || "notification"),
+        room_id: String(room_id || ""),
+        sender_id: String(sender_id || ""),
+        tab: "rooms",
       },
       android: {
-        priority: 'high' as const,
+        priority: 'high',
         notification: {
           channelId: 'social_nudges',
           sound: 'default',
@@ -187,18 +238,46 @@ Deno.serve(async (req: Request) => {
           defaultVibrateTimings: true,
         },
       },
-    };
+    }));
 
-    console.log(`[send-notification] Sending FCM to ${receiverProfile.id}:`, fcmMessage);
+    console.log(`[send-notification] Sending ${fcmMessages.length} FCM message(s) for type=${type}:`, {
+      title,
+      body: bodyText,
+      recipients: targetRecipients.map(r => r.userId),
+    });
 
-    const sendResponse = await admin.messaging().send(fcmMessage);
+    const sendResponse = await admin.messaging().sendEach(fcmMessages);
+
+    // Clean up any stale or unregistered tokens
+    if (sendResponse.failureCount > 0) {
+      sendResponse.responses.forEach(async (resp, idx) => {
+        if (!resp.success && resp.error) {
+          const errCode = resp.error.code;
+          if (
+            errCode === "messaging/registration-token-not-registered" ||
+            errCode === "messaging/invalid-registration-token"
+          ) {
+            const badRecipient = targetRecipients[idx];
+            if (badRecipient?.userId) {
+              console.log(`[send-notification] Cleaning up stale token for user ${badRecipient.userId}`);
+              await supabase
+                .from("profiles")
+                .update({ fcm_token: null })
+                .eq("id", badRecipient.userId);
+            }
+          }
+        }
+      });
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         delivered: true,
-        messageId: sendResponse,
+        successCount: sendResponse.successCount,
+        failureCount: sendResponse.failureCount,
         receiver_id,
+        room_id,
         type,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

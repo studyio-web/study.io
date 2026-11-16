@@ -323,7 +323,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     triggerHaptic('medium');
     playClassicNudgeSound();
 
-    const senderName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'A scholar';
+    const senderName = profile?.username || user.username || user.displayName || 'A scholar';
 
     try {
       const supabase = getSupabase();
@@ -332,6 +332,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
         supabase.functions.invoke('send-notification', {
           body: {
             sender_id: user.id,
+            sender_username: senderName,
             receiver_id: targetUserId,
             type: 'nudge',
             message: 'nudged you to focus!',
@@ -1567,6 +1568,17 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       setNewMessage('');
       setMessages((prev) => [...prev, normalizedMsg]);
+
+      // Outbound FCM push notification for room members in background
+      supabase.functions.invoke('send-notification', {
+        body: {
+          room_id: roomId,
+          sender_id: user.id,
+          sender_username: myUsername,
+          type: 'chat',
+          message: data.content,
+        },
+      }).catch((err) => console.warn('[ActiveRoom] Room chat push notification error:', err));
 
       if (chatChannelRef.current) {
         try {
