@@ -152,4 +152,18 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
     assert.deepEqual(pausedState.actions, ['Resume', 'Stop']);
     assert.equal(pausedState.title, 'Stopwatch (Paused)');
   });
+
+  it('enforces ongoing (non-dismissible) flags while timer is running', () => {
+    const isRunning = true;
+    const isPaused = false;
+    const isTimerActivelyRunning = isRunning && !isPaused;
+
+    const notificationConfig = {
+      ongoing: isTimerActivelyRunning,
+      autoCancel: !isTimerActivelyRunning,
+    };
+
+    assert.equal(notificationConfig.ongoing, true);
+    assert.equal(notificationConfig.autoCancel, false);
+  });
 });

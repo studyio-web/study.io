@@ -280,6 +280,8 @@ export async function notify(
             channelId,
             smallIcon: 'ic_stat_studyio',
             iconColor: '#10B981',
+            ongoing: channelId === 'timer_running' || payload.extra?.ongoing === true,
+            autoCancel: channelId !== 'timer_running' && !payload.extra?.ongoing,
             schedule: payload.scheduleAt ? { at: payload.scheduleAt } : undefined,
             extra: {
               type,

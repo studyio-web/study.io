@@ -97,9 +97,22 @@ class TimerForegroundService : Service() {
 
         fun recoverNotification(context: Context) {
             val inst = instance
-            if (inst != null && isServiceRunning && inst.isRunning) {
-                Log.d(TAG, "Recovering dismissed notification for active timer...")
-                inst.updateNotification()
+            if (inst != null && isServiceRunning && inst.isRunning && !inst.isPaused) {
+                Log.d(TAG, "Re-anchoring dismissed notification for active running timer...")
+                inst.reanchorNotification()
+            } else if (isServiceRunning) {
+                val intent = Intent(context, TimerForegroundService::class.java).apply {
+                    action = ACTION_UPDATE
+                }
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to startForegroundService in recoverNotification", e)
+                }
             }
         }
     }
@@ -142,7 +155,11 @@ class TimerForegroundService : Service() {
 
             ACTION_UPDATE -> {
                 parseIntentExtras(intent)
-                updateNotification()
+                if (isRunning && !isPaused) {
+                    reanchorNotification()
+                } else {
+                    updateNotification()
+                }
                 scheduleFinishCheckIfNeeded()
             }
 
@@ -236,6 +253,12 @@ class TimerForegroundService : Service() {
         }
     }
 
+    fun reanchorNotification() {
+        if (!isRunning || isPaused) return
+        val notification = buildTimerNotification()
+        startInForeground(notification)
+    }
+
     private fun updateNotification() {
         if (!isRunning && !isPaused) return
         val notification = buildTimerNotification()
@@ -249,14 +272,18 @@ class TimerForegroundService : Service() {
 
     private fun buildTimerNotification(): Notification {
         val title = getNotificationTitle()
+        val isTimerActivelyRunning = isRunning && !isPaused
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_RUNNING)
-            .setSmallIcon(R.drawable.ic_stat_timer)
+            .setSmallIcon(R.drawable.ic_stat_studyio)
+            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary))
             .setContentTitle(title)
-            .setOngoing(true)
+            .setOngoing(isTimerActivelyRunning)
+            .setAutoCancel(!isTimerActivelyRunning)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setSilent(true)
 
         if (subject.isNotBlank()) {
             builder.setSubText(subject)
@@ -317,7 +344,14 @@ class TimerForegroundService : Service() {
             )
         }
 
-        return builder.build()
+        val notification = builder.build()
+        if (isTimerActivelyRunning) {
+            notification.flags = notification.flags or
+                Notification.FLAG_ONGOING_EVENT or
+                Notification.FLAG_NO_CLEAR or
+                Notification.FLAG_FOREGROUND_SERVICE
+        }
+        return notification
     }
 
     private fun getNotificationTitle(): String {
@@ -387,7 +421,8 @@ class TimerForegroundService : Service() {
         }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
-            .setSmallIcon(R.drawable.ic_stat_timer)
+            .setSmallIcon(R.drawable.ic_stat_studyio)
+            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary))
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

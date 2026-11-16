@@ -13,7 +13,10 @@ import { requestNotificationPermission } from '../../lib/notifications';
  */
 function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia('(pointer: coarse)').matches;
+  return (
+    window.matchMedia('(pointer: coarse)').matches ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent)
+  );
 }
 
 const IS_MOBILE = isMobileDevice();
@@ -64,7 +67,7 @@ export function TimerSWBridge() {
   // Request notification permission on first timer start — mobile or native Android
   useEffect(() => {
     const isNative = isNativeAndroid();
-    if (!IS_MOBILE && !isNative) return;
+    if (!isMobileDevice() && !isNative) return;
 
     if (isStudying && !permissionRequestedRef.current) {
       permissionRequestedRef.current = true;
@@ -131,7 +134,7 @@ export function TimerSWBridge() {
 
     const isNative = isNativeAndroid();
     // Skip if desktop web
-    if (!IS_MOBILE && !isNative) return;
+    if (!isMobileDevice() && !isNative) return;
 
     const subjectName = selectedSubject?.name || '';
     const hidden = typeof document !== 'undefined' && document.hidden;
@@ -232,7 +235,7 @@ export function TimerSWBridge() {
 
   // Send periodic tick to SW for web mobile (Native Android uses OS chronometer, no ticks needed!)
   useEffect(() => {
-    if (isNativeAndroid() || !IS_MOBILE || !isRunning) return;
+    if (isNativeAndroid() || !isMobileDevice() || !isRunning) return;
     const id = setInterval(() => {
       postToSW({
         type: 'TIMER_TICK',
@@ -246,7 +249,7 @@ export function TimerSWBridge() {
 
   // Visibility change for SW (web mobile)
   useEffect(() => {
-    if (isNativeAndroid() || !IS_MOBILE) return;
+    if (isNativeAndroid() || !isMobileDevice()) return;
     const handleVisibility = () => {
       if (document.hidden) {
         postToSW({ type: 'APP_HIDDEN' });

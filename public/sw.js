@@ -251,6 +251,16 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
+// ─── Notification dismiss / close ───────────────────────────────────────────
+
+self.addEventListener('notificationclose', function(event) {
+  // If user swiped away the notification while timer is actively running,
+  // re-anchor it immediately so the notification stays pinned during focus.
+  if (state && state.running) {
+    showNotif();
+  }
+});
+
 // ─── Lifecycle & Static Asset Caching (Cache-First) ───────────────────────────
 
 const CACHE_NAME = 'studyio-static-v2';
