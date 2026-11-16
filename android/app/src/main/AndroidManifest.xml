@@ -42,9 +42,36 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Background Timer Foreground Service with live Chronometer -->
+        <service
+            android:name=".TimerForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Focus study timer tracking background elapsed and countdown time for user productivity" />
+        </service>
+
+        <!-- Broadcast Receiver for Timer Notification actions and Android 14 dismissal recovery -->
+        <receiver
+            android:name=".TimerNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.studyio.app.ACTION_TIMER_PAUSE" />
+                <action android:name="com.studyio.app.ACTION_TIMER_RESUME" />
+                <action android:name="com.studyio.app.ACTION_TIMER_STOP" />
+                <action android:name="com.studyio.app.ACTION_NOTIFICATION_DELETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>

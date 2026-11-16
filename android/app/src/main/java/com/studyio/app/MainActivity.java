@@ -1,5 +1,6 @@
 package com.studyio.app;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +18,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(TimerNotificationPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Enable drawing the web app directly under the status and navigation bars
@@ -50,6 +52,38 @@ public class MainActivity extends BridgeActivity {
                     applyImmersiveMode(false);
                 }
             }, "AndroidFullscreenBridge");
+        }
+
+        handleNotificationIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null) return;
+
+        if (intent.hasExtra("tab")) {
+            String tab = intent.getStringExtra("tab");
+            if (tab != null && getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().post(() -> {
+                    getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('studyio:navigate-tab', { detail: { tab: '" + tab + "' } }));",
+                        null
+                    );
+                });
+            }
+        }
+
+        if (intent.hasExtra("timerAction")) {
+            String action = intent.getStringExtra("timerAction");
+            if (action != null) {
+                TimerNotificationPlugin.Companion.emitTimerAction(action);
+            }
         }
     }
 

@@ -23,6 +23,7 @@ import { useRankTheme } from '../hooks/useRankTheme';
 import { DevRankSwitcher } from '../components/common/DevRankSwitcher';
 import { useStudyMode } from '../context/StudyModeContext';
 import { getCachedUserState } from '../lib/userCache';
+import { setupNotificationListeners } from '../lib/notifications';
 
 // Lazy-load inactive tabs so chart, tasks, leaderboard, and WebRTC room libraries are deferred
 const TasksOverview = dynamic(
@@ -168,6 +169,27 @@ export default function Home() {
       } catch {}
     }
   }, []);
+
+  // Listen for notification deep link / tab navigation events
+  useEffect(() => {
+    const handleNavEvent = (e: any) => {
+      const targetTab = e?.detail?.tab;
+      if (targetTab && ['timer', 'tasks', 'analytics', 'leaderboard', 'settings', 'rooms', 'timetable'].includes(targetTab)) {
+        handleTabChange(targetTab as NavTabType);
+      }
+    };
+    window.addEventListener('studyio:navigate-tab', handleNavEvent);
+    const cleanupNative = setupNotificationListeners((tab) => {
+      if (['timer', 'tasks', 'analytics', 'leaderboard', 'settings', 'rooms', 'timetable'].includes(tab)) {
+        handleTabChange(tab as NavTabType);
+      }
+    });
+
+    return () => {
+      window.removeEventListener('studyio:navigate-tab', handleNavEvent);
+      cleanupNative();
+    };
+  }, [handleTabChange]);
 
   const lastTabRefetchRef = useRef<number>(Date.now());
   useEffect(() => {

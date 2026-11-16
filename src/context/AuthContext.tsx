@@ -7,6 +7,7 @@ import { INITIAL_USER, cleanupLegacyDemoData, calculateStreak, getCachedStreak, 
 import { getSupabase } from '../lib/supabase';
 import { getRankFromRp, getSoftResetRp, HARD_RESET_CAP_RP, calculateSeasonRp, getCurrentMonthFocusSeconds, getRankTier, resolveLiveSeasonStats } from '../lib/ranks';
 import { clearRankCache } from './RankContext';
+import { initPushNotifications, clearPushTokenOnLogout } from '../lib/pushNotifications';
 import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '../lib/rankedSystem';
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
 import { resolveAppAvatar, isAppAvatar, getDeterministicDefaultAvatar } from '../lib/avatars';
@@ -688,6 +689,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [syncSupabaseProfile]);
 
+  useEffect(() => {
+    if (isAuthenticated && user?.id && !user.id.startsWith('guest')) {
+      initPushNotifications(user.id);
+    }
+  }, [isAuthenticated, user?.id]);
+
   const getStoredAccounts = (): Record<string, StoredAccount> => {
     try {
       const raw = localStorage.getItem('studyio_registered_accounts');
@@ -1047,6 +1054,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     clearCachedUserState();
     clearRankCache();
+    clearPushTokenOnLogout(user?.id);
     try {
       localStorage.removeItem('studypulse_is_authenticated');
       localStorage.removeItem('studypulse_active_user');
@@ -1095,6 +1103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     clearCachedUserState();
     clearRankCache();
+    clearPushTokenOnLogout(user?.id);
   }, [saveUser]);
 
   const deleteAccount = useCallback(async () => {

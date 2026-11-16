@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288418427603",
+    "project_id": "studyio-web",
+    "storage_bucket": "studyio-web.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288418427603:android:d0268a6b31fe6c8ef99a26",
+        "android_client_info": {
+          "package_name": "com.studyio.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtL2OAQ5VIjdYETFc2d2E1XKxrTcki7gA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

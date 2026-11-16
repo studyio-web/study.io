@@ -73,19 +73,14 @@ export function getRemainingNudgeCooldownSeconds(timestamp: number): number {
   return Math.ceil((THREE_HOURS_MS - elapsedMs) / 1000);
 }
 
+import { notify, requestNotificationPermission } from './notifications';
+
 /**
  * Request notification permission early from the browser/OS so focus nudges can be delivered.
  */
 export async function requestNudgeNotificationPermission(): Promise<NotificationPermission | null> {
-  if (typeof window === 'undefined' || !('Notification' in window)) return null;
-  if (Notification.permission === 'default') {
-    try {
-      return await Notification.requestPermission();
-    } catch {
-      return null;
-    }
-  }
-  return Notification.permission;
+  const result = await requestNotificationPermission();
+  return result === 'prompt' ? 'default' : (result as NotificationPermission);
 }
 
 /**
@@ -94,54 +89,10 @@ export async function requestNudgeNotificationPermission(): Promise<Notification
 export async function triggerNudgePushNotification(senderUsername: string): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  const title = 'Focus Nudge';
-  const body = `${senderUsername} nudged you to focus in study.io!`;
-  const icon = '/icon';
-  const tag = `studyio-nudge-${Date.now()}`;
-
-  // 1. Try Service Worker Notification (required for Android Chrome, PWA, background tabs)
-  if ('serviceWorker' in navigator) {
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg && reg.showNotification) {
-        await reg.showNotification(title, {
-          body,
-          icon,
-          badge: icon,
-          tag,
-          renotify: true,
-          requireInteraction: false,
-          vibrate: [300, 150, 300],
-          data: { url: window.location.href },
-        } as any);
-        return;
-      }
-    } catch (e) {
-      // SW notification fallback
-    }
-  }
-
-  // 2. Standard Web Notification API fallback
-  if ('Notification' in window) {
-    if (Notification.permission === 'granted') {
-      try {
-        const notif = new Notification(title, {
-          body,
-          icon,
-          tag,
-        });
-        notif.onclick = () => {
-          window.focus();
-          notif.close();
-        };
-      } catch {}
-    } else if (Notification.permission === 'default') {
-      try {
-        const perm = await Notification.requestPermission();
-        if (perm === 'granted') {
-          new Notification(title, { body, icon, tag });
-        }
-      } catch {}
-    }
-  }
+  await notify('focus_nudge', {
+    title: 'Focus Nudge',
+    body: `${senderUsername} nudged you to focus in study.io!`,
+    url: window.location.href,
+    tab: 'rooms',
+  });
 }

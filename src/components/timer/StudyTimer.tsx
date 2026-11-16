@@ -46,6 +46,7 @@ import { useAtmosphere } from '../focus/useAtmosphere';
 import confetti from 'canvas-confetti';
 import { CountdownEditor } from './CountdownEditor';
 import { enterFullscreenSafely, exitFullscreenSafely } from './FocusModeModal';
+import { notify } from '../../lib/notifications';
 import { getSupabase } from '../../lib/supabase';
 import { fetchAuthoritativeServerTime, saveValidatedSession } from '../../lib/serverTime';
 import { getDailyQuote } from '../../lib/quotes';
@@ -805,15 +806,9 @@ export function StudyTimer() {
         duration: 5000,
       });
 
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        const iconUrl = typeof window !== 'undefined' ? `${window.location.origin}/icon-192.png` : '/icon-192.png';
-        showPushNotification('Halfway there! ⏳', {
-          body: `50% of your countdown completed (${remainingText} remaining). Keep up the great focus!`,
-          icon: iconUrl,
-          tag: 'studyio-countdown-halfway',
-          silent: true,
-        });
-      }
+      notify('countdown_halfway', {
+        body: `50% of your countdown completed (${remainingText} remaining). Keep up the great focus!`,
+      });
     }
   }, [timerMode, isStudying, elapsedSeconds, countdownTarget, isCountdownCompleted, isCountdownHalfwayNotified]);
 
@@ -827,15 +822,9 @@ export function StudyTimer() {
       } catch {}
       pauseTimer();
       toast.success('Countdown completed! Click Save session to record your progress 🎉', { duration: 6000 });
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        const iconUrl = typeof window !== 'undefined' ? `${window.location.origin}/icon-192.png` : '/icon-192.png';
-        showPushNotification('Countdown completed! 🚀', {
-          body: 'Your timer is up! Click Save session to record your progress.',
-          icon: iconUrl,
-          tag: 'studyio-countdown-completed',
-          silent: true,
-        });
-      }
+      notify('countdown_completed', {
+        body: 'Your timer is up! Click Save session to record your progress.',
+      });
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setIsFocusModeOpen(false);
       exitFullscreenSafely();

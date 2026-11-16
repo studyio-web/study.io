@@ -3,6 +3,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { useServiceWorker } from '../../hooks/useServiceWorker';
+import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
+import { requestNotificationPermission } from '../../lib/notifications';
 
 /**
  * Detect touchscreen/mobile devices via the `pointer: coarse` media query.
@@ -18,11 +20,8 @@ const IS_MOBILE = isMobileDevice();
 
 /**
  * TimerSWBridge — invisible component that bridges StudyContext timer state
- * to the Service Worker for background tracking and push notifications.
- *
- * Notifications are ONLY sent on mobile/touchscreen devices (pointer: coarse).
- * On laptops/desktops the SW is still registered (for offline caching) but
- * no notification messages are dispatched — zero popups on desktop.
+ * to the Service Worker (Web) and Native Foreground Service (Android Capacitor)
+ * for persistent background tracking, chronometer display, and push notifications.
  *
  * Mount this once inside StudyProvider (via Providers).
  */
@@ -41,9 +40,10 @@ export function TimerSWBridge() {
     startTimeRef,
     pauseTimer,
     resumeTimer,
+    stopTimer,
   } = useStudy();
 
-  // Handle SW → page messages (Pause / Resume buttons in notification)
+  // Handle SW → page messages (Pause / Resume buttons in notification) on Web
   const handleSWMessage = useCallback((event: MessageEvent) => {
     if (event.data?.type === 'SW_PAUSE_TIMER') {
       pauseTimer();
@@ -52,26 +52,35 @@ export function TimerSWBridge() {
     }
   }, [pauseTimer, resumeTimer]);
 
-  const { postToSW, requestNotificationPermission } = useServiceWorker(handleSWMessage);
+  const { postToSW, requestNotificationPermission: requestSWPermission } = useServiceWorker(handleSWMessage);
 
   // Track previous running state to detect transitions
   const prevRunningRef = useRef(false);
   const prevStudyingRef = useRef(false);
   const prevPausedRef = useRef(false);
+  const prevPhaseRef = useRef(pomodoroPhase);
   const permissionRequestedRef = useRef(false);
 
-  // Request notification permission on first timer start — mobile only
+  // Request notification permission on first timer start — mobile or native Android
   useEffect(() => {
-    if (!IS_MOBILE) return;
+    const isNative = isNativeAndroid();
+    if (!IS_MOBILE && !isNative) return;
+
     if (isStudying && !permissionRequestedRef.current) {
       permissionRequestedRef.current = true;
-      requestNotificationPermission().then((perm) => {
-        console.log('[SW Bridge] Notification permission:', perm);
-      });
+      if (isNative) {
+        requestNotificationPermission().then((perm) => {
+          console.log('[Native Timer Bridge] Notification permission:', perm);
+        });
+      } else {
+        requestSWPermission().then((perm) => {
+          console.log('[SW Bridge] Notification permission:', perm);
+        });
+      }
     }
-  }, [isStudying, requestNotificationPermission]);
+  }, [isStudying, requestSWPermission]);
 
-  // Helper to get the current target (for countdown/pomodoro)
+  // Helper to get current target (for countdown/pomodoro)
   const getTarget = useCallback((): number | null => {
     if (timerMode === 'pomodoro') {
       return pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration;
@@ -82,58 +91,148 @@ export function TimerSWBridge() {
     return null;
   }, [timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration, countdownTarget]);
 
-  // Sync timer state transitions to SW — mobile only
+  // Listen for native Android notification actions (Pause, Resume, Stop)
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+
+    let cleanupHandle: { remove: () => Promise<void> } | null = null;
+
+    TimerNotification.addListener('onTimerAction', (data: { action: 'pause' | 'resume' | 'stop' }) => {
+      console.log('[Native Timer Bridge] Received onTimerAction:', data.action);
+      if (data.action === 'pause') {
+        pauseTimer();
+      } else if (data.action === 'resume') {
+        resumeTimer();
+      } else if (data.action === 'stop') {
+        stopTimer();
+      }
+    }).then((h) => {
+      cleanupHandle = h;
+    }).catch((err) => {
+      console.warn('[Native Timer Bridge] Could not attach onTimerAction listener:', err);
+    });
+
+    return () => {
+      cleanupHandle?.remove?.();
+    };
+  }, [pauseTimer, resumeTimer, stopTimer]);
+
+  // Sync timer state transitions to Native Android Foreground Service or Web Service Worker
   useEffect(() => {
     const wasRunning = prevRunningRef.current;
     const wasStudying = prevStudyingRef.current;
     const wasPaused = prevPausedRef.current;
+    const wasPhase = prevPhaseRef.current;
 
     prevRunningRef.current = isRunning;
     prevStudyingRef.current = isStudying;
     prevPausedRef.current = isPaused;
+    prevPhaseRef.current = pomodoroPhase;
 
-    // Skip all notification messages on laptops / desktops
-    if (!IS_MOBILE) return;
+    const isNative = isNativeAndroid();
+    // Skip if desktop web
+    if (!IS_MOBILE && !isNative) return;
 
     const subjectName = selectedSubject?.name || '';
     const hidden = typeof document !== 'undefined' && document.hidden;
+    const target = getTarget() ?? 0;
 
     if (isRunning && !wasRunning) {
       const isResume = wasStudying && wasPaused;
-      if (isResume) {
-        postToSW({
-          type: 'TIMER_RESUME',
-          startTime: startTimeRef?.current ?? Date.now(),
-          elapsed: elapsedSeconds,
-          subject: subjectName,
-          hidden,
-        });
+      if (isNative) {
+        if (isResume) {
+          TimerNotification.resume().catch((err) =>
+            console.warn('[Native Timer Bridge] resume failed:', err)
+          );
+        } else {
+          TimerNotification.start({
+            mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
+            phase: pomodoroPhase,
+            startTime: startTimeRef?.current ?? Date.now(),
+            elapsedSeconds,
+            targetSeconds: target,
+            subject: subjectName,
+          }).catch((err) =>
+            console.warn('[Native Timer Bridge] start failed:', err)
+          );
+
+          // One-time check for battery optimization on native Android
+          if (!localStorage.getItem('studyio_battery_prompt_checked')) {
+            localStorage.setItem('studyio_battery_prompt_checked', '1');
+            TimerNotification.isBatteryOptimized()
+              .then(({ isIgnoringBatteryOptimizations }) => {
+                if (!isIgnoringBatteryOptimizations) {
+                  console.info(
+                    '[Native Timer Bridge] Battery optimization is active. For best background accuracy, allow unrestricted battery in settings.'
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+        }
       } else {
-        postToSW({
-          type: 'TIMER_START',
-          startTime: startTimeRef?.current ?? Date.now(),
-          elapsed: elapsedSeconds,
-          subject: subjectName,
-          mode: timerMode,
-          target: getTarget(),
-          hidden,
-        });
+        // Web Service Worker
+        if (isResume) {
+          postToSW({
+            type: 'TIMER_RESUME',
+            startTime: startTimeRef?.current ?? Date.now(),
+            elapsed: elapsedSeconds,
+            subject: subjectName,
+            hidden,
+          });
+        } else {
+          postToSW({
+            type: 'TIMER_START',
+            startTime: startTimeRef?.current ?? Date.now(),
+            elapsed: elapsedSeconds,
+            subject: subjectName,
+            mode: timerMode,
+            target,
+            hidden,
+          });
+        }
       }
     } else if (!isRunning && wasRunning && isStudying && isPaused) {
-      postToSW({ type: 'TIMER_PAUSE', elapsed: elapsedSeconds });
+      // Paused
+      if (isNative) {
+        TimerNotification.pause().catch((err) =>
+          console.warn('[Native Timer Bridge] pause failed:', err)
+        );
+      } else {
+        postToSW({ type: 'TIMER_PAUSE', elapsed: elapsedSeconds });
+      }
     } else if (!isStudying && wasStudying) {
-      postToSW({ type: 'TIMER_STOP' });
+      // Stopped
+      if (isNative) {
+        TimerNotification.stop().catch((err) =>
+          console.warn('[Native Timer Bridge] stop failed:', err)
+        );
+      } else {
+        postToSW({ type: 'TIMER_STOP' });
+      }
+    } else if (isRunning && wasRunning && wasPhase !== pomodoroPhase) {
+      // Pomodoro phase changed while running
+      if (isNative) {
+        TimerNotification.update({
+          mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
+          phase: pomodoroPhase,
+          targetSeconds: target,
+          subject: subjectName,
+        }).catch((err) =>
+          console.warn('[Native Timer Bridge] update phase failed:', err)
+        );
+      }
     }
-  }, [isRunning, isStudying, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isRunning, isStudying, isPaused, pomodoroPhase, timerMode, selectedSubject?.name, getTarget, elapsedSeconds, postToSW, startTimeRef]);
 
   const elapsedRef = useRef(elapsedSeconds);
   useEffect(() => {
     elapsedRef.current = elapsedSeconds;
   }, [elapsedSeconds]);
 
-  // Send TIMER_TICK to SW every 10s while running — mobile only
+  // Send periodic tick to SW for web mobile (Native Android uses OS chronometer, no ticks needed!)
   useEffect(() => {
-    if (!IS_MOBILE || !isRunning) return;
+    if (isNativeAndroid() || !IS_MOBILE || !isRunning) return;
     const id = setInterval(() => {
       postToSW({
         type: 'TIMER_TICK',
@@ -143,11 +242,11 @@ export function TimerSWBridge() {
       });
     }, 10000);
     return () => clearInterval(id);
-  }, [isRunning, selectedSubject?.name, postToSW]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isRunning, selectedSubject?.name, postToSW, startTimeRef]);
 
-  // Visibility change — mobile only
+  // Visibility change for SW (web mobile)
   useEffect(() => {
-    if (!IS_MOBILE) return;
+    if (isNativeAndroid() || !IS_MOBILE) return;
     const handleVisibility = () => {
       if (document.hidden) {
         postToSW({ type: 'APP_HIDDEN' });
