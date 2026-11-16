@@ -278,8 +278,8 @@ export async function notify(
             body,
             id: notifId,
             channelId,
-            smallIcon: 'ic_stat_timer',
-            iconColor: '#F59E0B',
+            smallIcon: 'ic_stat_studyio',
+            iconColor: '#10B981',
             schedule: payload.scheduleAt ? { at: payload.scheduleAt } : undefined,
             extra: {
               type,

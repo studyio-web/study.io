@@ -289,6 +289,7 @@ Deno.serve(async (req: Request) => {
       notification: {
         title,
         body: bodyText,
+        imageUrl: "https://studyio-web.vercel.app/icon-192.png",
       },
       data: {
         type: String(type || "notification"),
@@ -297,11 +298,15 @@ Deno.serve(async (req: Request) => {
         tab: "rooms",
         title: title,
         body: bodyText,
+        icon: "ic_stat_studyio",
+        image: "https://studyio-web.vercel.app/icon-192.png",
       },
       android: {
         priority: 'high',
         notification: {
           channelId: 'social_nudges',
+          icon: 'ic_stat_studyio',
+          color: '#10B981',
           sound: 'default',
           defaultSound: true,
           defaultVibrateTimings: true,

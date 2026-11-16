@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- Study.io Book Icon Pages -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,20 C27,16 19,16.5 16,18 L16,44 C19,42.5 27,42 32,46 C37,42 45,42.5 48,44 L48,18 C45,16.5 37,16 32,20 Z" />
+    <!-- Center Spine -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M32,20 L32,46" />
+    <!-- Beacon Dot -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M32,10.5 A3.5,3.5 0 1,0 32,17.5 A3.5,3.5 0 1,0 32,10.5 Z" />
+</vector>

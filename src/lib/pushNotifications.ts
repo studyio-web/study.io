@@ -143,8 +143,8 @@ export async function initPushNotifications(userId?: string): Promise<void> {
                 body,
                 id: Math.floor(Date.now() % 100000) + 1000,
                 channelId,
-                smallIcon: 'ic_stat_timer',
-                iconColor: '#F59E0B',
+                smallIcon: 'ic_stat_studyio',
+                iconColor: '#10B981',
                 sound: 'default',
                 extra: {
                   ...notification.data,
