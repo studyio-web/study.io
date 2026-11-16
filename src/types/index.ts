@@ -222,6 +222,7 @@ export type LeaderboardEntry = {
   rank_title: string;
   total_seconds: number;
   focus_minutes?: number;
+  season_rp?: number;
   is_current_user?: boolean;
   is_premium?: boolean;
   flair_frame?: string | null;

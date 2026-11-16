@@ -8,7 +8,6 @@ import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
 import { getRankTier, RANKS, RankTier, RankTierName, RankDivision } from '../../lib/ranks';
-import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak, calculateGoalStreak } from '../../lib/mockData';
@@ -236,23 +235,19 @@ export function ScholarProfileModal({
   const streak = profileDetails.streakDays ?? scholar?.streakDays ?? 0;
   const goalStreak = profileDetails.goalStreak ?? scholar?.goalStreak ?? 0;
   const rankTitle = useMemo(() => {
-    if (totalStudySeconds > 0) {
-      return calculateRankTier(Math.floor(totalStudySeconds / 60));
-    }
     if (scholar?.rankTitle) {
       return scholar.rankTitle;
     }
     if (profileDetails.rankTitle) {
       return profileDetails.rankTitle;
     }
+    if (totalStudySeconds > 0) {
+      return getRankTier(Math.floor(totalStudySeconds / 36)).name;
+    }
     return 'Bronze I';
   }, [totalStudySeconds, scholar?.rankTitle, profileDetails.rankTitle]);
 
   // Tier configuration
-  const rankDetails = useMemo(() => {
-    return getRankTierDetails(rankTitle);
-  }, [rankTitle]);
-
   const tierConfig: RankTier = useMemo(() => {
     try {
       const found = RANKS.find((r) => r.name.toUpperCase() === String(rankTitle).toUpperCase());
@@ -262,8 +257,8 @@ export function ScholarProfileModal({
     }
   }, [rankTitle]);
 
-  const tierColor = getTierColor(rankDetails.tier);
-  const formattedTier = rankDetails.name;
+  const tierColor = getTierColor(tierConfig.tier);
+  const formattedTier = tierConfig.name;
 
   // Formatted stats
   const totalStats = formatHoursMinutes(totalStudySeconds);

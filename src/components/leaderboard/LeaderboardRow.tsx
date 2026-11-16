@@ -6,7 +6,6 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 import { LeaderboardEntry } from '../../types';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { RankTierName, RankDivision, getRankTier, RANKS, RankTier } from '../../lib/ranks';
-import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 import { FlairFrame } from '../../lib/flair';
 import { AvatarFlairRing, FlairCrown } from '../common/FlairBadge';
@@ -104,15 +103,20 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
   const handle = row.username ? String(row.username) : displayName.toLowerCase().replace(/\s+/g, '');
   const level = row.level ?? getLevelFromLifetimeXP(Number(row.lifetime_xp) || 0);
 
-  // Derive tier configuration strictly from calculateRankTier
+  // Derive tier configuration strictly from Season RP and single source of truth
   const totalSecs = Math.max(0, Number(row.total_seconds) || 0);
-  const scholarMinutes = Number(
-    (row as any).focus_minutes ?? Math.floor(totalSecs / 60)
-  );
-  const rankTierString = calculateRankTier(scholarMinutes);
-  const rankDetails = getRankTierDetails(rankTierString);
-  const tierColor = getTierColor(rankDetails.tier);
-  const formattedTier = rankTierString;
+  const targetRankTitle = isCurrentUser && userRankName ? userRankName : row.rank_title;
+  let tierConfig: RankTier = getRankTier(0);
+  if (typeof (row as any).season_rp === 'number') {
+    tierConfig = getRankTier((row as any).season_rp);
+  } else if (targetRankTitle) {
+    const found = RANKS.find((r) => r.name.toUpperCase() === String(targetRankTitle).toUpperCase());
+    tierConfig = found || getRankTier(Math.floor(totalSecs / 36));
+  } else {
+    tierConfig = getRankTier(Math.floor(totalSecs / 36));
+  }
+  const tierColor = getTierColor(tierConfig?.tier);
+  const formattedTier = tierConfig?.name;
   const { h, m } = parseHoursMinutes(totalSecs);
 
   // Proportional focus bar ratio: (row focus / top row focus) * 100%
@@ -308,11 +312,11 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
           </div>
         </div>
 
-        {/* Center/Right Section: Tier Crest + Sentence Case Title */}
+        {/* Center/Right Section: Tier Crest + Title */}
         <div className="w-12 sm:w-36 flex items-center justify-center sm:justify-start gap-2.5 shrink-0">
           <RankCrestBadge
-            tier={rankDetails.tier as RankTierName}
-            division={rankDetails.division as RankDivision}
+            tier={tierConfig.tier as RankTierName}
+            division={tierConfig.division as RankDivision}
             size={36}
           />
           <span
