@@ -57,6 +57,24 @@ function getSupabaseClient() {
   });
 }
 
+// Memory cache to deduplicate rapidly repeating events (e.g. database trigger + client invoke)
+const recentChatEvents = new Map<string, number>();
+function isDuplicateChat(roomId: string, senderId: string, message: string): boolean {
+  const key = `${roomId}:${senderId}:${message}`;
+  const now = Date.now();
+  const lastTime = recentChatEvents.get(key);
+  if (lastTime && now - lastTime < 5000) {
+    return true;
+  }
+  recentChatEvents.set(key, now);
+  if (recentChatEvents.size > 200) {
+    for (const [k, t] of recentChatEvents.entries()) {
+      if (now - t > 30000) recentChatEvents.delete(k);
+    }
+  }
+  return false;
+}
+
 interface NotificationPayload {
   sender_id?: string;
   sender_username?: string;
@@ -120,6 +138,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Deduplicate rapid repeat events (e.g. database trigger + client call)
+    if (type === "chat" && room_id && sender_id && message && isDuplicateChat(room_id, sender_id, message)) {
+      console.log(`[send-notification] Skipping duplicate chat event for room=${room_id} sender=${sender_id}`);
+      return new Response(
+        JSON.stringify({ success: true, delivered: false, duplicate: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabase = getSupabaseClient();
     getFirebaseAdmin();
 
@@ -170,18 +197,32 @@ Deno.serve(async (req: Request) => {
       }
     } else if (room_id) {
       // Find all room members except sender
-      let query = supabase
+      const { data: members } = await supabase
         .from("room_members")
         .select("user_id")
         .eq("room_id", room_id);
 
-      if (sender_id) {
-        query = query.neq("user_id", sender_id);
-      }
-      const { data: members } = await query;
+      // Also get room host to guarantee delivery if host isn't in room_members
+      const { data: roomData } = await supabase
+        .from("study_rooms")
+        .select("host_id")
+        .eq("id", room_id)
+        .maybeSingle();
 
-      if (members && members.length > 0) {
-        const userIds = members.map((m: any) => m.user_id);
+      const memberUserIds = new Set<string>();
+      if (members) {
+        for (const m of members) {
+          if (m.user_id && m.user_id !== sender_id) {
+            memberUserIds.add(m.user_id);
+          }
+        }
+      }
+      if (roomData?.host_id && roomData.host_id !== sender_id) {
+        memberUserIds.add(roomData.host_id);
+      }
+
+      if (memberUserIds.size > 0) {
+        const userIds = Array.from(memberUserIds);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, fcm_token")
