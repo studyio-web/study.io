@@ -17,7 +17,7 @@
 
 import { getLocalDateString } from './dateUtils';
 
-export type RankTierName = 
+export type RankTierName =
   | 'Bronze'
   | 'Silver'
   | 'Gold'
