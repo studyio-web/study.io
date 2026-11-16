@@ -34,6 +34,7 @@ import { HelpFeedbackModal } from './HelpFeedbackModal';
 import { Logo } from '../Logo';
 import { calculateStreak, getCachedStreak, setCachedStreak } from '../../lib/mockData';
 import { getRankTier, calculateSeasonRp, getCurrentMonthFocusSeconds, resolveLiveSeasonStats } from '../../lib/ranks';
+import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getTierBadge, getLevelTitle } from '../../lib/gamification';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import { useDevRankPreview } from '../../lib/devRankPreview';
@@ -259,13 +260,26 @@ export function Navbar({
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (gamification.progressPercent / 100) * circumference;
 
-  const { liveSeasonRp, liveRank } = useMemo(() => {
-    if (isPreviewActive && previewRp !== null) {
-      return { liveSeasonRp: previewRp, liveRank: getRankTier(previewRp) };
+  const userMinutes = useMemo(() => {
+    if (typeof (user as any)?.total_focus_minutes === 'number' && !isNaN((user as any).total_focus_minutes)) {
+      return (user as any).total_focus_minutes;
     }
-    const live = resolveLiveSeasonStats(user, sessions || []);
-    return { liveSeasonRp: live.seasonRp, liveRank: live.rankTier };
-  }, [isPreviewActive, previewRp, sessions, user]);
+    if (typeof user?.totalStudySeconds === 'number' && !isNaN(user.totalStudySeconds)) {
+      return Math.floor(user.totalStudySeconds / 60);
+    }
+    if (Array.isArray(sessions) && sessions.length > 0) {
+      return Math.floor(sessions.reduce((acc, s) => acc + (s.durationSeconds || 0), 0) / 60);
+    }
+    return 0;
+  }, [user, sessions]);
+
+  const userRankTierString = useMemo(() => {
+    return calculateRankTier(userMinutes);
+  }, [userMinutes]);
+
+  const userRankDetails = useMemo(() => {
+    return getRankTierDetails(userRankTierString);
+  }, [userRankTierString]);
 
   return (
     <>
@@ -370,13 +384,13 @@ export function Navbar({
                         ? 'border-[var(--tier-accent)] ring-1 ring-[var(--tier-accent)] bg-fg/[0.08]'
                         : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-fg/[0.04]'
                     }`}
-                    title={`View Leaderboard • Ranked Season RP: ${liveSeasonRp.toLocaleString()} RP (${liveRank.name.toUpperCase()})`}
-                    aria-label={`Open Leaderboard • Current Rank: ${liveRank.name.toUpperCase()}`}
+                    title={`View Leaderboard • Rank: ${userRankTierString}`}
+                    aria-label={`Open Leaderboard • Current Rank: ${userRankTierString}`}
                   >
                     <div className="flex items-center gap-1.5 sm:gap-2">
                       <RankCrestBadge
-                        tier={liveRank.tier}
-                        division={liveRank.division}
+                        tier={userRankDetails.tier}
+                        division={userRankDetails.division}
                         size={36}
                         className="-ml-3"
                       />
@@ -384,7 +398,7 @@ export function Navbar({
                         className="text-xs font-bold tracking-wider font-hud uppercase truncate"
                         style={{ color: 'var(--tier-accent-text)' }}
                       >
-                        {liveRank.name.toUpperCase()}
+                        {userRankTierString.toUpperCase()}
                       </span>
                     </div>
                   </button>

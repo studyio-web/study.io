@@ -6,6 +6,7 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 import { LeaderboardEntry } from '../../types';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { RankTierName, RankDivision, getRankTier, RANKS, RankTier } from '../../lib/ranks';
+import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 import { FlairFrame } from '../../lib/flair';
 import { AvatarFlairRing, FlairCrown } from '../common/FlairBadge';
@@ -103,24 +104,15 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
   const handle = row.username ? String(row.username) : displayName.toLowerCase().replace(/\s+/g, '');
   const level = row.level ?? getLevelFromLifetimeXP(Number(row.lifetime_xp) || 0);
 
-  // Derive tier configuration strictly from Season Rank and single source of truth
+  // Derive tier configuration strictly from calculateRankTier
   const totalSecs = Math.max(0, Number(row.total_seconds) || 0);
-
-  let tierConfig: RankTier = getRankTier(0);
-  try {
-    const targetName = isCurrentUser && userRankName ? userRankName : row.rank_title;
-    if (targetName) {
-      const found = RANKS.find((r) => r.name.toUpperCase() === String(targetName).toUpperCase());
-      if (found) {
-        tierConfig = found;
-      }
-    }
-  } catch {
-    tierConfig = getRankTier(0);
-  }
-
-  const tierColor = getTierColor(tierConfig?.tier);
-  const formattedTier = formatTierTitle(tierConfig?.name);
+  const scholarMinutes = Number(
+    (row as any).focus_minutes ?? Math.floor(totalSecs / 60)
+  );
+  const rankTierString = calculateRankTier(scholarMinutes);
+  const rankDetails = getRankTierDetails(rankTierString);
+  const tierColor = getTierColor(rankDetails.tier);
+  const formattedTier = rankTierString;
   const { h, m } = parseHoursMinutes(totalSecs);
 
   // Proportional focus bar ratio: (row focus / top row focus) * 100%
@@ -319,8 +311,8 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
         {/* Center/Right Section: Tier Crest + Sentence Case Title */}
         <div className="w-12 sm:w-36 flex items-center justify-center sm:justify-start gap-2.5 shrink-0">
           <RankCrestBadge
-            tier={tierConfig.tier as RankTierName}
-            division={tierConfig.division as RankDivision}
+            tier={rankDetails.tier as RankTierName}
+            division={rankDetails.division as RankDivision}
             size={36}
           />
           <span

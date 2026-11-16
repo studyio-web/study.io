@@ -65,6 +65,9 @@ export type UserProfile = {
   xp?: number;
   levelTitle?: string;
   totalStudySeconds: number;
+  total_focus_minutes?: number;
+  totalFocusMinutes?: number;
+  total_study_seconds?: number;
   status: 'studying' | 'resting' | 'offline';
   study_mode?: StudyMode | null;
   studyMode?: StudyMode | null;
@@ -218,6 +221,7 @@ export type LeaderboardEntry = {
   lifetime_xp: number;
   rank_title: string;
   total_seconds: number;
+  focus_minutes?: number;
   is_current_user?: boolean;
   is_premium?: boolean;
   flair_frame?: string | null;

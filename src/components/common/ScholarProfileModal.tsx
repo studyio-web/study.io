@@ -8,6 +8,7 @@ import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
 import { getRankTier, RANKS, RankTier, RankTierName, RankDivision } from '../../lib/ranks';
+import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak, calculateGoalStreak } from '../../lib/mockData';
@@ -234,20 +235,35 @@ export function ScholarProfileModal({
   const level = profileDetails.level ?? scholar?.level ?? 1;
   const streak = profileDetails.streakDays ?? scholar?.streakDays ?? 0;
   const goalStreak = profileDetails.goalStreak ?? scholar?.goalStreak ?? 0;
-  const rankTitle = profileDetails.rankTitle ?? scholar?.rankTitle ?? 'Silver I';
+  const rankTitle = useMemo(() => {
+    if (totalStudySeconds > 0) {
+      return calculateRankTier(Math.floor(totalStudySeconds / 60));
+    }
+    if (scholar?.rankTitle) {
+      return scholar.rankTitle;
+    }
+    if (profileDetails.rankTitle) {
+      return profileDetails.rankTitle;
+    }
+    return 'Bronze I';
+  }, [totalStudySeconds, scholar?.rankTitle, profileDetails.rankTitle]);
 
   // Tier configuration
+  const rankDetails = useMemo(() => {
+    return getRankTierDetails(rankTitle);
+  }, [rankTitle]);
+
   const tierConfig: RankTier = useMemo(() => {
     try {
       const found = RANKS.find((r) => r.name.toUpperCase() === String(rankTitle).toUpperCase());
-      return found || getRankTier(0);
+      return found || RANKS[0];
     } catch {
-      return getRankTier(0);
+      return RANKS[0];
     }
   }, [rankTitle]);
 
-  const tierColor = getTierColor(tierConfig?.tier);
-  const formattedTier = formatTierTitle(tierConfig?.name);
+  const tierColor = getTierColor(rankDetails.tier);
+  const formattedTier = rankDetails.name;
 
   // Formatted stats
   const totalStats = formatHoursMinutes(totalStudySeconds);

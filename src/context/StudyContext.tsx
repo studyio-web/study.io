@@ -2272,6 +2272,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             updateProfile({
               streakDays: realStreak,
               totalStudySeconds: realTotalSeconds,
+              total_focus_minutes: Math.floor(realTotalSeconds / 60),
+              totalFocusMinutes: Math.floor(realTotalSeconds / 60),
               seasonRp: currentSeasonRp,
               rp: currentSeasonRp,
               rank_title: rankDetails.name || rankDetails.fullTitle || 'Bronze I',
@@ -2413,6 +2415,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             updateProfile({
               streakDays: realStreak,
               totalStudySeconds: realTotalSeconds,
+              total_focus_minutes: Math.floor(realTotalSeconds / 60),
+              totalFocusMinutes: Math.floor(realTotalSeconds / 60),
             });
           }
         }
@@ -2490,6 +2494,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         updateProfile({
           streakDays: realStreak,
           totalStudySeconds: realTotalSeconds,
+          total_focus_minutes: Math.floor(realTotalSeconds / 60),
+          totalFocusMinutes: Math.floor(realTotalSeconds / 60),
           seasonRp: currentSeasonRp,
           rp: currentSeasonRp,
           rank_title: rankDetails.name || rankDetails.fullTitle || 'Bronze I',
@@ -2516,6 +2522,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           updateProfile({
             streakDays: realStreak,
             totalStudySeconds: realTotalSeconds,
+            total_focus_minutes: Math.floor(realTotalSeconds / 60),
+            totalFocusMinutes: Math.floor(realTotalSeconds / 60),
           });
         }
       }
@@ -2914,6 +2922,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       updateProfile({
         streakDays: realStreak,
         totalStudySeconds: realTotalSeconds,
+        total_focus_minutes: Math.floor(realTotalSeconds / 60),
+        totalFocusMinutes: Math.floor(realTotalSeconds / 60),
       });
 
       return updated;

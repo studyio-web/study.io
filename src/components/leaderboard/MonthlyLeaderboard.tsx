@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
 import { getSupabase } from '../../lib/supabase';
 import { getRankTier, calculateSeasonRp, calculateRpFromSeconds, RankTierName, RankDivision, RankTier, RANKS, resolveLiveSeasonStats } from '../../lib/ranks';
+import { calculateRankTier, getRankTierDetails } from '@/lib/rankings';
 import { getRankTheme } from '../../lib/rankTheme';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 import { LeaderboardEntry } from '../../types';
@@ -86,24 +87,22 @@ function AnimatedDigit({
 
 /**
  * Resolves the display rank tier label from row data.
- * Evaluates getRankTier as single source of truth across all 23 monthly ranks.
+ * Evaluates calculateRankTier as single source of truth across all 23 monthly ranks.
  */
 export function getMonthlyRankTierTitle(rankTitle?: string, totalSeconds?: number): string {
-  if (rankTitle) {
-    const found = RANKS.find(r => r.name.toUpperCase() === rankTitle.toUpperCase());
-    if (found) return found.name.toUpperCase();
+  if (typeof totalSeconds === 'number' && totalSeconds > 0) {
+    return calculateRankTier(Math.floor(totalSeconds / 60)).toUpperCase();
   }
-  const rp = totalSeconds ? Math.floor(totalSeconds / 36) : 0;
-  return getRankTier(rp).name.toUpperCase();
+  if (rankTitle) {
+    return rankTitle.toUpperCase();
+  }
+  return 'BRONZE I';
 }
 
 export function getMonthlyRankTierConfig(totalSeconds?: number, rankTitle?: string): RankTier {
-  if (rankTitle) {
-    const found = RANKS.find(r => r.name.toUpperCase() === rankTitle.toUpperCase());
-    if (found) return found;
-  }
-  const rp = totalSeconds ? Math.floor(totalSeconds / 36) : 0;
-  return getRankTier(rp);
+  const tierName = getMonthlyRankTierTitle(rankTitle, totalSeconds);
+  const found = RANKS.find(r => r.name.toUpperCase() === tierName.toUpperCase());
+  return found || RANKS[0];
 }
 
 export type LeaderboardTimeframe = 'today' | 'week' | 'month' | 'all';
@@ -393,37 +392,11 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 (currentUser?.name && (row.display_name || row.name) && currentUser.name.toLowerCase().trim() === String(row.display_name || row.name).toLowerCase().trim())
               );
               
-              let computedRank = 'Bronze I';
-              try {
-                if (isMe && currentUser) {
-                  const live = resolveLiveSeasonStats(currentUser, currentSessions);
-                  computedRank = live.rankTier.name;
-                } else {
-                  const isWrenContender =
-                    row.username?.toLowerCase() === 'wren' ||
-                    row.display_name?.toLowerCase() === 'wren' ||
-                    row.name?.toLowerCase() === 'wren';
-                  const isTrialContender =
-                    row.username?.toLowerCase() === 'trial' ||
-                    row.display_name?.toLowerCase() === 'trial' ||
-                    row.name?.toLowerCase() === 'trial';
-                  const priorRp = Number(row.season_rp ?? row.rp ?? 0);
-
-                  if (isWrenContender) {
-                    computedRank = (priorRp > 0 && priorRp <= 1100) ? getRankTier(priorRp).name : 'Silver I';
-                  } else if (isTrialContender) {
-                    computedRank = priorRp > 0 ? getRankTier(priorRp).name : 'Silver III';
-                  } else if (priorRp > 0) {
-                    computedRank = getRankTier(priorRp).name;
-                  } else if (row.current_rank && !row.current_rank.toUpperCase().includes('SCHOLAR')) {
-                    computedRank = row.current_rank;
-                  } else if (row.rank_title && !row.rank_title.toUpperCase().includes('SCHOLAR')) {
-                    computedRank = row.rank_title;
-                  } else {
-                    computedRank = 'Bronze I';
-                  }
-                }
-              } catch (e) {}
+              const totalSec = Number(row.total_seconds || 0);
+              const scholarMinutes = isMe && currentUser
+                ? Number((currentUser as any)?.total_focus_minutes ?? Math.floor((currentUser?.totalStudySeconds || totalSec) / 60))
+                : Math.floor(totalSec / 60);
+              const computedRank = calculateRankTier(scholarMinutes);
               
               return {
                 user_id: String(row.user_id),
@@ -433,8 +406,9 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 avatar_url: row.avatar_url ? String(row.avatar_url) : null,
                 level: row.level ? Number(row.level) : undefined,
                 lifetime_xp: Number(row.lifetime_xp || 0),
-                rank_title: String(computedRank).toUpperCase(),
-                total_seconds: Number(row.total_seconds || 0),
+                rank_title: computedRank,
+                total_seconds: totalSec,
+                focus_minutes: scholarMinutes,
                 is_current_user: isMe,
                 is_premium: Boolean(row.is_premium),
                 flair_frame: row.flair_frame || (row.is_premium ? 'gold' : null),
@@ -486,37 +460,11 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                     (currentUser?.displayName && (p.display_name || p.name) && currentUser.displayName.toLowerCase().trim() === String(p.display_name || p.name).toLowerCase().trim()) ||
                     (currentUser?.name && (p.display_name || p.name) && currentUser.name.toLowerCase().trim() === String(p.display_name || p.name).toLowerCase().trim())
                   );
-                  let computedRank = 'Bronze I';
-                  try {
-                    if (isMe && currentUser) {
-                      const live = resolveLiveSeasonStats(currentUser, currentSessions);
-                      computedRank = live.rankTier.name;
-                    } else {
-                      const isWrenContender =
-                        p.username?.toLowerCase() === 'wren' ||
-                        p.display_name?.toLowerCase() === 'wren' ||
-                        p.name?.toLowerCase() === 'wren';
-                      const isTrialContender =
-                        p.username?.toLowerCase() === 'trial' ||
-                        p.display_name?.toLowerCase() === 'trial' ||
-                        p.name?.toLowerCase() === 'trial';
-                      const priorRp = Number(p.season_rp ?? p.rp ?? 0);
-
-                      if (isWrenContender) {
-                        computedRank = (priorRp > 0 && priorRp <= 1100) ? getRankTier(priorRp).name : 'Silver I';
-                      } else if (isTrialContender) {
-                        computedRank = priorRp > 0 ? getRankTier(priorRp).name : 'Silver III';
-                      } else if (priorRp > 0) {
-                        computedRank = getRankTier(priorRp).name;
-                      } else if (p.current_rank && !p.current_rank.toUpperCase().includes('SCHOLAR')) {
-                        computedRank = p.current_rank;
-                      } else if (p.rank_title && !p.rank_title.toUpperCase().includes('SCHOLAR')) {
-                        computedRank = p.rank_title;
-                      } else {
-                        computedRank = 'Bronze I';
-                      }
-                    }
-                  } catch (e) {}
+                  const totalSec = userTotals[p.id] || 0;
+                  const scholarMinutes = isMe && currentUser
+                    ? Number((currentUser as any)?.total_focus_minutes ?? Math.floor((currentUser?.totalStudySeconds || totalSec) / 60))
+                    : Math.floor(totalSec / 60);
+                  const computedRank = calculateRankTier(scholarMinutes);
 
                   return {
                     user_id: p.id,
@@ -526,8 +474,9 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                     avatar_url: p.avatar_url || null,
                     level: p.level ? Number(p.level) : undefined,
                     lifetime_xp: Number(p.lifetime_xp ?? p.xp ?? 0),
-                    rank_title: String(computedRank).toUpperCase(),
-                    total_seconds: userTotals[p.id] || 0,
+                    rank_title: computedRank,
+                    total_seconds: totalSec,
+                    focus_minutes: scholarMinutes,
                     is_current_user: isMe,
                   };
                 });
@@ -546,7 +495,10 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
             .reduce((sum, s) => sum + (s.durationSeconds || 0), 0);
 
           if (currentPeriodSeconds >= 0) {
-            const live = resolveLiveSeasonStats(currentUser, currentSessions);
+            const userMinutes = Number(
+              (currentUser as any)?.total_focus_minutes ?? Math.floor((currentUser?.totalStudySeconds || currentPeriodSeconds) / 60)
+            );
+            const computedRank = calculateRankTier(userMinutes);
             entries = [
               {
                 user_id: currentUser.id,
@@ -556,8 +508,9 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 avatar_url: currentUser.avatarUrl || null,
                 level: currentUser.level,
                 lifetime_xp: Number(currentUser.lifetime_xp ?? currentUser.lifetimeXp ?? currentUser.xp ?? 0),
-                rank_title: live.rankTier.name.toUpperCase(),
+                rank_title: computedRank,
                 total_seconds: currentPeriodSeconds,
+                focus_minutes: userMinutes,
                 is_current_user: true,
               },
             ];
@@ -661,9 +614,12 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     if (!contenders || contenders.length === 0) return null;
     const idx = contenders.findIndex(row => checkIsCurrentUser(row));
     
-    const live = resolveLiveSeasonStats(user, sessions);
-    const activeRankName = userRank?.name || live.rankTitle || 'Silver I';
-    const resolvedTierConfig = RANKS.find(r => r.name.toUpperCase() === activeRankName.toUpperCase()) || getRankTier(0);
+    const userMinutes = Number(
+      (user as any)?.total_focus_minutes ?? Math.floor((user?.totalStudySeconds || 0) / 60)
+    );
+    const activeRankName = calculateRankTier(userMinutes);
+    const activeRankDetails = getRankTierDetails(activeRankName);
+    const resolvedTierConfig = RANKS.find(r => r.name.toUpperCase() === activeRankName.toUpperCase()) || RANKS[0];
 
     if (idx === -1) {
       const { h, m } = parseTimeHoursMinutes(0);
