@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = getSupabaseClient();
-    const fbApp = getFirebaseAdmin();
+    getFirebaseAdmin();
 
     // Query receiver's profile for FCM registration token
     const { data: receiverProfile, error: receiverError } = await supabase
@@ -145,7 +145,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Query sender profile to format username
-    let senderUsername = "A scholar";
+    let senderName = "A scholar";
     if (sender_id) {
       const { data: senderProfile } = await supabase
         .from("profiles")
@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (senderProfile) {
-        senderUsername =
+        senderName =
           senderProfile.username ||
           senderProfile.display_name ||
           senderProfile.name ||
@@ -162,76 +162,30 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Construct Notification Title, Body, and Android Channel
-    let title = "study.io";
-    let bodyText = "";
-    let channelId = "social_nudges";
+    const receiverToken = receiverProfile.fcm_token;
+    const payload = {
+      type: type || "nudge",
+      message: message || "Sent you a message",
+    };
 
-    if (type === "nudge") {
-      title = "New Nudge!";
-      bodyText = `@${senderUsername} nudged you to focus.`;
-      channelId = "social_nudges";
-    } else if (type === "chat") {
-      title = `New message from @${senderUsername}`;
-      if (message && message.trim().length > 0) {
-        bodyText =
-          message.length > 120 ? `${message.substring(0, 117)}...` : message;
-      } else {
-        bodyText = "Sent you a message";
-      }
-      channelId = "social_nudges";
-    } else {
-      title = `Update from @${senderUsername}`;
-      bodyText = message || "You have a new update in study.io";
-      channelId = "reminders";
-    }
-
-    // FCM Message Payload
-    // Top-level 'notification' block is CRITICAL for Android background & locked-screen system tray delivery
-    const fcmMessage: admin.messaging.Message = {
-      token: receiverProfile.fcm_token,
+    // Strict FCM Message Payload for reliable Android Doze mode background delivery
+    const fcmMessage = {
+      token: receiverToken,
       notification: {
-        title,
-        body: bodyText,
+        title: payload.type === 'nudge' ? 'New Nudge!' : `New message from ${senderName}`,
+        body: payload.type === 'nudge' ? `${senderName} nudged you to focus!` : payload.message,
       },
       data: {
-        title: String(title),
-        body: String(bodyText),
-        type: String(type || "notification"),
-        sender_id: String(sender_id || ""),
-        receiver_id: String(receiver_id),
-        channelId: String(channelId),
-        tab: "rooms",
-        url: "/?tab=rooms",
+        type: payload.type,
       },
       android: {
-        priority: "high",
-        notification: {
-          channelId,
-          icon: "ic_stat_timer",
-          color: "#F59E0B",
-          sound: "default",
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
-        },
+        priority: 'high' as const,
       },
     };
 
-    console.log(`[send-notification] Sending FCM to ${receiverProfile.id} (${receiverProfile.username || 'unknown'}):`, {
-      title,
-      body: bodyText,
-      channelId,
-    });
+    console.log(`[send-notification] Sending FCM to ${receiverProfile.id}:`, fcmMessage);
 
-    const sendResponse = await fbApp.messaging().send(fcmMessage);
+    const sendResponse = await admin.messaging().send(fcmMessage);
 
     return new Response(
       JSON.stringify({
