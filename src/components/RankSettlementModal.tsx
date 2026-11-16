@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { getRankTier, RankTierName, RankTier, getMaxRpForTier, RANK_TIERS } from '../lib/ranks';
 import { getRankTheme } from '../lib/rankTheme';
 import { RankSettlementData } from '../types';
-import { ChevronRight, X } from 'lucide-react';
+import { ChevronRight, X, Info } from 'lucide-react';
 import { TierIcon } from './common/TierIcon';
 import { RankCrestBadge } from './common/RankCrestBadge';
 import { preloadRankAdvancement } from '../lib/preloadRankBadges';
@@ -117,6 +117,7 @@ export function RankSettlementModal({
   const [showTitle, setShowTitle] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
   const [showContinue, setShowContinue] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Reveal Animation States
   const [punchMode, setPunchMode] = useState<'idle' | 'small' | 'large'>('idle');
@@ -164,10 +165,17 @@ export function RankSettlementModal({
     }));
   }, []);
 
-  // Keyboard navigation (Spacebar, Enter, or Escape to dismiss)
+  // Keyboard navigation (Spacebar, Enter, or Escape to dismiss; Escape closes info modal if open)
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showInfoModal) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowInfoModal(false);
+        }
+        return;
+      }
       if (e.code === 'Space' || e.key === ' ' || e.code === 'Enter' || e.key === 'Enter' || e.code === 'Escape' || e.key === 'Escape') {
         e.preventDefault();
         soundFx.resumeContext();
@@ -176,7 +184,7 @@ export function RankSettlementModal({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onContinue]);
+  }, [isOpen, showInfoModal, onContinue]);
 
   // Main 5-Stage Cinematic Choreography
   const animFrameRef = useRef<number | null>(null);
@@ -184,6 +192,7 @@ export function RankSettlementModal({
 
   useEffect(() => {
     if (!isOpen || !data) {
+      setShowInfoModal(false);
       setAnimPhase('slam');
       setShakeOffset({ x: 0, y: 0 });
       setShowShockwave(false);
@@ -550,19 +559,20 @@ export function RankSettlementModal({
           onContinue();
         }
       }}
-      className="fixed inset-0 z-50 bg-[var(--bg)]/95 backdrop-blur-md flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-300"
+      className="fixed inset-0 z-50 bg-[#07090e]/98 backdrop-blur-md flex flex-col items-center justify-center select-none overflow-y-auto px-4 pt-[max(env(safe-area-inset-top,0px)+52px,60px)] pb-[max(env(safe-area-inset-bottom,0px)+24px,28px)] animate-in fade-in duration-300"
     >
-      {/* Close button in top-right */}
+      {/* "How Rank Works" Info button in top-right (replaces unwanted cross icon) */}
       <button
+        type="button"
         onClick={() => {
           soundFx.resumeContext();
-          onContinue();
+          setShowInfoModal(true);
         }}
-        className="absolute top-6 right-6 sm:top-8 sm:right-8 z-30 p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
-        title="Close (Esc)"
-        aria-label="Close modal"
+        className="absolute top-[max(env(safe-area-inset-top,0px)+12px,20px)] right-6 sm:right-8 z-30 p-2 sm:p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-md active:scale-95"
+        title="How Rank Works (Info)"
+        aria-label="How Rank Works"
       >
-        <X className="w-5 h-5" />
+        <Info className="w-5 h-5" />
       </button>
 
       {/* 1. Backdrop Vignette: Darkening at screen edges to push focus to center */}
@@ -616,10 +626,10 @@ export function RankSettlementModal({
         />
       )}
 
-      {/* Academic Brand Watermark */}
-      <div className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center gap-2.5 select-none pointer-events-none z-20">
+      {/* Academic Brand Watermark (positioned safely below status bar) */}
+      <div className="absolute top-[max(env(safe-area-inset-top,0px)+14px,22px)] left-6 sm:left-8 flex items-center gap-2.5 select-none pointer-events-none z-20">
         <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-        <span className="text-xs uppercase tracking-[0.25em] text-slate-400 font-semibold">
+        <span className="text-[11px] sm:text-xs uppercase tracking-[0.25em] text-slate-400 font-semibold">
           STUDY.IO PERFORMANCE
         </span>
       </div>
@@ -700,13 +710,13 @@ export function RankSettlementModal({
 
           
           {/* CHROMATIC ABERRATION PULSE & MASS SLAM REPLACED WITH NEW CREST */}
-          <div className="relative mx-auto mb-4 flex items-center justify-center perspective-[1000px] w-full h-[280px]">
+          <div className="relative mx-auto mb-2 sm:mb-3 flex items-center justify-center perspective-[1000px] w-full h-[220px] sm:h-[260px]">
             <div className="relative w-full h-full flex items-center justify-center z-10">
               <div className="absolute inset-0 flex items-center justify-center">
                 <RankCrestBadge
                   tier={displayRank.tier}
                   division={displayRank.division}
-                  size={192}
+                  size={176}
                   priority={true}
                   className=""
                   isSettled={true}
@@ -814,81 +824,34 @@ export function RankSettlementModal({
             }}
           />
 
-          {/* Milestone Countdown */}
-          <p className="text-xs sm:text-sm font-medium tracking-wider text-slate-400 mt-0.5">
-            <span className="text-xs uppercase tracking-[0.25em] text-slate-400 font-semibold">NEXT MILESTONE: </span>
-            <span style={{ color: getRankTheme(displayRank.tier).accent }} className="font-semibold text-slate-200">
-              {nextTierName}
-            </span>
-            <span className="text-slate-500 font-mono"> ({remainingRP.toLocaleString()} RP remaining)</span>
-          </p>
         </div>
 
         {/* ==========================================
             EARNED RP BAR: Segmented Pops, Leading Edge Glow & Rolling Counter
             ========================================== */}
         <div
-          className={`w-full max-w-xl transition-all duration-400 mt-4 ${
+          className={`w-full max-w-xl transition-all duration-400 mt-5 sm:mt-6 ${
             showProgress ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'
           }`}
         >
-          {/* Consolidated Session Stats Glassmorphic Strip */}
-          <div className="w-full mb-3 px-4 sm:px-5 py-2.5 rounded-lg bg-white/[0.03] border border-[var(--border)] backdrop-blur-md flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <span className="text-slate-400">Focus Duration</span>
-              <span className="font-medium text-slate-200">{formattedDuration}</span>
-              <span className={`font-mono ${sessionRP > 0 ? 'text-emerald-400/90' : 'text-slate-400'}`}>+{sessionRP} RP</span>
-              {isUnderMinDuration && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300/90 border border-rose-500/20 font-sans font-medium">
-                  &lt; 1m min
-                </span>
-              )}
-            </span>
-
-            {goalStreakBonus > 0 ? (
-              <>
-                <span className="text-slate-600 select-none">•</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-400">Streak Bonus</span>
-                  <span className="font-mono text-amber-400/90">+{goalStreakBonus} RP</span>
-                </span>
-              </>
-            ) : streakBonusClaimedToday ? (
-              <>
-                <span className="text-slate-600 select-none">•</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-400">Streak Bonus</span>
-                  <span className="font-mono text-slate-400">0 RP</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300/90 border border-amber-500/20 font-sans font-medium">
-                    Claimed Today
-                  </span>
-                </span>
-              </>
-            ) : null}
-
-            {taskBonus > 0 && (
-              <>
-                <span className="text-slate-600 select-none">•</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-400">Task Bonus</span>
-                  <span className="font-mono text-cyan-400/90">+{taskBonus} RP</span>
-                </span>
-              </>
-            )}
-
-            <span className="text-slate-600 select-none">=</span>
-            <span className="flex items-center gap-1.5">
-              <span className="text-slate-400">Total Gained</span>
-              <span className={`font-mono font-bold ${totalGained > 0 ? 'text-white' : 'text-slate-400'}`}>+{totalGained} RP</span>
-            </span>
-          </div>
-
           {/* Progress Header with Rolling RP Counter */}
-          <div className="flex items-center justify-between text-xs font-semibold tracking-wider mb-2">
+          <div className="flex items-center justify-between text-xs font-semibold tracking-wider mb-2.5">
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-[0.25em] text-slate-400 font-semibold">
                 TIER PROGRESS
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.resumeContext();
+                  setShowInfoModal(true);
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="How Rank Works (Info)"
+                aria-label="How Rank Works"
+              >
+                <Info className="w-3.5 h-3.5" />
+              </button>
               <div className={`inline-flex items-center px-2 py-0.5 rounded ${
                 totalGained > 0
                   ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
@@ -992,6 +955,160 @@ export function RankSettlementModal({
         </div>
 
       </div>
+
+      {/* ==========================================
+          "HOW RANK WORKS" INFO POPUP MODAL
+          ========================================== */}
+      {showInfoModal && (
+        <div
+          onClick={() => setShowInfoModal(false)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-[#0d111b] border border-white/15 rounded-2xl p-5 sm:p-6 shadow-2xl text-left overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/10 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center border shadow-sm"
+                  style={{
+                    backgroundColor: `${getRankTheme(displayRank.tier).accent}20`,
+                    borderColor: `${getRankTheme(displayRank.tier).accent}40`,
+                    color: getRankTheme(displayRank.tier).accent,
+                  }}
+                >
+                  <Info className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                    How Ranks Work
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    RP calculation, tiers & season rules
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="p-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Close"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto space-y-4 pr-1 text-xs text-slate-300 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {/* Session Summary Card */}
+              <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  This Session Breakdown
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-400">Focus Duration:</span>{' '}
+                    <span className="font-semibold text-white">{formattedDuration}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Base RP:</span>{' '}
+                    <span className={`font-mono font-semibold ${sessionRP > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      +{sessionRP} RP
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Streak Bonus:</span>{' '}
+                    <span className="font-mono font-semibold text-amber-400">
+                      {goalStreakBonus > 0 ? `+${goalStreakBonus} RP` : streakBonusClaimedToday ? 'Claimed' : '0 RP'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Task Bonus:</span>{' '}
+                    <span className="font-mono font-semibold text-cyan-400">
+                      {taskBonus > 0 ? `+${taskBonus} RP` : '0 RP'}
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs font-semibold">
+                  <span className="text-white">Total Gained:</span>
+                  <span className={`font-mono ${totalGained > 0 ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+                    +{totalGained} RP
+                  </span>
+                </div>
+                {isUnderMinDuration && (
+                  <p className="text-[10px] text-rose-300/90 pt-0.5">
+                    * Sessions under 1 minute are too short to award RP.
+                  </p>
+                )}
+                {nextTier && (
+                  <div className="pt-2 border-t border-white/10 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Next Milestone:</span>
+                    <span className="font-medium text-white">
+                      <span style={{ color: getRankTheme(displayRank.tier).accent }}>{nextTierName}</span>{' '}
+                      <span className="text-slate-400 font-mono">({remainingRP.toLocaleString()} RP away)</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* RP Formula */}
+              <div className="space-y-1.5">
+                <h3 className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Earning RP (Rank Points)
+                </h3>
+                <p className="text-slate-400 leading-relaxed text-[11px]">
+                  RP is earned by studying with focus:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px] pl-1">
+                  <li><strong className="text-slate-200">Focus Duration:</strong> 100 RP per hour (~1.67 RP/min) of verified timer focus.</li>
+                  <li><strong className="text-slate-200">Daily Streak:</strong> Maintain your daily streak to earn bonus RP on your first session of the day.</li>
+                  <li><strong className="text-slate-200">Tasks:</strong> Complete study tasks to earn extra bonus RP.</li>
+                </ul>
+              </div>
+
+              {/* Tiers & Divisions */}
+              <div className="space-y-1.5">
+                <h3 className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Tiers & Divisions
+                </h3>
+                <p className="text-slate-400 leading-relaxed text-[11px]">
+                  There are 8 competitive tiers: <strong className="text-slate-200">Bronze, Silver, Gold, Platinum, Diamond, Champion, Master, and Grandmaster</strong>.
+                </p>
+                <p className="text-slate-400 leading-relaxed text-[11px]">
+                  Each tier has 4 divisions (<strong className="text-slate-200">IV → III → II → I</strong>). Earning RP fills your tier bar; reaching 100% advances you to the next division or tier.
+                </p>
+              </div>
+
+              {/* Monthly Seasons */}
+              <div className="space-y-1.5">
+                <h3 className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  Monthly Seasons
+                </h3>
+                <p className="text-slate-400 leading-relaxed text-[11px]">
+                  Ranks run on monthly seasons. At the start of each month, a soft carryover reset preserves part of your progress so you never have to start from zero.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3.5 border-t border-white/10 mt-3.5">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==========================================
           GLOBAL CSS KEYFRAMES (High-Performance GPU Transitions)
