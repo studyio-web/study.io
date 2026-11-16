@@ -85,8 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return false;
         }
       } catch {}
+      return true;
     }
-    return false;
+    return true;
   });
 
   // Helper to persist to localStorage & unified user cache

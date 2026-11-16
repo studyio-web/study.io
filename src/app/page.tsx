@@ -93,6 +93,11 @@ export default function Home() {
   const pathname = usePathname();
   const { isAuthenticated, isLoading, user } = useAuth();
   const { needsOnboarding } = useStudyMode();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [isNativeApp, setIsNativeApp] = useState(() => {
     if (typeof window !== 'undefined') {
       return (
@@ -295,6 +300,25 @@ export default function Home() {
   const hasInitialBootCompletedRef = useRef(false);
   if (!isLoading || hasCachedUser) {
     hasInitialBootCompletedRef.current = true;
+  }
+
+  // During SSR or initial mount before hydration, display smooth dark telemetry screen
+  // This guarantees zero 200ms flash of IntroductionAndLogin during cold launch
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center text-slate-100 relative">
+        <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
+        <div className="fixed inset-0 pointer-events-none bg-hud-grid opacity-[0.03] z-0" />
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="mb-4 animate-pulse">
+            <Logo className="w-14 h-14" />
+          </div>
+          <div className="text-sm font-hud font-bold text-slate-400 tracking-widest uppercase">
+            INITIALIZING STUDY.IO TELEMETRY...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Loading state while verifying stored session (skip when cached state exists)

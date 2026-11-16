@@ -764,6 +764,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                             level: selectedRow.level,
                             lifetimeXp: selectedRow.lifetime_xp,
                             rankTitle: selectedRow.rank_title,
+                            seasonRp: selectedRow.season_rp,
                             isPro,
                             flairFrame: isPro ? (flairMap[selectedRow.user_id] || 'gold') : null,
                             currentPeriodSeconds: selectedRow.total_seconds,

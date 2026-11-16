@@ -530,6 +530,10 @@ export function RankSettlementModal({
   if (!isOpen || !data) return null;
 
   const remainingRP = Math.max(0, getMaxRpForTier(displayRank.name) - animatingRP);
+  const currentTierMin = displayRank.minRp;
+  const currentTierMax = getMaxRpForTier(displayRank.name);
+  const neededInTier = Math.max(1, currentTierMax - currentTierMin);
+  const inTierRP = Math.min(neededInTier, Math.max(0, animatingRP - currentTierMin));
   const currentRankIndex = RANK_TIERS.findIndex(t => t.name.toLowerCase() === displayRank.name.toLowerCase());
   const nextTier = (currentRankIndex !== -1 && currentRankIndex < RANK_TIERS.length - 1)
     ? RANK_TIERS[currentRankIndex + 1]
@@ -901,8 +905,9 @@ export function RankSettlementModal({
               }`}
               style={{ willChange: 'transform' }}
             >
-              <span className="text-white font-bold">{animatingRP.toLocaleString()}</span>
-              <span className="text-slate-500"> / {getMaxRpForTier(displayRank.name).toLocaleString()} RP</span>
+              <span className="text-white font-bold">{inTierRP.toLocaleString()}</span>
+              <span className="text-slate-400"> / {neededInTier.toLocaleString()} RP</span>
+              <span className="text-slate-500 font-normal ml-1.5 hidden sm:inline">({animatingRP.toLocaleString()} Total)</span>
             </div>
           </div>
 

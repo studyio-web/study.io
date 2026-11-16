@@ -98,8 +98,21 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
       let apiSucceeded = false;
 
       try {
-        const res = await fetch(`/api/leaderboard?timeframe=${timeframe}`, {
+        const supabase = getSupabase();
+        let headers: Record<string, string> = {};
+        if (supabase) {
+          try {
+            const { data } = await supabase.auth.getSession();
+            if (data?.session?.access_token) {
+              headers['Authorization'] = `Bearer ${data.session.access_token}`;
+            }
+          } catch {}
+        }
+
+        const url = `/api/leaderboard?timeframe=${timeframe}${user?.id ? `&userId=${encodeURIComponent(user.id)}` : ''}`;
+        const res = await fetch(url, {
           cache: 'no-store',
+          headers,
         });
 
         if (res.ok) {
@@ -107,12 +120,20 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
           if (data.success && Array.isArray(data.entries)) {
             apiSucceeded = true;
             setLeaderboard(data.entries);
-            setCurrentUserEntry(data.currentUserEntry || null);
+
+            let myEntry: LeaderboardEntry | null = data.currentUserEntry || null;
+            if (!myEntry && user?.id) {
+              myEntry = data.entries.find((e: LeaderboardEntry) => e.user_id === user.id || (user.username && e.username === user.username)) || null;
+            }
+            if (myEntry) {
+              myEntry.is_current_user = true;
+            }
+            setCurrentUserEntry(myEntry);
 
             if (user?.id) {
               rankCacheByUserId[user.id] = {
                 entries: data.entries,
-                currentUserEntry: data.currentUserEntry || null,
+                currentUserEntry: myEntry,
                 timestamp: Date.now(),
                 timeframe,
               };
@@ -250,43 +271,31 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    if (currentUserEntry) {
-      const seasonRp = Number(currentUserEntry.season_rp || 0);
-      const tier = getRankTier(seasonRp);
-      const nextTier = getNextTier(tier.name);
-      let progress = 100;
-      if (nextTier) {
-        progress = Math.min(100, Math.max(0, Math.round(((seasonRp - tier.minRp) / (nextTier.minRp - tier.minRp)) * 100)));
-      }
-      return {
-        seasonRp,
-        tier,
-        rankTitle: tier.name,
-        badge: tier.badge,
-        badgeUrl: tier.imagePath,
-        focusMinutes: currentUserEntry.focus_minutes || 0,
-        thisMonthSeconds: currentUserEntry.this_month_seconds || (currentUserEntry.total_seconds || 0),
-        nextTier,
-        progressPercent: progress,
-      };
-    }
+    // Resolve authoritative live season RP from user state and leaderboard entry
+    // Prevents artificial rank demotions on cold boot or before leaderboard finishes fetching
+    const entrySeasonRp = Number(currentUserEntry?.season_rp || 0);
+    const userSeasonRp = Number(user?.seasonRp ?? (user as any)?.season_rp ?? user?.rp ?? 0);
+    const userBaseRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(user?.season_base_rp ?? user?.carryover_rp ?? 0)));
+    const authoritativeRp = Math.max(entrySeasonRp, userSeasonRp, userBaseRp);
 
-    // Fallback if not loaded yet: evaluate from user profile or 0
-    const rawCarryover = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(user?.season_base_rp ?? user?.carryover_rp ?? 0)));
-    const tier = getRankTier(rawCarryover);
+    const tier = getRankTier(authoritativeRp);
     const nextTier = getNextTier(tier.name);
     let progress = 100;
     if (nextTier) {
-      progress = Math.min(100, Math.max(0, Math.round(((rawCarryover - tier.minRp) / (nextTier.minRp - tier.minRp)) * 100)));
+      progress = Math.min(100, Math.max(0, Math.round(((authoritativeRp - tier.minRp) / (nextTier.minRp - tier.minRp)) * 100)));
     }
+
+    const focusMinutes = currentUserEntry?.focus_minutes ?? (user?.totalFocusMinutes || 0);
+    const thisMonthSeconds = currentUserEntry?.this_month_seconds ?? (currentUserEntry?.total_seconds || 0);
+
     return {
-      seasonRp: rawCarryover,
+      seasonRp: authoritativeRp,
       tier,
       rankTitle: tier.name,
       badge: tier.badge,
       badgeUrl: tier.imagePath,
-      focusMinutes: 0,
-      thisMonthSeconds: 0,
+      focusMinutes,
+      thisMonthSeconds,
       nextTier,
       progressPercent: progress,
     };

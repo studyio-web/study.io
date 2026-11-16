@@ -61,6 +61,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    if (!currentUserId) {
+      const paramUserId = searchParams.get('userId');
+      if (paramUserId && paramUserId.length > 5) {
+        currentUserId = paramUserId;
+      }
+    }
+
     // 2. Compute strictly UTC date windows
     const now = new Date();
     const currentMonthStartMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0);
