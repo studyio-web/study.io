@@ -14,6 +14,10 @@ import {
   Flame,
   TrendingUp,
   Sparkles,
+  Clock,
+  Target,
+  BarChart3,
+  ChevronLeft,
 } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
 import { Logo } from '../../components/Logo';
@@ -24,6 +28,8 @@ import { RankCrestBadge } from '../../components/common/RankCrestBadge';
 import { RankTierName } from '../../lib/rankedSystem';
 import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout';
 import { PAYMENTS_ENABLED } from '../../config/billing';
+import { updateNativeStatusBar, registerBackButtonHandler } from '../../lib/native-feel';
+import { ComparisonTable } from '../../components/premium/showcase/ComparisonTable';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM CONSTANTS & TOKENS
@@ -179,102 +185,192 @@ function BentoCard({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 1: THEMES (Gold Leaf & Crimson Cross-fade)
+   LIVE DEMO 1: 7 LUXURY THEMES (All 7 Real Premium Themes with Live Sync)
    ═══════════════════════════════════════════════════════════════════════════ */
-const DEMO_PREMIUM_THEMES = [
-  { id: 'gold', name: 'Gold Leaf', bg: '#0C0A06', border: 'rgba(230,193,90,0.25)', accent: '#E6C15A', text: '#F5E6A8', progress: '68%' },
-  { id: 'cyberpunk', name: 'Cyberpunk', bg: '#080811', border: 'rgba(0,240,255,0.25)', accent: '#00F0FF', text: '#7DD3FC', progress: '92%' },
-  { id: 'sakura', name: 'Sakura', bg: '#0E0A12', border: 'rgba(244,114,182,0.25)', accent: '#F472B6', text: '#FBCFE8', progress: '76%' },
-  { id: 'forest', name: 'Forest', bg: '#070D0B', border: 'rgba(61,190,139,0.25)', accent: '#3DBE8B', text: '#A7F3D0', progress: '85%' },
-  { id: 'crimson', name: 'Crimson', bg: '#0E0809', border: 'rgba(229,72,77,0.25)', accent: '#E5484D', text: '#FFA1A6', progress: '84%' },
+export const DEMO_PREMIUM_THEMES = [
+  {
+    id: 'goldleaf',
+    name: 'Gold Leaf',
+    bg: '#0C0A06',
+    border: 'rgba(230,193,90,0.35)',
+    accent: '#E6C15A',
+    text: '#F5E6A8',
+    progress: '68%',
+    desc: 'Warm gold on dark leather with luminous amber glow',
+  },
+  {
+    id: 'crimson',
+    name: 'Crimson',
+    bg: '#0E0809',
+    border: 'rgba(229,72,77,0.35)',
+    accent: '#E5484D',
+    text: '#FFA1A6',
+    progress: '84%',
+    desc: 'Deep blood red on pitch black obsidian',
+  },
+  {
+    id: 'sakura',
+    name: 'Sakura',
+    bg: '#0E0A12',
+    border: 'rgba(244,114,182,0.35)',
+    accent: '#F472B6',
+    text: '#FBCFE8',
+    progress: '76%',
+    desc: 'Delicate cherry blossoms on twilight ink',
+  },
+  {
+    id: 'espresso',
+    name: 'Espresso',
+    bg: '#0E0B08',
+    border: 'rgba(212,163,115,0.35)',
+    accent: '#D4A373',
+    text: '#FAEDCD',
+    progress: '90%',
+    desc: 'Warm roasted caramel on dark cocoa',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    bg: '#070D0B',
+    border: 'rgba(61,190,139,0.35)',
+    accent: '#3DBE8B',
+    text: '#A7F3D0',
+    progress: '85%',
+    desc: 'Calm moss green on deep midnight forest',
+  },
+  {
+    id: 'abyss',
+    name: 'OLED Abyss',
+    bg: '#000000',
+    border: 'rgba(255,255,255,0.3)',
+    accent: '#FFFFFF',
+    text: '#E5E7EB',
+    progress: '95%',
+    desc: 'True pitch black OLED for battery & laser focus',
+  },
+  {
+    id: 'matcha',
+    name: 'Matcha',
+    bg: '#10170A',
+    border: 'rgba(163,230,53,0.35)',
+    accent: '#A3E635',
+    text: '#ECFCCB',
+    progress: '72%',
+    desc: 'Creamy green tea warm pastel atmosphere',
+  },
 ];
 
-function ThemesDemo() {
+function ThemesDemo({
+  activeThemeId,
+  onSelectTheme,
+}: {
+  activeThemeId: string;
+  onSelectTheme: (id: string) => void;
+}) {
   const { ref, isVisible } = useTileVisibility(0.2);
   const shouldReduceMotion = useReducedMotion();
-  const [activeThemeId, setActiveThemeId] = useState<string>('gold');
+  const pauseUntilRef = useRef<number>(0);
 
-  // Auto cross-fade every 3s when visible
+  // Auto cross-fade every 3.2s when visible (unless paused by manual user tap)
   useEffect(() => {
     if (!isVisible || shouldReduceMotion) return;
     const interval = setInterval(() => {
-      setActiveThemeId((prev) => {
-        const idx = DEMO_PREMIUM_THEMES.findIndex((t) => t.id === prev);
-        const nextIdx = (idx + 1) % DEMO_PREMIUM_THEMES.length;
-        return DEMO_PREMIUM_THEMES[nextIdx].id;
-      });
-    }, 3000);
+      if (Date.now() < pauseUntilRef.current) return;
+      const idx = DEMO_PREMIUM_THEMES.findIndex((t) => t.id === activeThemeId);
+      const nextIdx = (idx + 1) % DEMO_PREMIUM_THEMES.length;
+      onSelectTheme(DEMO_PREMIUM_THEMES[nextIdx].id);
+    }, 3200);
     return () => clearInterval(interval);
-  }, [isVisible, shouldReduceMotion]);
+  }, [isVisible, shouldReduceMotion, activeThemeId, onSelectTheme]);
 
-  const current = DEMO_PREMIUM_THEMES.find((t) => t.id === activeThemeId) || DEMO_PREMIUM_THEMES[0];
+  const current =
+    DEMO_PREMIUM_THEMES.find((t) => t.id === activeThemeId) ||
+    DEMO_PREMIUM_THEMES[0];
+
+  const handleManualTabClick = (id: string) => {
+    pauseUntilRef.current = Date.now() + 8000; // Hold for 8s on user tap
+    onSelectTheme(id);
+  };
 
   return (
-    <div ref={ref} className="w-full max-w-sm">
+    <div ref={ref} className="w-full max-w-sm flex flex-col items-center">
       {/* Mini App Window */}
       <div
-        className="relative overflow-hidden rounded-2xl border p-3 transition-colors duration-700 shadow-md"
+        className="w-full relative overflow-hidden rounded-2xl border p-3.5 transition-all duration-700 shadow-md"
         style={{
           backgroundColor: current.bg,
           borderColor: current.border,
+          boxShadow: `0 0 24px ${current.accent}20`,
         }}
       >
-        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2">
             <div
-              className="h-2 w-2 rounded-full transition-colors duration-700"
-              style={{ backgroundColor: current.accent }}
+              className="h-2.5 w-2.5 rounded-full transition-colors duration-700 shadow-sm"
+              style={{ backgroundColor: current.accent, boxShadow: `0 0 8px ${current.accent}` }}
             />
             <span
-              className="text-[10px] font-hud font-bold tracking-wider uppercase transition-colors duration-700"
+              className="text-[11px] font-hud font-bold tracking-wider uppercase transition-colors duration-700"
               style={{ color: current.accent }}
             >
               {current.name}
             </span>
           </div>
-          <span className="text-[9px] font-mono text-white/40">25:00</span>
+          <span className="text-[10px] font-mono text-white/50">25:00</span>
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2.5">
           <div className="h-2 flex-1 rounded-full bg-white/5 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-700"
               style={{
                 width: current.progress,
                 backgroundColor: current.accent,
+                boxShadow: `0 0 10px ${current.accent}80`,
               }}
             />
           </div>
           <span
-            className="text-[9px] font-mono font-bold transition-colors duration-700"
+            className="text-[10px] font-mono font-bold transition-colors duration-700"
             style={{ color: current.text }}
           >
             {current.progress}
           </span>
         </div>
+
+        <p
+          className="mt-2 text-[10px] font-sans truncate transition-colors duration-700 opacity-80"
+          style={{ color: current.text }}
+        >
+          {current.desc}
+        </p>
       </div>
 
-      {/* Manual Swatch Selector */}
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+      {/* Manual Swatch Selector: Fluid horizontal scroll tab bar that never wraps */}
+      <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1 w-full max-w-full justify-start sm:justify-center">
         {DEMO_PREMIUM_THEMES.map((theme) => {
           const isSelected = activeThemeId === theme.id;
           return (
             <button
               key={theme.id}
               type="button"
-              onClick={() => setActiveThemeId(theme.id)}
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono transition-all cursor-pointer ${
+              onClick={() => handleManualTabClick(theme.id)}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-hud uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
                 isSelected
-                  ? 'border shadow-sm'
-                  : 'border border-transparent text-white/40 hover:text-white'
+                  ? 'border shadow-sm scale-105 font-bold'
+                  : 'border border-transparent text-white/40 hover:text-white/80 bg-white/[0.02]'
               }`}
               style={{
-                backgroundColor: isSelected ? `${theme.accent}20` : 'transparent',
+                backgroundColor: isSelected ? `${theme.accent}25` : undefined,
                 borderColor: isSelected ? theme.accent : 'transparent',
                 color: isSelected ? theme.accent : undefined,
+                boxShadow: isSelected ? `0 0 10px ${theme.accent}30` : undefined,
               }}
             >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />
+              <span
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: theme.accent }}
+              />
               <span>{theme.name}</span>
             </button>
           );
@@ -439,6 +535,14 @@ const DEMO_FOCUS_SCENES = [
     glow: 'rgba(244, 114, 182, 0.45)',
     accent: '#f472b6',
   },
+  {
+    id: 'campfire',
+    name: 'Campfire Night',
+    tag: 'Warm Embers',
+    bg: 'linear-gradient(135deg, #0c1527 0%, #1b263b 40%, #5c2410 75%, #ff9800 100%)',
+    glow: 'rgba(255, 152, 0, 0.45)',
+    accent: '#ff9800',
+  },
 ];
 
 function FocusScenesDemo() {
@@ -497,8 +601,8 @@ function FocusScenesDemo() {
         </div>
       </div>
 
-      {/* Scene Pill Selector */}
-      <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
+      {/* Scene Pill Selector: Fluid horizontal scroll */}
+      <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1 w-full max-w-full justify-start sm:justify-center">
         {DEMO_FOCUS_SCENES.map((scene) => {
           const isActive = scene.id === activeSceneId;
           return (
@@ -506,10 +610,10 @@ function FocusScenesDemo() {
               type="button"
               key={scene.id}
               onClick={() => setActiveSceneId(scene.id)}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-hud uppercase tracking-wider transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-full text-[10px] font-hud uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
                 isActive
-                  ? 'border shadow-xs scale-105'
-                  : 'text-white/40 border border-transparent hover:text-white/70'
+                  ? 'border shadow-xs scale-105 font-bold'
+                  : 'text-white/40 border border-transparent hover:text-white/70 bg-white/[0.02]'
               }`}
               style={
                 isActive
@@ -531,7 +635,168 @@ function FocusScenesDemo() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 5: SCHOLAR CROWN (Crown Drop-in + Shimmer)
+   LIVE DEMO 5: AI STUDY INSIGHTS (Peak Hours, Heatmap & Fatigue Intelligence)
+   ═══════════════════════════════════════════════════════════════════════════ */
+function InsightsDemo() {
+  const { ref } = useTileVisibility(0.2);
+
+  return (
+    <div ref={ref} className="w-full max-w-sm">
+      <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-3.5 shadow-inner">
+        {/* Peak Hours & Day readout */}
+        <div className="grid grid-cols-2 gap-2 pb-3 border-b border-white/[0.06]">
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-[#E6C15A] text-[10px] font-hud uppercase tracking-wider font-bold">
+              <Clock className="w-3 h-3" />
+              <span>Peak Focus</span>
+            </div>
+            <div className="mt-1 font-hud text-xs font-bold text-white">7:00 – 9:00 PM</div>
+            <div className="text-[9px] font-mono text-emerald-400 mt-0.5">+42% Cognitive Flow</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-[#E6C15A] text-[10px] font-hud uppercase tracking-wider font-bold">
+              <Calendar className="w-3 h-3" />
+              <span>Best Day</span>
+            </div>
+            <div className="mt-1 font-hud text-xs font-bold text-white">Thursday</div>
+            <div className="text-[9px] font-mono text-white/40 mt-0.5">4h 15m avg study</div>
+          </div>
+        </div>
+
+        {/* Mini 12-Week Heatmap Grid Preview */}
+        <div className="pt-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[9px] font-hud uppercase tracking-wider text-white/50">12-Week Study Heatmap</span>
+            <span className="text-[9px] font-mono text-[#E6C15A]">84 Days Active</span>
+          </div>
+          <div className="grid grid-cols-12 gap-1 py-1">
+            {Array.from({ length: 48 }).map((_, i) => {
+              const intensity = (i * 7 + 13) % 5;
+              const bg =
+                intensity === 0
+                  ? 'bg-white/[0.04]'
+                  : intensity === 1
+                  ? 'bg-emerald-500/20'
+                  : intensity === 2
+                  ? 'bg-emerald-500/40'
+                  : intensity === 3
+                  ? 'bg-emerald-500/70 shadow-[0_0_6px_rgba(16,185,129,0.3)]'
+                  : 'bg-[#E6C15A] shadow-[0_0_6px_rgba(230,193,90,0.5)]';
+              return <div key={i} className={`h-2.5 rounded-[3px] ${bg} transition-all`} />;
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE DEMO 6: DAILY FOCUS TARGETS & MILESTONES
+   ═══════════════════════════════════════════════════════════════════════════ */
+function DailyGoalsDemo() {
+  const { ref, isVisible } = useTileVisibility(0.2);
+  const shouldReduceMotion = useReducedMotion();
+  const [progress, setProgress] = useState(70);
+
+  useEffect(() => {
+    if (!isVisible || shouldReduceMotion) return;
+    const interval = setInterval(() => {
+      setProgress((prev) => (prev === 70 ? 92 : 70));
+    }, 2600);
+    return () => clearInterval(interval);
+  }, [isVisible, shouldReduceMotion]);
+
+  return (
+    <div ref={ref} className="w-full max-w-sm flex flex-col items-center">
+      <div className="w-full rounded-2xl border border-white/[0.08] bg-black/40 p-3.5 shadow-inner flex items-center justify-between gap-3">
+        {/* Progress Ring */}
+        <div className="relative flex h-20 w-20 shrink-0 items-center justify-center">
+          <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 100 100">
+            <circle
+              cx="50"
+              cy="50"
+              r="40"
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth="7"
+              fill="transparent"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="40"
+              stroke="#E6C15A"
+              strokeWidth="7"
+              strokeDasharray={251.2}
+              strokeDashoffset={251.2 * (1 - progress / 100)}
+              strokeLinecap="round"
+              fill="transparent"
+              className="transition-all duration-700 ease-out"
+              style={{
+                filter: 'drop-shadow(0 0 6px rgba(230,193,90,0.4))',
+              }}
+            />
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className="font-hud text-sm font-bold text-white">{progress}%</span>
+          </div>
+        </div>
+
+        {/* Goal stats & reward badge */}
+        <div className="flex-1 text-left">
+          <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider">Daily Target</div>
+          <div className="font-hud text-sm font-bold text-white mt-0.5">2h 45m <span className="text-white/40 font-mono text-xs">/ 3h 00m</span></div>
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[9px] font-mono font-bold text-amber-300">
+            <Flame className="w-3 h-3 text-amber-400 fill-current" />
+            <span>+50 XP Streak Bonus</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE DEMO 7: PRO AVATARS & GOLDEN ROOM FLAIRS
+   ═══════════════════════════════════════════════════════════════════════════ */
+function ScholarAvatarsDemo() {
+  const { ref } = useTileVisibility(0.2);
+
+  return (
+    <div ref={ref} className="w-full max-w-sm">
+      <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-3 shadow-inner flex items-center justify-between gap-3">
+        {/* Avatar with radiant gold frame */}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1A1406] via-[#2A1F08] to-[#120F06] border-2 border-[#E6C15A] shadow-[0_0_14px_rgba(230,193,90,0.45)] flex items-center justify-center overflow-hidden">
+              <span className="font-mono text-sm font-bold text-[#E6C15A]">PRO</span>
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#E6C15A] text-[#141006] flex items-center justify-center font-bold text-[10px] shadow-sm">
+              <Crown className="w-3 h-3 fill-current" />
+            </div>
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="font-hud text-xs font-bold text-white">Cyber Scholar</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#E6C15A]/20 text-[#E6C15A] font-bold border border-[#E6C15A]/30">VIP</span>
+            </div>
+            <p className="text-[10px] text-white/50 mt-0.5 font-sans">Luminous study room ring</p>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[9px] font-mono text-emerald-300">
+            <Sparkles className="w-2.5 h-2.5" />
+            <span>Pro Flair</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE DEMO 8: SCHOLAR CROWN (Crown Drop-in + Shimmer)
    ═══════════════════════════════════════════════════════════════════════════ */
 function ScholarCrownDemo() {
   const { ref, isVisible } = useTileVisibility(0.2);
@@ -730,6 +995,7 @@ export default function PremiumPage() {
   const { user } = useAuth();
   const { isPremium, premiumUntil, loading: premiumLoading } = usePremium();
   const { userRank } = useRankTheme();
+  const [activeThemeId, setActiveThemeId] = useState<string>('goldleaf');
 
   // Dynamic Razorpay checkout & live plan rates
   const { plans, isProcessing, startCheckout } = useRazorpayCheckout();
@@ -742,6 +1008,15 @@ export default function PremiumPage() {
     0,
     Math.round((1 - yearlyAmount / (monthlyAmount * 12)) * 100)
   );
+
+  // Sync native status bar color and back button navigation
+  useEffect(() => {
+    updateNativeStatusBar('#0C0A06', true);
+    return registerBackButtonHandler(() => {
+      router.push('/dashboard');
+      return true;
+    });
+  }, [router]);
 
   // Track if pricing section is visible on screen to hide mobile sticky bar
   const pricingRef = useRef<HTMLDivElement>(null);
@@ -785,6 +1060,10 @@ export default function PremiumPage() {
       })
     : null;
 
+  const currentTheme =
+    DEMO_PREMIUM_THEMES.find((t) => t.id === activeThemeId) ||
+    DEMO_PREMIUM_THEMES[0];
+
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] selection:bg-[#E6C15A]/30 selection:text-[#F6EFD9] relative overflow-x-clip pb-24 lg:pb-12">
       {/* Barely visible SVG film grain (~3% opacity) */}
@@ -816,24 +1095,28 @@ export default function PremiumPage() {
         style={{ backgroundColor: '#E6C15A' }}
       />
 
-      {/* Slim Top Navigation Bar */}
-      <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/85 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px),32px)] md:pt-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      {/* Slim Top Navigation Bar with exact app safe-area padding and native styling */}
+      <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#0C0A06]/95 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px),10px)] pb-2.5 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors text-xs font-hud font-bold tracking-wider group cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 text-white/80 hover:text-white transition-all text-xs font-hud font-bold tracking-wider group cursor-pointer active:scale-95 shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-1" />
-            <div className="flex items-center gap-2">
-              <Logo className="w-5 h-5" />
-              <span>Back to dashboard</span>
-            </div>
+            <Logo className="w-4 h-4" />
+            <span className="hidden xs:inline">DASHBOARD</span>
           </Link>
+
+          {/* Centered Brand Title */}
+          <div className="flex items-center gap-1.5 font-hud font-black text-xs sm:text-sm tracking-wider uppercase text-white/90">
+            <Crown className="w-4 h-4 text-[#E6C15A] fill-current" />
+            <span>study.io <span className="text-[#E6C15A]">PRO</span></span>
+          </div>
 
           {/* Status chip with skeleton fallback while loading */}
           <div>
             {premiumLoading ? (
-              <div className="h-6 w-24 rounded-full bg-white/10 animate-pulse" />
+              <div className="h-7 w-20 rounded-full bg-white/10 animate-pulse" />
             ) : isPremium ? (
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-hud font-bold tracking-wider uppercase text-[#1A1405]"
@@ -843,13 +1126,13 @@ export default function PremiumPage() {
                 }}
               >
                 <Crown className="w-3 h-3 fill-current" />
-                <span>Premium Active</span>
+                <span>Active</span>
               </span>
             ) : (
               <button
                 type="button"
                 onClick={handleScrollToPricing}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-hud font-bold tracking-wider uppercase text-[#1A1405] hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-hud font-bold tracking-wider uppercase text-[#1A1405] hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm shrink-0"
                 style={{ background: PREMIUM_GOLD_GRADIENT }}
               >
                 <Crown className="w-3 h-3 fill-current" />
@@ -944,31 +1227,43 @@ export default function PremiumPage() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            SECTION 2: FEATURE BENTO GRID (The Main Event)
+            SECTION 2: ALL PREMIUM FEATURES (Bento Grid)
             ═══════════════════════════════════════════════════════════════════ */}
         <section
           id="features"
           aria-labelledby="bento-heading"
           className="pt-10 sm:pt-14 pb-16 sm:pb-20"
         >
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <span className="text-[10px] font-hud font-bold tracking-widest uppercase text-[#E6C15A] px-3 py-1 rounded-full border border-[rgba(230,193,90,0.3)] bg-[#E6C15A]/10">
+              Complete Feature Suite
+            </span>
+            <h2 id="bento-heading" className="mt-3 font-hud text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Every tool to elevate your discipline.
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-white/60">
+              Handcrafted luxury themes, atmospheric scenes, AI insights, and prestige recognition.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* ROW 1: Themes (cols 1-7) */}
+            {/* ROW 1: 7 Luxury Themes (cols 1-7) with 100% Synced Title & Tab Controls */}
             <BentoCard
-              title="Gold Leaf & Crimson"
-              caption="Two exclusive themes."
-              className="lg:col-span-7 min-h-[240px] sm:min-h-[260px]"
+              title={`7 Luxury Themes — ${currentTheme.name}`}
+              caption={currentTheme.desc}
+              className="lg:col-span-7 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={0}
             >
-              <ThemesDemo />
+              <ThemesDemo activeThemeId={activeThemeId} onSelectTheme={setActiveThemeId} />
             </BentoCard>
 
             {/* ROW 1: Focus Scenes (cols 8-12) */}
             <BentoCard
               title="Animated focus scenes"
-              caption="Atmospheric environments for deep flow."
-              className="lg:col-span-5 min-h-[240px] sm:min-h-[260px]"
+              caption="Atmospheric living environments for deep flow & serenity."
+              className="lg:col-span-5 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={1}
@@ -976,46 +1271,106 @@ export default function PremiumPage() {
               <FocusScenesDemo />
             </BentoCard>
 
-            {/* ROW 2: Weekly Report (cols 1-4) */}
+            {/* ROW 2: AI Study Insights (cols 1-6) */}
             <BentoCard
-              title="Weekly report"
-              caption="This week vs last, at a glance."
-              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              title="AI study insights & heatmap"
+              caption="Peak focus hours, cognitive fatigue detection, and 12-week consistency tracking."
+              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={2}
             >
-              <WeeklyReportDemo />
+              <InsightsDemo />
             </BentoCard>
 
-            {/* ROW 2: Time Travel (cols 5-8) */}
+            {/* ROW 2: Daily Focus Targets (cols 7-12) */}
             <BentoCard
-              title="Time travel"
-              caption="Browse every past day and month."
-              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              title="Daily focus targets & goals"
+              caption="Custom daily study targets with live progress rings & streak rewards."
+              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={3}
             >
+              <DailyGoalsDemo />
+            </BentoCard>
+
+            {/* ROW 3: Weekly Report (cols 1-4) */}
+            <BentoCard
+              title="Weekly report card"
+              caption="This week vs last, subject focus balance at a glance."
+              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              isPremium={isPremium}
+              href="/dashboard"
+              delayIndex={4}
+            >
+              <WeeklyReportDemo />
+            </BentoCard>
+
+            {/* ROW 3: Time Travel (cols 5-8) */}
+            <BentoCard
+              title="Historical time travel"
+              caption="Browse every past day and month with full session archives."
+              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              isPremium={isPremium}
+              href="/dashboard"
+              delayIndex={5}
+            >
               <TimeTravelDemo />
             </BentoCard>
 
-            {/* ROW 2: Scholar Crown (cols 9-12) */}
+            {/* ROW 3: Scholar Crown (cols 9-12) */}
             <BentoCard
               title="Verified scholar badge"
-              caption="Shown beside your name everywhere."
+              caption="Distinctive gold verified crest beside your name everywhere."
               className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
               isPremium={isPremium}
               href="/?tab=leaderboard"
-              delayIndex={4}
+              delayIndex={6}
             >
               <ScholarCrownDemo />
+            </BentoCard>
+
+            {/* ROW 4: Pro Avatars & Golden Room Flairs (cols 1-12) */}
+            <BentoCard
+              title="Pro avatars & golden study room flairs"
+              caption="Exclusive Cyber Visor avatar, glowing golden profile frames, and VIP room status."
+              className="lg:col-span-12 min-h-[160px]"
+              isPremium={isPremium}
+              href="/dashboard"
+              delayIndex={7}
+            >
+              <ScholarAvatarsDemo />
             </BentoCard>
           </div>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            SECTION 3: PRICING / STATUS (Exact Existing Source Logic)
+            SECTION 3: FULL PLAN COMPARISON TABLE
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          id="comparison"
+          aria-labelledby="comparison-heading"
+          className="pt-8 pb-14 border-t border-white/[0.08]"
+        >
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <span className="text-[10px] font-hud font-bold tracking-widest uppercase text-[#E6C15A] px-3 py-1 rounded-full border border-[rgba(230,193,90,0.3)] bg-[#E6C15A]/10">
+                Plan Comparison
+              </span>
+              <h2 id="comparison-heading" className="mt-3 font-hud text-2xl font-bold text-white">
+                Free vs. study.io Pro
+              </h2>
+              <p className="mt-1 text-xs text-white/50">
+                Detailed breakdown of every feature and tier capability.
+              </p>
+            </div>
+            <ComparisonTable />
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION 4: PRICING / STATUS (Exact Existing Source Logic)
             ═══════════════════════════════════════════════════════════════════ */}
         <section
           id="pricing"
