@@ -202,6 +202,9 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     }
   }, [isRunning, pauseTimer]);
 
+  const activeSubjectName = selectedSubject?.name || (subjects && subjects.length > 0 ? subjects[0]?.name : 'Focus');
+  const activeSubjectColor = selectedSubject?.color || (subjects && subjects.length > 0 ? subjects[0]?.color : '#10B981');
+
   const [roomName, setRoomName] = useState<string>('Loading...');
   const [roomTab, setRoomTab] = useState<'home' | 'chat' | 'settings'>(initialTab || 'home');
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -2127,7 +2130,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           animation: classicNudgePulse 0.75s ease-in-out infinite;
         }
       `}</style>
-      <header className="shrink-0 flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-transparent">
+      <header className="shrink-0 flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-transparent pt-[max(env(safe-area-inset-top,0px),10px)] sm:pt-2.5">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onBack}
@@ -3174,60 +3177,55 @@ CREATE POLICY "Hosts can update their own study rooms"
       {/* Floating Bottom Focus Timer Dock (Start & Pause) - Compact, Translucent & Bottom-Anchored */}
       {roomTab === 'home' && (
         <div className="absolute bottom-[98px] sm:bottom-[108px] md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-[#0c1017]/75 backdrop-blur-md border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.6)] transition-all">
+          <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0c1017]/85 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.65)] transition-all">
             {/* Live Indicator & Timer Readout */}
             <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
-              <span className="relative flex h-1.5 w-1.5">
+              <span className="relative flex h-2 w-2">
                 {isRunning ? (
                   <>
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </>
                 ) : isPaused ? (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                 ) : (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-600" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600" />
                 )}
               </span>
-              <span className="font-mono font-bold text-[11px] sm:text-xs tracking-wider text-white">
+              <span className="font-mono font-bold text-xs sm:text-sm tracking-wider text-white">
                 {formatSeconds(elapsedSeconds)}
-              </span>
-              <span className="text-[7.5px] font-hud uppercase tracking-widest text-slate-400 hidden xs:inline">
-                {isRunning ? 'FOCUS' : isPaused ? 'PAUSED' : 'READY'}
               </span>
             </div>
 
-            {/* Subject Indicator Badge (if chosen) */}
-            {selectedSubject?.name && (
-              <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/[0.04] border border-white/5">
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: selectedSubject.color || '#10B981' }}
-                />
-                <span className="text-[9px] font-medium text-slate-300 truncate max-w-[70px]">
-                  {selectedSubject.name}
-                </span>
-              </div>
-            )}
+            {/* Subject Indicator Badge - Prominently shown on both mobile and desktop */}
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/10 max-w-[100px] xs:max-w-[130px] shrink-0">
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: activeSubjectColor }}
+              />
+              <span className="text-[10px] sm:text-[11px] font-medium text-slate-200 truncate">
+                {activeSubjectName}
+              </span>
+            </div>
 
-            {/* Translucent Compact Control Buttons */}
-            <div className="flex items-center gap-1">
+            {/* Translucent Icon-Only Control Buttons (Sized for comfortable tapping without text clutter) */}
+            <div className="flex items-center gap-1.5 pl-0.5 border-l border-white/10">
               {/* START / RESUME */}
               <button
                 type="button"
                 onClick={handleStartOrResume}
                 disabled={isRunning}
-                className={`flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                   isRunning
-                    ? 'opacity-25 cursor-not-allowed bg-white/[0.02] text-slate-500 border border-white/5'
+                    ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
                     : isPaused
-                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_8px_rgba(16,185,129,0.2)] active:scale-95'
-                    : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/35 backdrop-blur-sm shadow-[0_0_8px_rgba(16,185,129,0.2)] active:scale-95'
+                    ? 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.3)] active:scale-95'
+                    : 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-400 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.25)] active:scale-95'
                 }`}
                 title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
+                aria-label={isPaused ? 'Resume timer' : 'Start timer'}
               >
-                <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-current" />
-                <span>{isPaused ? 'Resume' : 'Start'}</span>
+                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />
               </button>
 
               {/* PAUSE */}
@@ -3235,15 +3233,15 @@ CREATE POLICY "Hosts can update their own study rooms"
                 type="button"
                 onClick={handlePauseTimer}
                 disabled={!isRunning}
-                className={`flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                   isRunning
-                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/35 backdrop-blur-sm shadow-[0_0_8px_rgba(245,158,11,0.2)] active:scale-95'
-                    : 'opacity-25 cursor-not-allowed bg-white/[0.02] text-slate-500 border border-white/5'
+                    ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(245,158,11,0.3)] active:scale-95'
+                    : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
                 }`}
                 title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
+                aria-label="Pause timer"
               >
-                <Pause className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-current" />
-                <span>Pause</span>
+                <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
               </button>
             </div>
           </div>

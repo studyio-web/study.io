@@ -57,9 +57,14 @@ function formatRoomFocusTime(seconds?: number | null) {
 interface StudyRoomsTabProps {
   onBackToDashboard: () => void;
   isActiveTab?: boolean;
+  onActiveRoomChange?: (inRoom: boolean) => void;
 }
 
-export default function StudyRoomsTab({ onBackToDashboard, isActiveTab }: StudyRoomsTabProps) {
+export default function StudyRoomsTab({
+  onBackToDashboard,
+  isActiveTab,
+  onActiveRoomChange,
+}: StudyRoomsTabProps) {
   const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
 
@@ -72,6 +77,11 @@ export default function StudyRoomsTab({ onBackToDashboard, isActiveTab }: StudyR
   const [isLoading, setIsLoading] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activeRoomInitialTab, setActiveRoomInitialTab] = useState<'home' | 'chat' | 'settings'>('home');
+
+  // Notify parent dashboard whenever active room state changes
+  useEffect(() => {
+    onActiveRoomChange?.(Boolean(activeRoomId));
+  }, [activeRoomId, onActiveRoomChange]);
 
   // View mode: false = My Rooms (Joined & Hosted only), true = Explore Rooms Window
   const [isExploreView, setIsExploreView] = useState(false);

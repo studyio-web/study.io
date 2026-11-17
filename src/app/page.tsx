@@ -226,6 +226,7 @@ export default function Home() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showDailyBoost, setShowDailyBoost] = useState(false);
+  const [isInsideRoom, setIsInsideRoom] = useState(false);
   const hasTriggeredBoostRef = useRef(false);
 
   // Hardware Android Back Button management via Native Feel Bridge:
@@ -444,13 +445,14 @@ export default function Home() {
         className="w-full flex flex-col items-center flex-1 min-h-0 overflow-hidden"
         style={{ display: isFocusModeOpen ? 'none' : undefined }}
       >
-        {/* Top Navigation Bar */}
+        {/* Top Navigation Bar (Hidden when inside an active study room) */}
         <Navbar
           activeTab={activeTab}
           setActiveTab={handleTabChange}
           onOpenAuth={() => setIsAuthOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
           onOpenSettings={() => handleTabChange('settings')}
+          hideTopBar={activeTab === 'rooms' && isInsideRoom}
         />
 
         {/* Monthly Season Settlement Recap Banner */}
@@ -490,7 +492,11 @@ export default function Home() {
               ),
               rooms: (
                 <ErrorBoundary fallbackTitle="Study Rooms">
-                  <StudyRoomsTab onBackToDashboard={() => handleTabChange('timer')} isActiveTab={activeTab === 'rooms'} />
+                  <StudyRoomsTab
+                    onBackToDashboard={() => handleTabChange('timer')}
+                    isActiveTab={activeTab === 'rooms'}
+                    onActiveRoomChange={setIsInsideRoom}
+                  />
                 </ErrorBoundary>
               ),
               settings: (

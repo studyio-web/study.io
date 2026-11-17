@@ -52,6 +52,7 @@ interface NavbarProps {
   onOpenAuth: () => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
+  hideTopBar?: boolean;
 }
 
 const StreakBadge = React.memo(function StreakBadge({ streak }: { streak: number }) {
@@ -74,6 +75,7 @@ export function Navbar({
   onOpenAuth,
   onOpenProfile,
   onOpenSettings,
+  hideTopBar = false,
 }: NavbarProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { isStudying, setIsFocusModeOpen, gamification, sessions } = useStudy();
@@ -280,8 +282,9 @@ export function Navbar({
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl transition-colors header-edge-to-edge">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
+      {!hideTopBar && (
+        <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl transition-colors header-edge-to-edge">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2.5 sm:gap-6">
             <div className="flex items-center gap-2.5 cursor-pointer select-none group" onClick={() => handleTabClick('timer')}>
@@ -669,6 +672,7 @@ export function Navbar({
         </div>
       </div>
     </header>
+  )}
 
     {/* Mobile Floating Dock Navigation: Full-width Pill with Sliding Tier Indicator */ }
     < div className = "fixed bottom-3 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,16px)] pointer-events-none" >
