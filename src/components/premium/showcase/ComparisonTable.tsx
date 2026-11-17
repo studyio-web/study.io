@@ -63,25 +63,13 @@ const COMPARISON_DATA: ComparisonRow[] = [
     premium: true,
   },
   {
-    feature: 'Pro Cyber Visor & Avatar Flairs',
-    description: 'Exclusive Pro Cyber Visor avatar and radiant golden room avatar frame',
-    free: false,
-    premium: true,
-  },
-  {
-    feature: 'VIP Golden Study Room Aura',
-    description: 'Stand out in collaborative study rooms with luminous gold borders and priority flair',
+    feature: 'Pro Avatar & Room Focus Rings',
+    description: 'Exclusive Pro avatar and animated focus ring in collaborative study rooms',
     free: false,
     premium: true,
   },
   {
     category: 'Deep Analytics & Intelligence',
-    feature: 'AI-Powered Study Insights',
-    description: 'Peak focus hours analysis, cognitive fatigue detection, and 12-week study heatmap',
-    free: 'Sample preview',
-    premium: 'Full live telemetry & insights',
-  },
-  {
     feature: 'Daily Focus Targets & Goals',
     description: 'Custom daily study time targets, milestone progress dials, and celebratory streak alerts',
     free: false,

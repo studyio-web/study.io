@@ -30,6 +30,9 @@ import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout';
 import { PAYMENTS_ENABLED } from '../../config/billing';
 import { updateNativeStatusBar, registerBackButtonHandler } from '../../lib/native-feel';
 import { ComparisonTable } from '../../components/premium/showcase/ComparisonTable';
+import { ProAvatarRing } from '../../components/ui/ProAvatarRing';
+import { UserAvatar } from '../../components/common/UserAvatar';
+import { FlairCrown } from '../../components/common/FlairBadge';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM CONSTANTS & TOKENS
@@ -635,64 +638,7 @@ function FocusScenesDemo() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 5: AI STUDY INSIGHTS (Peak Hours, Heatmap & Fatigue Intelligence)
-   ═══════════════════════════════════════════════════════════════════════════ */
-function InsightsDemo() {
-  const { ref } = useTileVisibility(0.2);
-
-  return (
-    <div ref={ref} className="w-full max-w-sm">
-      <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-3.5 shadow-inner">
-        {/* Peak Hours & Day readout */}
-        <div className="grid grid-cols-2 gap-2 pb-3 border-b border-white/[0.06]">
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="flex items-center gap-1.5 text-[#E6C15A] text-[10px] font-hud uppercase tracking-wider font-bold">
-              <Clock className="w-3 h-3" />
-              <span>Peak Focus</span>
-            </div>
-            <div className="mt-1 font-hud text-xs font-bold text-white">7:00 – 9:00 PM</div>
-            <div className="text-[9px] font-mono text-emerald-400 mt-0.5">+42% Cognitive Flow</div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="flex items-center gap-1.5 text-[#E6C15A] text-[10px] font-hud uppercase tracking-wider font-bold">
-              <Calendar className="w-3 h-3" />
-              <span>Best Day</span>
-            </div>
-            <div className="mt-1 font-hud text-xs font-bold text-white">Thursday</div>
-            <div className="text-[9px] font-mono text-white/40 mt-0.5">4h 15m avg study</div>
-          </div>
-        </div>
-
-        {/* Mini 12-Week Heatmap Grid Preview */}
-        <div className="pt-2.5">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[9px] font-hud uppercase tracking-wider text-white/50">12-Week Study Heatmap</span>
-            <span className="text-[9px] font-mono text-[#E6C15A]">84 Days Active</span>
-          </div>
-          <div className="grid grid-cols-12 gap-1 py-1">
-            {Array.from({ length: 48 }).map((_, i) => {
-              const intensity = (i * 7 + 13) % 5;
-              const bg =
-                intensity === 0
-                  ? 'bg-white/[0.04]'
-                  : intensity === 1
-                  ? 'bg-emerald-500/20'
-                  : intensity === 2
-                  ? 'bg-emerald-500/40'
-                  : intensity === 3
-                  ? 'bg-emerald-500/70 shadow-[0_0_6px_rgba(16,185,129,0.3)]'
-                  : 'bg-[#E6C15A] shadow-[0_0_6px_rgba(230,193,90,0.5)]';
-              return <div key={i} className={`h-2.5 rounded-[3px] ${bg} transition-all`} />;
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 6: DAILY FOCUS TARGETS & MILESTONES
+   LIVE DEMO 5: DAILY FOCUS TARGETS & MILESTONES
    ═══════════════════════════════════════════════════════════════════════════ */
 function DailyGoalsDemo() {
   const { ref, isVisible } = useTileVisibility(0.2);
@@ -757,38 +703,48 @@ function DailyGoalsDemo() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 7: PRO AVATARS & GOLDEN ROOM FLAIRS
+   LIVE DEMO 6: PRO AVATARS & STUDY ROOM FLAIRS
    ═══════════════════════════════════════════════════════════════════════════ */
 function ScholarAvatarsDemo() {
   const { ref } = useTileVisibility(0.2);
 
   return (
-    <div ref={ref} className="w-full max-w-sm">
-      <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-3 shadow-inner flex items-center justify-between gap-3">
-        {/* Avatar with radiant gold frame */}
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1A1406] via-[#2A1F08] to-[#120F06] border-2 border-[#E6C15A] shadow-[0_0_14px_rgba(230,193,90,0.45)] flex items-center justify-center overflow-hidden">
-              <span className="font-mono text-sm font-bold text-[#E6C15A]">PRO</span>
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#E6C15A] text-[#141006] flex items-center justify-center font-bold text-[10px] shadow-sm">
-              <Crown className="w-3 h-3 fill-current" />
-            </div>
-          </div>
-          <div className="text-left">
-            <div className="flex items-center gap-1.5">
-              <span className="font-hud text-xs font-bold text-white">Cyber Scholar</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#E6C15A]/20 text-[#E6C15A] font-bold border border-[#E6C15A]/30">VIP</span>
-            </div>
-            <p className="text-[10px] text-white/50 mt-0.5 font-sans">Luminous study room ring</p>
-          </div>
+    <div ref={ref} className="w-full max-w-sm flex items-center justify-center">
+      <div className="w-full rounded-2xl border border-white/[0.08] bg-black/40 p-4 shadow-inner flex items-center gap-4">
+        {/* Exact Room Focus Ring & Avatar from Study Rooms */}
+        <div className="relative shrink-0 flex items-center justify-center p-1">
+          <ProAvatarRing isPro={true} isStudying={true} size="md" defaultBorder>
+            <UserAvatar
+              src="https://api.dicebear.com/9.x/micah/svg?seed=CyberScholar&backgroundColor=0d1117"
+              name="Cyber Scholar"
+              size={56}
+              className="pointer-events-none"
+            />
+          </ProAvatarRing>
         </div>
 
-        <div className="text-right">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[9px] font-mono text-emerald-300">
-            <Sparkles className="w-2.5 h-2.5" />
-            <span>Pro Flair</span>
-          </span>
+        {/* Room Member Info matching exact room UI */}
+        <div className="text-left min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-hud text-sm font-bold text-white tracking-wide">
+              Cyber Scholar
+            </span>
+            <FlairCrown frame="gold" size={13.5} className="-ml-0.5" />
+            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30 uppercase tracking-wider">
+              VIP
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 font-mono text-xs text-amber-400">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+            </span>
+            <span className="font-bold tracking-wider">00:25:00</span>
+            <span className="text-[10px] text-amber-300/80 font-sans font-medium">(Focusing)</span>
+          </div>
+          <p className="text-[10px] text-white/50 mt-1 font-sans">
+            Luminous animated focus ring
+          </p>
         </div>
       </div>
     </div>
@@ -1271,28 +1227,28 @@ export default function PremiumPage() {
               <FocusScenesDemo />
             </BentoCard>
 
-            {/* ROW 2: AI Study Insights (cols 1-6) */}
-            <BentoCard
-              title="AI study insights & heatmap"
-              caption="Peak focus hours, cognitive fatigue detection, and 12-week consistency tracking."
-              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
-              isPremium={isPremium}
-              href="/dashboard"
-              delayIndex={2}
-            >
-              <InsightsDemo />
-            </BentoCard>
-
-            {/* ROW 2: Daily Focus Targets (cols 7-12) */}
+            {/* ROW 2: Daily Focus Targets (cols 1-6) */}
             <BentoCard
               title="Daily focus targets & goals"
               caption="Custom daily study targets with live progress rings & streak rewards."
               className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
-              delayIndex={3}
+              delayIndex={2}
             >
               <DailyGoalsDemo />
+            </BentoCard>
+
+            {/* ROW 2: Pro Avatars & Study Room Flairs (cols 7-12) */}
+            <BentoCard
+              title="Pro avatars & study room flairs"
+              caption="Exclusive Cyber Visor avatar and glowing animated focus rings in study rooms."
+              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
+              isPremium={isPremium}
+              href="/dashboard"
+              delayIndex={3}
+            >
+              <ScholarAvatarsDemo />
             </BentoCard>
 
             {/* ROW 3: Weekly Report (cols 1-4) */}
@@ -1329,18 +1285,6 @@ export default function PremiumPage() {
               delayIndex={6}
             >
               <ScholarCrownDemo />
-            </BentoCard>
-
-            {/* ROW 4: Pro Avatars & Golden Room Flairs (cols 1-12) */}
-            <BentoCard
-              title="Pro avatars & golden study room flairs"
-              caption="Exclusive Cyber Visor avatar, glowing golden profile frames, and VIP room status."
-              className="lg:col-span-12 min-h-[160px]"
-              isPremium={isPremium}
-              href="/dashboard"
-              delayIndex={7}
-            >
-              <ScholarAvatarsDemo />
             </BentoCard>
           </div>
         </section>
