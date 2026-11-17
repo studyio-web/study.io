@@ -817,7 +817,7 @@ export default function PremiumPage() {
       />
 
       {/* Slim Top Navigation Bar */}
-      <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--bg)]/85 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px),32px)] md:pt-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link
             href="/dashboard"
@@ -860,7 +860,7 @@ export default function PremiumPage() {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6">
+      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pb-28 sm:pb-32 lg:pb-16">
         {/* ═══════════════════════════════════════════════════════════════════
             SECTION 1: ASYMMETRIC HERO
             ═══════════════════════════════════════════════════════════════════ */}
@@ -1167,11 +1167,11 @@ export default function PremiumPage() {
           MOBILE STICKY BOTTOM BAR (Free Users Only, Hidden When Pricing Visible)
           ═══════════════════════════════════════════════════════════════════ */}
       {!isPremium && !premiumLoading && !isPricingVisible && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-[var(--bg)]/90 backdrop-blur-lg border-t border-white/10 lg:hidden pb-safe">
+        <div className="fixed bottom-0 left-0 right-0 z-50 pt-3 px-4 pb-[max(env(safe-area-inset-bottom,0px)+12px,28px)] bg-[var(--bg)]/95 backdrop-blur-xl border-t border-white/10 lg:hidden shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
           <button
             type="button"
             onClick={handleScrollToPricing}
-            className="w-full py-3 rounded-xl font-hud font-bold text-xs uppercase tracking-wider text-[#1A1405] shadow-lg cursor-pointer flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-xl font-hud font-bold text-xs uppercase tracking-wider text-[#1A1405] shadow-lg cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
             style={{ background: PREMIUM_GOLD_GRADIENT }}
           >
             <span>Get Premium</span>
