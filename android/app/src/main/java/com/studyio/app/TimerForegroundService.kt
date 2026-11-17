@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
@@ -131,6 +132,63 @@ class TimerForegroundService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var finishRunnable: Runnable? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    private fun acquireWakeLock() {
+        try {
+            if (wakeLock == null) {
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "StudyIO:TimerWakeLock")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(24 * 60 * 60 * 1000L) // 24-hour safeguard cap
+                Log.d(TAG, "Acquired PARTIAL_WAKE_LOCK for timer persistence")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire PARTIAL_WAKE_LOCK", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "Released PARTIAL_WAKE_LOCK")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release PARTIAL_WAKE_LOCK", e)
+        }
+    }
+
+    private fun savePersistedState() {
+        try {
+            val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                putBoolean("is_running", isRunning)
+                putBoolean("is_paused", isPaused)
+                putString("mode", mode)
+                putString("phase", phase)
+                putLong("start_time", startedAtMs)
+                putInt("elapsed_seconds", baseElapsedSeconds)
+                putInt("target_seconds", targetSeconds)
+                putString("subject", subject)
+                apply()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to savePersistedState", e)
+        }
+    }
+
+    private fun clearPersistedState() {
+        try {
+            val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clearPersistedState", e)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -144,9 +202,30 @@ class TimerForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent == null) {
-            Log.d(TAG, "onStartCommand with null intent (system restart). Cleaning up.")
-            handleStop()
-            return START_NOT_STICKY
+            Log.d(TAG, "onStartCommand with null intent (system restart). Checking persisted state...")
+            val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            val wasRunning = prefs.getBoolean("is_running", false)
+            if (wasRunning) {
+                isRunning = true
+                isPaused = prefs.getBoolean("is_paused", false)
+                mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
+                phase = prefs.getString("phase", "work") ?: "work"
+                startedAtMs = prefs.getLong("start_time", System.currentTimeMillis())
+                baseElapsedSeconds = prefs.getInt("elapsed_seconds", 0)
+                targetSeconds = prefs.getInt("target_seconds", 0)
+                subject = prefs.getString("subject", "") ?: ""
+
+                val notification = buildTimerNotification()
+                startInForeground(notification)
+                if (!isPaused) {
+                    acquireWakeLock()
+                    scheduleFinishCheckIfNeeded()
+                }
+                return START_STICKY
+            } else {
+                handleStop()
+                return START_NOT_STICKY
+            }
         }
 
         val action = intent.action ?: ACTION_START
@@ -157,6 +236,8 @@ class TimerForegroundService : Service() {
                 parseIntentExtras(intent)
                 isRunning = true
                 isPaused = false
+                acquireWakeLock()
+                savePersistedState()
                 val notification = buildTimerNotification()
                 startInForeground(notification)
                 scheduleFinishCheckIfNeeded()
@@ -164,7 +245,9 @@ class TimerForegroundService : Service() {
 
             ACTION_UPDATE -> {
                 parseIntentExtras(intent)
+                savePersistedState()
                 if (isRunning && !isPaused) {
+                    acquireWakeLock()
                     reanchorNotification()
                 } else {
                     updateNotification()
@@ -186,7 +269,7 @@ class TimerForegroundService : Service() {
             }
         }
 
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun parseIntentExtras(intent: Intent?) {
@@ -219,7 +302,9 @@ class TimerForegroundService : Service() {
         val runDeltaSeconds = ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
         baseElapsedSeconds += runDeltaSeconds
         isPaused = true
+        releaseWakeLock()
         cancelScheduledFinishCheck()
+        savePersistedState()
         updateNotification()
         Log.d(TAG, "Timer paused at elapsed: $baseElapsedSeconds seconds")
     }
@@ -228,6 +313,8 @@ class TimerForegroundService : Service() {
         if (!isPaused) return
         startedAtMs = System.currentTimeMillis()
         isPaused = false
+        acquireWakeLock()
+        savePersistedState()
         updateNotification()
         scheduleFinishCheckIfNeeded()
         Log.d(TAG, "Timer resumed at base elapsed: $baseElapsedSeconds seconds")
@@ -236,6 +323,8 @@ class TimerForegroundService : Service() {
     private fun handleStop() {
         Log.d(TAG, "Stopping TimerForegroundService")
         cancelScheduledFinishCheck()
+        releaseWakeLock()
+        clearPersistedState()
         isRunning = false
         isPaused = false
         isServiceRunning = false
@@ -655,6 +744,7 @@ class TimerForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         cancelScheduledFinishCheck()
+        releaseWakeLock()
         instance = null
         isServiceRunning = false
         Log.d(TAG, "TimerForegroundService destroyed")

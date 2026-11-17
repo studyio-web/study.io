@@ -159,14 +159,17 @@ export function TimerSWBridge() {
             console.warn('[Native Timer Bridge] start failed:', err)
           );
 
-          // One-time check for battery optimization on native Android
+          // Check for battery optimization on native Android so background timer is never restricted after 2 mins
           if (!localStorage.getItem('studyio_battery_prompt_checked')) {
             localStorage.setItem('studyio_battery_prompt_checked', '1');
             TimerNotification.isBatteryOptimized()
               .then(({ isIgnoringBatteryOptimizations }) => {
                 if (!isIgnoringBatteryOptimizations) {
                   console.info(
-                    '[Native Timer Bridge] Battery optimization is active. For best background accuracy, allow unrestricted battery in settings.'
+                    '[Native Timer Bridge] Battery optimization is active. Requesting exemption for continuous background timer...'
+                  );
+                  TimerNotification.requestIgnoreBatteryOptimization().catch((err) =>
+                    console.warn('[Native Timer Bridge] Could not request battery exemption:', err)
                   );
                 }
               })

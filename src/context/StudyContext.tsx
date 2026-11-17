@@ -38,6 +38,7 @@ import {
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
 import { fetchAuthoritativeServerTime, saveValidatedSession } from '../lib/serverTime';
 import { notify, initNotificationChannels, requestNotificationPermission as requestNotifyPermission } from '../lib/notifications';
+import { isNativeAndroid } from '../lib/timerNotificationPlugin';
 
 export const showPushNotification = async (title: string, options?: NotificationOptions) => {
   return notify('custom', {
@@ -1249,6 +1250,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   // Auto-pause timer on tab close (pagehide) using a reliable keepalive fetch
   useEffect(() => {
     const handlePageHide = () => {
+      // In native Android app, minimizing the app or locking the screen fires pagehide.
+      // The native Foreground Service handles background timer tracking with a live chronometer notification,
+      // so we must NEVER pause the session when pagehide fires on native Android!
+      if (isNativeAndroid()) return;
+
       if (isStudying && !isPaused && startTimeRef.current !== null) {
         // We are closing the tab while the timer is running. We MUST pause it!
         const actualElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -1604,16 +1610,26 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     if (!hasStorageState) {
-      console.warn('[ZOMBIE KILLER]: Aborted timer recalculation on background sync because persistent storage is empty. Forcing memory reset.');
-      setIsStudying(false);
-      setIsPaused(false);
-      setElapsedSeconds(0);
-      startTimeRef.current = null;
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
+      // If timer is actively running in memory, heal missing storage keys rather than killing the user's session!
+      if (isStudying && !isPaused && startTimeRef.current !== null) {
+        try {
+          localStorage.setItem('timer-is-active', 'true');
+          localStorage.setItem('studyio_timer_seconds', String(accumulatedSecondsRef.current));
+          localStorage.setItem('studyio_timer_mode', timerMode);
+          localStorage.setItem('studyio_timer_start_time', String(startTimeRef.current));
+        } catch {}
+      } else {
+        console.warn('[ZOMBIE KILLER]: Aborted timer recalculation on background sync because persistent storage is empty. Forcing memory reset.');
+        setIsStudying(false);
+        setIsPaused(false);
+        setElapsedSeconds(0);
+        startTimeRef.current = null;
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        return 0;
       }
-      return 0;
     }
 
     const serverNow = typeof providedServerTime === 'number' && providedServerTime > 0
@@ -2788,6 +2804,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     sessionStartTimeRef.current = new Date(nowAnchor);
     setIsStudying(true);
     setIsPaused(false);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('timer-is-active', 'true');
+        localStorage.setItem('studyio_timer_seconds', String(accumulatedSecondsRef.current));
+        localStorage.setItem('studyio_timer_mode', timerMode);
+        localStorage.setItem('studyio_timer_start_time', String(nowAnchor));
+      } catch {}
+    }
     soundFx.playStartChime();
     soundFx.resumeAmbient();
     console.log('[Timer Write: startTimer]', {
@@ -2863,6 +2887,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
     startTimeRef.current = nowAnchor;
     setIsPaused(false);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('timer-is-active', 'true');
+        localStorage.setItem('studyio_timer_seconds', String(accumulatedSecondsRef.current));
+        localStorage.setItem('studyio_timer_mode', timerMode);
+        localStorage.setItem('studyio_timer_start_time', String(nowAnchor));
+      } catch {}
+    }
     setPomodoroCompletedPhase(null);
     soundFx.playStartChime();
     soundFx.resumeAmbient();
