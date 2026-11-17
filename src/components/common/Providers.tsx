@@ -16,6 +16,7 @@ import { TimerSWBridge } from './TimerSWBridge';
 import { RankBadgePreloader } from './RankBadgePreloader';
 import { NativeFeelBridge } from './NativeFeelBridge';
 import { PushNotificationBridge } from './PushNotificationBridge';
+import { SingleTabGuard } from './SingleTabGuard';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -37,6 +38,8 @@ export function Providers({ children }: { children: ReactNode }) {
                         <NativeFeelBridge />
                         {/* Native Android FCM background push notification registration & listeners */}
                         <PushNotificationBridge />
+                        {/* Desktop Web: Enforce single active tab per account */}
+                        <SingleTabGuard />
                         {children}
                       </RankProvider>
                     </TimetableProvider>
