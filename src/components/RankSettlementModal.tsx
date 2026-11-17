@@ -81,11 +81,12 @@ export function RankSettlementModal({
   const durationSeconds = data?.breakdown.durationSeconds ?? 0;
   const streakBonusClaimedToday = Boolean(data?.breakdown.streakBonusClaimedToday);
   const isUnderMinDuration = Boolean(data?.breakdown.isUnderMinDuration ?? (durationSeconds < 60));
+  const isOfflinePending = Boolean(data?.breakdown?.isOfflinePending);
 
   const prevRankDetails = useMemo(() => getRankTier(prevRP), [prevRP]);
   const newRankDetails = useMemo(() => getRankTier(newRP), [newRP]);
-  const isRankUp = newRankDetails.name.toUpperCase() !== prevRankDetails.name.toUpperCase();
-  const isMajorTierUp = newRankDetails.tier !== prevRankDetails.tier;
+  const isRankUp = !isOfflinePending && (newRankDetails.name.toUpperCase() !== prevRankDetails.name.toUpperCase());
+  const isMajorTierUp = !isOfflinePending && (newRankDetails.tier !== prevRankDetails.tier);
 
   const TIER_INTENSITY_MAP: Record<RankTierName, number> = {
     Bronze: 1, Silver: 2, Gold: 3, Platinum: 4, Diamond: 5, Champion: 6, Master: 7, Grandmaster: 8,
@@ -876,11 +877,13 @@ export function RankSettlementModal({
                 <Info className="w-3.5 h-3.5" />
               </button>
               <div className={`inline-flex items-center px-2 py-0.5 rounded ${
-                totalGained > 0
-                  ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
-                  : 'bg-slate-500/10 border border-slate-500/25 text-slate-400'
+                isOfflinePending
+                  ? 'bg-amber-500/10 border border-amber-500/25 text-amber-300'
+                  : totalGained > 0
+                    ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
+                    : 'bg-slate-500/10 border border-slate-500/25 text-slate-400'
               } font-mono font-semibold text-[11px]`}>
-                +{displayedGain} RP
+                {isOfflinePending ? 'OFFLINE (PENDING)' : `+${displayedGain} RP`}
               </div>
             </div>
             
@@ -1063,6 +1066,11 @@ export function RankSettlementModal({
                     +{totalGained} RP
                   </span>
                 </div>
+                {isOfflinePending && (
+                  <p className="text-[10px] text-amber-300/90 pt-0.5">
+                    * Saved offline. RP &amp; Rank will settle once reconnected to the internet.
+                  </p>
+                )}
                 {isUnderMinDuration && (
                   <p className="text-[10px] text-rose-300/90 pt-0.5">
                     * Sessions under 1 minute are too short to award RP.

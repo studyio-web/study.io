@@ -324,6 +324,15 @@ export function StudyTimer() {
     if (isSaving) return;
     triggerHaptic('medium');
 
+    // Anti-Exploit: Immediately purge timer seconds cache to prevent ghost resurrects
+    try {
+      localStorage.removeItem('studyio_timer_seconds');
+      localStorage.removeItem('timer-start-time');
+      localStorage.removeItem('studyio_timer_start_time');
+      localStorage.removeItem('studyio_timer_countdown_completed');
+      localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+    } catch {}
+
     // 1. Prevent race conditions: Capture exact real-time duration BEFORE mutating any state or resetting timer display
     const rawSeconds = isRunning && startTimeRef?.current
       ? Math.max(elapsedSeconds, Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -435,6 +444,7 @@ export function StudyTimer() {
 
       // 3. Save via server-side validation to enforce server-calculated duration and 12h/24h caps
       let insertedRecordId: string | null = null;
+      let isServerValidated = false;
       let finalDurationSeconds = Math.min(seconds, 43200); // Strict 12-hour single session cap
       let finalStartedAt = startedAt;
       let finalEndedAt = endedAt;
@@ -457,6 +467,7 @@ export function StudyTimer() {
           });
 
           if (saveResult.success) {
+            isServerValidated = true;
             insertedRecordId = saveResult.session?.id || null;
             if (typeof saveResult.calculatedSeconds === 'number') {
               finalDurationSeconds = saveResult.calculatedSeconds;
@@ -548,7 +559,10 @@ export function StudyTimer() {
 
       const { seasonRp: liveRp, startingRp: effectiveBaseRp } = resolveLiveSeasonStats(user, sessions);
       const prevRP = liveRp;
-      const newRP = prevRP + rpBreakdown.totalGained;
+      // Competitive Anti-Exploit: Only award RP and rank tier advancement if verified by server (or guest mode)
+      const isEligibleForRP = !activeUser?.id || isServerValidated;
+      const gainedRP = isEligibleForRP ? rpBreakdown.totalGained : 0;
+      const newRP = prevRP + gainedRP;
 
       // XP Calculation & Anti-Exploit Rules:
       // Award rate: 10 XP per full minute of recorded focus time: Math.floor(duration_seconds / 60) * 10
@@ -607,7 +621,12 @@ export function StudyTimer() {
       showRankSettlement({
         prevRP,
         newRP,
-        breakdown: rpBreakdown,
+        breakdown: {
+          ...rpBreakdown,
+          totalGained: gainedRP,
+          sessionRP: gainedRP,
+          isOfflinePending: Boolean(activeUser?.id) && !isServerValidated,
+        },
         subjectName: selectedSub.name || 'General Study',
         subjectColor: selectedSub.color || '#10b981',
       });
@@ -690,25 +709,24 @@ export function StudyTimer() {
 
   // 1. State Persistence Strategy: Persist timer state in localStorage periodically (every 5s or on pause)
   useEffect(() => {
-    if (isStudying && elapsedSeconds > 0) {
-      if (elapsedSeconds % 5 !== 0 && !isPaused) return;
-      try {
-        localStorage.setItem('studyio_timer_seconds', String(elapsedSeconds));
-        const subIdOrName = selectedSubject?.id || selectedSubject?.name || selectedSubjectId;
-        if (subIdOrName) {
-          localStorage.setItem('studyio_timer_subject', subIdOrName);
-        }
-        localStorage.setItem('studyio_timer_mode', timerMode || 'stopwatch');
-        if (timerMode === 'countdown') {
-          localStorage.setItem('studyio_timer_countdown_target', String(countdownTarget));
-        } else if (timerMode === 'pomodoro') {
-          localStorage.setItem('studyio_timer_pomodoro_phase', pomodoroPhase);
-        }
-      } catch (e) {
-        console.warn('Failed to persist timer state to localStorage:', e);
+    if (isSaving || !isStudying || elapsedSeconds <= 0) return;
+    if (elapsedSeconds % 5 !== 0 && !isPaused) return;
+    try {
+      localStorage.setItem('studyio_timer_seconds', String(elapsedSeconds));
+      const subIdOrName = selectedSubject?.id || selectedSubject?.name || selectedSubjectId;
+      if (subIdOrName) {
+        localStorage.setItem('studyio_timer_subject', subIdOrName);
       }
+      localStorage.setItem('studyio_timer_mode', timerMode || 'stopwatch');
+      if (timerMode === 'countdown') {
+        localStorage.setItem('studyio_timer_countdown_target', String(countdownTarget));
+      } else if (timerMode === 'pomodoro') {
+        localStorage.setItem('studyio_timer_pomodoro_phase', pomodoroPhase);
+      }
+    } catch (e) {
+      console.warn('Failed to persist timer state to localStorage:', e);
     }
-  }, [isStudying, elapsedSeconds, isPaused, selectedSubject, selectedSubjectId, timerMode]);
+  }, [isSaving, isStudying, elapsedSeconds, isPaused, selectedSubject, selectedSubjectId, timerMode, countdownTarget, pomodoroPhase]);
 
   // 2. On Component Mount / Page Load: Check localStorage and recover session in Paused state
   useEffect(() => {

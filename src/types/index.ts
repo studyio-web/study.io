@@ -120,6 +120,7 @@ export type RankSettlementBreakdown = {
   durationSeconds: number;
   isUnderMinDuration?: boolean;
   streakBonusClaimedToday?: boolean;
+  isOfflinePending?: boolean;
 };
 
 export type RankSettlementData = {

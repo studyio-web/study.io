@@ -2450,8 +2450,23 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           });
 
           if (missingInDb.length > 0) {
-            console.log('Migrating missing local sessions to Supabase:', missingInDb.length);
-            const inserts = missingInDb.map(item => ({
+            // Anti-Replay: Discard duplicate/overlapping offline bursts before migration
+            const deduplicatedMissing: typeof missingInDb = [];
+            for (const sess of missingInDb) {
+              const sessStart = new Date(sess.startTime || (sess as any).started_at).getTime();
+              const sessEnd = new Date(sess.endTime || (sess as any).ended_at).getTime();
+              const isOverlap = deduplicatedMissing.some(existing => {
+                const exStart = new Date(existing.startTime || (existing as any).started_at).getTime();
+                const exEnd = new Date(existing.endTime || (existing as any).ended_at).getTime();
+                return sessStart < exEnd && sessEnd > exStart;
+              });
+              if (!isOverlap) {
+                deduplicatedMissing.push(sess);
+              }
+            }
+
+            console.log('Migrating validated local sessions to Supabase:', deduplicatedMissing.length);
+            const inserts = deduplicatedMissing.map(item => ({
               user_id: activeUserId,
               subject_id: item.subjectId && item.subjectId.length === 36 ? item.subjectId : null,
               duration_seconds: item.durationSeconds,
@@ -2459,6 +2474,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               ended_at: item.endTime,
               notes: item.notes || null,
               mode: item.mode || 'stopwatch',
+              client_session_id: item.client_session_id || undefined,
             }));
             
             // Migrate via server validation to enforce 12h/24h caps
@@ -2469,6 +2485,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
                  subject_id: insert.subject_id,
                  notes: insert.notes,
                  mode: insert.mode,
+                 client_session_id: insert.client_session_id,
                }).catch(err => {
                  console.warn('Error migrating local session via server validation:', err);
                });
@@ -2759,6 +2776,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `sess-${Date.now()}`;
+    }
+    // Anti-Tamper: Fresh timer start must never inherit residue from prior stopped/saved sessions
+    if (!isStudying && !isPaused) {
+      accumulatedSecondsRef.current = 0;
+      setElapsedSeconds(0);
     }
     // Record start anchor timestamp
     const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
@@ -3079,6 +3101,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     });
 
     let insertedRecordIds: string[] = [];
+    let isServerValidated = false;
 
     if (activeUser?.id) {
       try {
@@ -3093,6 +3116,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           });
           if (saveRes.success && saveRes.session?.id) {
             insertedRecordIds.push(saveRes.session.id);
+            isServerValidated = true;
             if (typeof saveRes.calculatedSeconds === 'number') {
               payload.duration_seconds = saveRes.calculatedSeconds;
             }
@@ -3159,8 +3183,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const currentMonthSecondsBefore = Math.max(0, currentMonthSeconds - secondsToSave);
 
       const prevRP = calculateSeasonRp(carryoverRp, currentMonthSecondsBefore);
-      const newRP = calculateSeasonRp(carryoverRp, currentMonthSeconds);
-      const gainedRP = Math.max(0, newRP - prevRP);
+      const computedNewRP = calculateSeasonRp(carryoverRp, currentMonthSeconds);
+      // Competitive Anti-Exploit: Only award RP and rank tier advancement if verified by server (or guest mode)
+      const isEligibleForRP = !activeUser?.id || isServerValidated;
+      const gainedRP = isEligibleForRP ? Math.max(0, computedNewRP - prevRP) : 0;
+      const newRP = isEligibleForRP ? computedNewRP : prevRP;
 
       const rpBreakdown = calculateSessionRP(secondsToSave, {
         hasStreakOrGoal,
@@ -3226,7 +3253,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setSettlementData({
         prevRP,
         newRP,
-        breakdown: rpBreakdown,
+        breakdown: {
+          ...rpBreakdown,
+          isOfflinePending: Boolean(activeUser?.id) && !isServerValidated,
+        },
         subjectName,
         subjectColor,
       });
@@ -3495,9 +3525,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [stopTimer]);
 
   // Reset Timer - cleanly resets elapsed time, references, and isRunning state, syncing to active_sessions
+  // Critical Anti-Tamper: State cleanup must NEVER be debounced
   const resetTimer = useCallback(() => {
-    if (!checkDebounce()) return;
-
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -3506,7 +3535,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clientSessionIdRef.current = null;
     accumulatedSecondsRef.current = 0;
     sessionStartTimeRef.current = null;
-    clientSessionIdRef.current = null;
     setIsStudying(false);
     setIsPaused(false);
     soundFx.stopAmbient();
@@ -3517,7 +3545,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clearPersistedTimer();
     updateProfile({ status: 'resting', activeSessionStartTime: undefined });
     syncActiveSessionToDb('stopped');
-  }, [checkDebounce, clearPersistedTimer, updateProfile, syncActiveSessionToDb]);
+  }, [clearPersistedTimer, updateProfile, syncActiveSessionToDb]);
 
   const dismissRankSettlement = useCallback(() => {
     setSettlementData(null);

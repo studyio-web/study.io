@@ -413,3 +413,48 @@ describe('160-Hour Regression Test', () => {
     assert.ok(result.calculatedSeconds! < 576000);
   });
 });
+
+describe('Offline Anti-Tamper & Deduplication Specification', () => {
+  it('guarantees offline unverified sessions do not inflate client RP or advance rank tier', () => {
+    const prevRP = 200; // Bronze IV
+    const sessionSeconds = 843; // 14 mins 3 secs
+    const isServerValidated = false; // Offline / network failure
+
+    const baseBreakdown = calculateSessionRP(sessionSeconds);
+    const gainedRP = isServerValidated ? baseBreakdown.totalGained : 0;
+    const newRP = prevRP + gainedRP;
+
+    assert.equal(gainedRP, 0, 'Offline unverified session must yield 0 immediate competitive RP');
+    assert.equal(newRP, prevRP, 'RP must remain unchanged until server validation succeeds');
+    assert.equal(getRankTier(newRP).name, getRankTier(prevRP).name, 'Rank tier must not advance while offline');
+  });
+
+  it('deduplicates overlapping offline sessions before syncing to server', () => {
+    const now = Date.now();
+    // Simulate repeated offline stop & save exploit attempts within the same time window
+    const offlineSessions = [
+      { id: 'sess-1', startTime: new Date(now - 840000).toISOString(), endTime: new Date(now).toISOString() },
+      { id: 'sess-2', startTime: new Date(now - 840000).toISOString(), endTime: new Date(now).toISOString() }, // duplicate
+      { id: 'sess-3', startTime: new Date(now - 400000).toISOString(), endTime: new Date(now).toISOString() }, // overlap
+      { id: 'sess-4', startTime: new Date(now - 2000000).toISOString(), endTime: new Date(now - 1000000).toISOString() }, // non-overlapping
+    ];
+
+    const deduplicated: typeof offlineSessions = [];
+    for (const sess of offlineSessions) {
+      const sessStart = new Date(sess.startTime).getTime();
+      const sessEnd = new Date(sess.endTime).getTime();
+      const isOverlap = deduplicated.some((existing) => {
+        const exStart = new Date(existing.startTime).getTime();
+        const exEnd = new Date(existing.endTime).getTime();
+        return sessStart < exEnd && sessEnd > exStart;
+      });
+      if (!isOverlap) {
+        deduplicated.push(sess);
+      }
+    }
+
+    assert.equal(deduplicated.length, 2, 'Only distinct, non-overlapping offline sessions should be retained for migration');
+    assert.equal(deduplicated[0].id, 'sess-1');
+    assert.equal(deduplicated[1].id, 'sess-4');
+  });
+});

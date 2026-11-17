@@ -272,11 +272,13 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Resolve authoritative live season RP from user state and leaderboard entry
-    // Prevents artificial rank demotions on cold boot or before leaderboard finishes fetching
+    // Prioritize verified server leaderboard entry when available; fallback to verified user state baseline
     const entrySeasonRp = Number(currentUserEntry?.season_rp || 0);
     const userSeasonRp = Number(user?.seasonRp ?? (user as any)?.season_rp ?? user?.rp ?? 0);
     const userBaseRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(user?.season_base_rp ?? user?.carryover_rp ?? 0)));
-    const authoritativeRp = Math.max(entrySeasonRp, userSeasonRp, userBaseRp);
+    const authoritativeRp = entrySeasonRp > 0
+      ? Math.max(entrySeasonRp, userBaseRp)
+      : Math.max(userSeasonRp, userBaseRp);
 
     const tier = getRankTier(authoritativeRp);
     const nextTier = getNextTier(tier.name);
