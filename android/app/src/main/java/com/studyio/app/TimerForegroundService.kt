@@ -484,6 +484,7 @@ class TimerForegroundService : Service() {
     private fun createDeletePendingIntent(): PendingIntent {
         val intent = Intent(this, TimerNotificationReceiver::class.java).apply {
             action = TimerNotificationReceiver.ACTION_NOTIFICATION_DELETED
+            setPackage(packageName)
         }
         return PendingIntent.getBroadcast(
             this,
@@ -496,6 +497,7 @@ class TimerForegroundService : Service() {
     private fun createActionPendingIntent(action: String, requestCode: Int): PendingIntent {
         val intent = Intent(this, TimerNotificationReceiver::class.java).apply {
             this.action = action
+            setPackage(packageName)
         }
         return PendingIntent.getBroadcast(
             this,
