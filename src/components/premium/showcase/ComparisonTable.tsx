@@ -70,12 +70,6 @@ const COMPARISON_DATA: ComparisonRow[] = [
   },
   {
     category: 'Deep Analytics & Intelligence',
-    feature: 'Daily Focus Targets & Goals',
-    description: 'Custom daily study time targets, milestone progress dials, and celebratory streak alerts',
-    free: false,
-    premium: 'Custom goals & streak rings',
-  },
-  {
     feature: 'Weekly Report Card',
     description: 'Automated week-over-week performance reports, subject focus balances, and growth stats',
     free: 'Sample preview',

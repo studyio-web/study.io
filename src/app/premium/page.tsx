@@ -637,72 +637,7 @@ function FocusScenesDemo() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 5: DAILY FOCUS TARGETS & MILESTONES
-   ═══════════════════════════════════════════════════════════════════════════ */
-function DailyGoalsDemo() {
-  const { ref, isVisible } = useTileVisibility(0.2);
-  const shouldReduceMotion = useReducedMotion();
-  const [progress, setProgress] = useState(70);
-
-  useEffect(() => {
-    if (!isVisible || shouldReduceMotion) return;
-    const interval = setInterval(() => {
-      setProgress((prev) => (prev === 70 ? 92 : 70));
-    }, 2600);
-    return () => clearInterval(interval);
-  }, [isVisible, shouldReduceMotion]);
-
-  return (
-    <div ref={ref} className="w-full max-w-sm flex flex-col items-center">
-      <div className="w-full rounded-2xl border border-white/[0.08] bg-black/40 p-3.5 shadow-inner flex items-center justify-between gap-3">
-        {/* Progress Ring */}
-        <div className="relative flex h-20 w-20 shrink-0 items-center justify-center">
-          <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              stroke="rgba(255,255,255,0.06)"
-              strokeWidth="7"
-              fill="transparent"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              stroke="#E6C15A"
-              strokeWidth="7"
-              strokeDasharray={251.2}
-              strokeDashoffset={251.2 * (1 - progress / 100)}
-              strokeLinecap="round"
-              fill="transparent"
-              className="transition-all duration-700 ease-out"
-              style={{
-                filter: 'drop-shadow(0 0 6px rgba(230,193,90,0.4))',
-              }}
-            />
-          </svg>
-          <div className="absolute flex flex-col items-center">
-            <span className="font-hud text-sm font-bold text-white">{progress}%</span>
-          </div>
-        </div>
-
-        {/* Goal stats & reward badge */}
-        <div className="flex-1 text-left">
-          <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider">Daily Target</div>
-          <div className="font-hud text-sm font-bold text-white mt-0.5">2h 45m <span className="text-white/40 font-mono text-xs">/ 3h 00m</span></div>
-          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[9px] font-mono font-bold text-amber-300">
-            <Flame className="w-3 h-3 text-amber-400 fill-current" />
-            <span>+50 XP Streak Bonus</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LIVE DEMO 6: PRO AVATARS & STUDY ROOM FLAIRS
+   LIVE DEMO 5: PRO AVATARS & STUDY ROOM FLAIRS
    ═══════════════════════════════════════════════════════════════════════════ */
 function ScholarAvatarsDemo() {
   const { ref } = useTileVisibility(0.2);
@@ -1226,35 +1161,35 @@ export default function PremiumPage() {
               <FocusScenesDemo />
             </BentoCard>
 
-            {/* ROW 2: Daily Focus Targets (cols 1-6) */}
-            <BentoCard
-              title="Daily focus targets & goals"
-              caption="Custom daily study targets with live progress rings & streak rewards."
-              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
-              isPremium={isPremium}
-              href="/dashboard"
-              delayIndex={2}
-            >
-              <DailyGoalsDemo />
-            </BentoCard>
-
-            {/* ROW 2: Pro Avatars & Study Room Flairs (cols 7-12) */}
+            {/* ROW 2: Pro Avatars & Study Room Flairs (cols 1-6) */}
             <BentoCard
               title="Pro avatars & study room flairs"
               caption="Exclusive Cyber Visor avatar and glowing animated focus rings in study rooms."
               className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
               isPremium={isPremium}
               href="/dashboard"
-              delayIndex={3}
+              delayIndex={2}
             >
               <ScholarAvatarsDemo />
             </BentoCard>
 
-            {/* ROW 3: Weekly Report (cols 1-4) */}
+            {/* ROW 2: Scholar Crown (cols 7-12) */}
+            <BentoCard
+              title="Verified scholar badge"
+              caption="Distinctive gold verified crest beside your name everywhere."
+              className="lg:col-span-6 min-h-[250px] sm:min-h-[270px]"
+              isPremium={isPremium}
+              href="/?tab=leaderboard"
+              delayIndex={3}
+            >
+              <ScholarCrownDemo />
+            </BentoCard>
+
+            {/* ROW 3: Weekly Report (cols 1-6) */}
             <BentoCard
               title="Weekly report card"
               caption="This week vs last, subject focus balance at a glance."
-              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              className="lg:col-span-6 min-h-[240px] sm:min-h-[260px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={4}
@@ -1262,28 +1197,16 @@ export default function PremiumPage() {
               <WeeklyReportDemo />
             </BentoCard>
 
-            {/* ROW 3: Time Travel (cols 5-8) */}
+            {/* ROW 3: Time Travel (cols 7-12) */}
             <BentoCard
               title="Historical time travel"
               caption="Browse every past day and month with full session archives."
-              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
+              className="lg:col-span-6 min-h-[240px] sm:min-h-[260px]"
               isPremium={isPremium}
               href="/dashboard"
               delayIndex={5}
             >
               <TimeTravelDemo />
-            </BentoCard>
-
-            {/* ROW 3: Scholar Crown (cols 9-12) */}
-            <BentoCard
-              title="Verified scholar badge"
-              caption="Distinctive gold verified crest beside your name everywhere."
-              className="lg:col-span-4 min-h-[240px] sm:min-h-[260px]"
-              isPremium={isPremium}
-              href="/?tab=leaderboard"
-              delayIndex={6}
-            >
-              <ScholarCrownDemo />
             </BentoCard>
           </div>
         </section>
