@@ -29,7 +29,6 @@ import { RankTierName } from '../../lib/rankedSystem';
 import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout';
 import { PAYMENTS_ENABLED } from '../../config/billing';
 import { updateNativeStatusBar, registerBackButtonHandler } from '../../lib/native-feel';
-import { ComparisonTable } from '../../components/premium/showcase/ComparisonTable';
 import { ProAvatarRing } from '../../components/ui/ProAvatarRing';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { FlairCrown } from '../../components/common/FlairBadge';
@@ -1290,31 +1289,7 @@ export default function PremiumPage() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            SECTION 3: FULL PLAN COMPARISON TABLE
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section
-          id="comparison"
-          aria-labelledby="comparison-heading"
-          className="pt-8 pb-14 border-t border-white/[0.08]"
-        >
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <span className="text-[10px] font-hud font-bold tracking-widest uppercase text-[#E6C15A] px-3 py-1 rounded-full border border-[rgba(230,193,90,0.3)] bg-[#E6C15A]/10">
-                Plan Comparison
-              </span>
-              <h2 id="comparison-heading" className="mt-3 font-hud text-2xl font-bold text-white">
-                Free vs. study.io Pro
-              </h2>
-              <p className="mt-1 text-xs text-white/50">
-                Detailed breakdown of every feature and tier capability.
-              </p>
-            </div>
-            <ComparisonTable />
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION 4: PRICING / STATUS (Exact Existing Source Logic)
+            SECTION 3: PRICING / STATUS (Exact Existing Source Logic)
             ═══════════════════════════════════════════════════════════════════ */}
         <section
           id="pricing"
