@@ -106,6 +106,10 @@ export function SwipeTabContainer({
   // Fast native check for non-swipable elements without layout thrashing / getComputedStyle loops
   const isNonSwipable = useCallback((target: HTMLElement | null): boolean => {
     if (!target) return false;
+    // If any modal, dialog, or overlay is currently active in the DOM, tab swipe is strictly disabled
+    if (typeof document !== 'undefined' && document.querySelector('[role="dialog"], [aria-modal="true"], .fixed.inset-0.z-50, .fixed.inset-0.z-\\[60\\]')) {
+      return true;
+    }
     const nonSwipable = target.closest(
       'input, textarea, select, [data-no-swipe="true"], .overflow-x-auto, .overflow-x-scroll'
     );

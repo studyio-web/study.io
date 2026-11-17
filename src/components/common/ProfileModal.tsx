@@ -217,7 +217,16 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-no-swipe="true"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden pointer-events-auto touch-pan-y"
+          style={{ touchAction: 'pan-y' }}
+        >
           {/* Backdrop Overlay */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -235,7 +244,9 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="bg-white/[0.07] backdrop-blur-3xl border border-white/20 rounded-2xl w-full max-w-md my-auto max-h-[90vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative z-10"
+            data-no-swipe="true"
+            className="bg-white/[0.07] backdrop-blur-3xl border border-white/20 rounded-2xl w-full max-w-md my-auto max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative z-10 touch-pan-y"
+            style={{ touchAction: 'pan-y' }}
           >
             {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10 shrink-0 bg-white/[0.02]">
@@ -300,9 +311,9 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
               </div>
             </div>
             
-            {/* Presets Row */}
-            <div className="pt-2 mt-2 border-t border-white/5 pb-1">
-              <div className="flex items-center gap-2.5 w-max p-2 bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-x-auto scrollbar-none">
+            {/* Presets Row - Perfectly fits all 6 presets + vault trigger without horizontal overflow or swiping */}
+            <div className="pt-2 mt-2 border-t border-white/5 pb-1 w-full overflow-hidden" data-no-swipe="true">
+              <div className="flex items-center justify-between w-full p-1.5 sm:p-2 bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
                 {PRESET_AVATARS.map((url, i) => {
                   const isActive = avatarUrl === url;
                   return (
@@ -310,7 +321,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                       type="button"
                       key={i}
                       onClick={() => setAvatarUrl(url)}
-                      className={`relative w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden transition-all shrink-0 cursor-pointer ${
+                      className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center overflow-hidden transition-all shrink-0 cursor-pointer ${
                         isActive
                           ? 'ring-2 ring-amber-500 scale-105 z-10 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
                           : 'border border-white/10 opacity-70 hover:opacity-100 hover:scale-105 hover:border-amber-500/50 hover:bg-amber-500/10'
@@ -325,10 +336,10 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                 <button
                   type="button"
                   onClick={() => setIsVaultOpen(true)}
-                  className="w-10 h-10 rounded-xl border border-dashed border-white/20 bg-white/[0.03] flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:border-amber-400/50 hover:bg-amber-500/[0.05] transition-all cursor-pointer shrink-0"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl border border-dashed border-white/20 bg-white/[0.03] flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:border-amber-400/50 hover:bg-amber-500/[0.05] transition-all cursor-pointer shrink-0"
                   title="More Avatars"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>
@@ -439,7 +450,16 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
       {/* Avatar Vault Modal */}
       <AnimatePresence>
         {isVaultOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden pointer-events-auto">
+          <div
+            role="dialog"
+            aria-modal="true"
+            data-no-swipe="true"
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden pointer-events-auto touch-pan-y"
+            style={{ touchAction: 'pan-y' }}
+          >
             {/* Vault Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -456,7 +476,9 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white/[0.07] backdrop-blur-3xl border border-amber-500/20 rounded-2xl w-full max-w-xl my-auto max-h-[85vh] overflow-y-auto shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative flex flex-col z-10"
+              data-no-swipe="true"
+              className="bg-white/[0.07] backdrop-blur-3xl border border-amber-500/20 rounded-2xl w-full max-w-xl my-auto max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-[0_8px_32px_rgba(0,0,0,0.7)] relative flex flex-col z-10 touch-pan-y"
+              style={{ touchAction: 'pan-y' }}
             >
             {/* Vault Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0 bg-white/[0.02]">
