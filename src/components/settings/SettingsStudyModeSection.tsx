@@ -39,22 +39,22 @@ export function SettingsStudyModeSection() {
   };
 
   return (
-    <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] shadow-sm flex flex-col gap-3">
+    <div className="p-5 rounded-2xl hud-surface border border-[var(--border)] shadow-sm flex flex-col gap-3.5">
       {/* Section Header */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3.5">
           <div
-            className="w-9 h-9 rounded-xl bg-fg/[0.04] border border-[var(--border)] flex items-center justify-center flex-shrink-0"
+            className="w-10 h-10 rounded-xl bg-fg/[0.04] border border-[var(--border)] flex items-center justify-center flex-shrink-0"
             style={{ color: 'var(--accent)' }}
           >
-            <Compass className="w-4 h-4" />
+            <Compass className="w-5 h-5" />
           </div>
           <div>
             <div className="text-xs font-hud font-bold tracking-wider text-[var(--text)] uppercase">
-              Study mode
+              STUDY MODE CONFIGURATION
             </div>
-            <div className="text-[11px] text-[var(--text-dim)] font-mono">
-              Changing mode keeps all your subjects and history.
+            <div className="text-[11px] text-[var(--text-dim)] mt-0.5">
+              Switch between Focus mode (single timer) and Subject mode (subject tracking).
             </div>
           </div>
         </div>

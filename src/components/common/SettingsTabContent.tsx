@@ -27,6 +27,7 @@ import { TierIcon } from './TierIcon';
 import { RankCrestBadge } from './RankCrestBadge';
 import { ThemePicker } from '../settings/ThemePicker';
 import { SettingsPlanSection } from '../settings/SettingsPlanSection';
+import { SettingsStudyModeSection } from '../settings/SettingsStudyModeSection';
 
 export function SettingsTabContent() {
   const { user, deleteAccount } = useAuth();
@@ -141,6 +142,9 @@ export function SettingsTabContent() {
 
       {/* Appearance / Theme Selector */}
       <ThemePicker />
+
+      {/* Study Mode: Focus Mode vs Subject Mode */}
+      <SettingsStudyModeSection />
 
       {/* Account & Session Telemetry */}
       <div className="p-5 rounded-2xl hud-surface border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
