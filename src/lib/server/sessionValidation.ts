@@ -91,20 +91,24 @@ export async function validateAndSaveSession(
         : null;
 
     if (clientSessionId) {
-      const { data: existingSession, error: checkError } = await dbClient
-        .from('study_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('client_session_id', clientSessionId)
-        .maybeSingle();
+      try {
+        const { data: existingSession, error: checkError } = await dbClient
+          .from('study_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('client_session_id', clientSessionId)
+          .maybeSingle();
 
-      if (!checkError && existingSession) {
-        return {
-          success: true,
-          session: existingSession,
-          calculatedSeconds: Number(existingSession.duration_seconds || 0),
-          reason: 'Session already recorded (idempotent duplicate request ignored).',
-        };
+        if (!checkError && existingSession) {
+          return {
+            success: true,
+            session: existingSession,
+            calculatedSeconds: Number(existingSession.duration_seconds || 0),
+            reason: 'Session already recorded (idempotent duplicate request ignored).',
+          };
+        }
+      } catch {
+        // If client_session_id column does not exist or query fails, ignore idempotency check
       }
     }
 
@@ -246,31 +250,48 @@ export async function validateAndSaveSession(
       ended_at: endTime.toISOString(),
       notes: input.notes && input.notes.trim().length > 0 ? input.notes.trim() : null,
       mode: input.mode || 'stopwatch',
-      client_session_id: clientSessionId,
     };
 
-    const { data, error: insertError } = await dbClient
+    if (clientSessionId) {
+      payload.client_session_id = clientSessionId;
+    }
+
+    let { data, error: insertError } = await dbClient
       .from('study_sessions')
       .insert([payload])
       .select();
 
+    // If client_session_id column does not exist in schema (code 42703), retry immediately without it
+    if (insertError && (insertError.code === '42703' || insertError.message?.toLowerCase().includes('client_session_id'))) {
+      const { client_session_id: _omit, ...cleanPayload } = payload;
+      const retryRes = await dbClient
+        .from('study_sessions')
+        .insert([cleanPayload])
+        .select();
+
+      data = retryRes.data;
+      insertError = retryRes.error;
+    }
+
     if (insertError) {
       // If code 23505 (unique constraint on client_session_id), retrieve the existing row
       if (insertError.code === '23505' && clientSessionId) {
-        const { data: dup } = await dbClient
-          .from('study_sessions')
-          .select('*')
-          .eq('client_session_id', clientSessionId)
-          .maybeSingle();
+        try {
+          const { data: dup } = await dbClient
+            .from('study_sessions')
+            .select('*')
+            .eq('client_session_id', clientSessionId)
+            .maybeSingle();
 
-        if (dup) {
-          return {
-            success: true,
-            session: dup,
-            calculatedSeconds: Number(dup.duration_seconds || 0),
-            reason: 'Session already recorded (idempotent constraint hit).',
-          };
-        }
+          if (dup) {
+            return {
+              success: true,
+              session: dup,
+              calculatedSeconds: Number(dup.duration_seconds || 0),
+              reason: 'Session already recorded (idempotent constraint hit).',
+            };
+          }
+        } catch {}
       }
       console.error('[Anti-Tamper] Supabase insert error for study_sessions:', insertError);
       return { success: false, error: insertError.message };

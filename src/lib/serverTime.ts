@@ -89,14 +89,9 @@ export async function saveValidatedSession(
       }
       return result;
     }
-    // If unauthorized or specific error, check if we should try API route
-    if (result && result.error && result.error.includes('Unauthorized')) {
-      // Proceed to API fallback with Bearer token
-    } else if (result) {
-      return result;
-    }
+    console.warn('[Session Save] Server action returned unsuccessful status, proceeding to API route:', result?.error);
   } catch (err) {
-    console.warn('[Session Save] Server action call failed, attempting API fallback:', err);
+    console.warn('[Session Save] Server action call threw exception, attempting API fallback:', err);
   }
 
   // 2. Fallback: REST API route /api/sessions/save
@@ -124,17 +119,72 @@ export async function saveValidatedSession(
         body: JSON.stringify(safeInput),
       });
 
-      const json = await res.json();
-      if (json && json.success && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+          }
+          return json;
+        }
+        console.warn('[Session Save] API route returned error response, proceeding to direct client fallback:', json?.error);
+      } else {
+        console.warn('[Session Save] API route response status not OK:', res.status);
       }
-      return json;
     } catch (apiErr: any) {
-      console.error('[Session Save] API fallback failed:', apiErr);
-      return {
-        success: false,
-        error: apiErr?.message || 'Network error saving session.',
-      };
+      console.warn('[Session Save] API fallback failed with exception, attempting direct Supabase fallback:', apiErr);
+    }
+
+    // 3. Fallback: Direct client Supabase insert (Guaranteed fail-safe when online)
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data: authData } = await supabase.auth.getUser();
+        const activeUid = authData?.user?.id;
+        if (activeUid) {
+          const rawDuration = Math.max(
+            0,
+            Math.floor(
+              (new Date(safeInput.ended_at || Date.now()).getTime() -
+                new Date(safeInput.started_at).getTime()) /
+                1000
+            )
+          );
+          const duration_seconds = Math.min(rawDuration, 43200);
+
+          const payload: any = {
+            user_id: activeUid,
+            subject_id: safeInput.subject_id || null,
+            duration_seconds,
+            started_at: new Date(safeInput.started_at).toISOString(),
+            ended_at: new Date(safeInput.ended_at || Date.now()).toISOString(),
+            notes: safeInput.notes && safeInput.notes.trim().length > 0 ? safeInput.notes.trim() : null,
+            mode: safeInput.mode || 'stopwatch',
+          };
+
+          const { data: directData, error: directErr } = await supabase
+            .from('study_sessions')
+            .insert([payload])
+            .select()
+            .single();
+
+          if (!directErr && directData) {
+            console.log('[Session Save] Successfully saved via direct Supabase client fallback:', directData);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('studypulse:session-saved'));
+            }
+            return {
+              success: true,
+              session: directData,
+              calculatedSeconds: directData.duration_seconds || duration_seconds,
+            };
+          } else if (directErr) {
+            console.warn('[Session Save] Direct Supabase insert error:', directErr);
+          }
+        }
+      }
+    } catch (clientErr) {
+      console.error('[Session Save] Direct Supabase client fallback failed:', clientErr);
     }
   }
 

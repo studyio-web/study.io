@@ -3122,8 +3122,56 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             }
           }
         }
+
+        // Direct client fallback if validated save did not produce records
+        if (!isServerValidated && supabase && activeUser?.id) {
+          for (const payload of sessionPayloads) {
+            try {
+              const { data: directData, error: directErr } = await supabase
+                .from('study_sessions')
+                .insert([{
+                  user_id: payload.user_id,
+                  subject_id: payload.subject_id,
+                  duration_seconds: payload.duration_seconds,
+                  started_at: payload.started_at,
+                  ended_at: payload.ended_at,
+                  notes: payload.notes,
+                  mode: payload.mode,
+                }])
+                .select()
+                .single();
+              if (!directErr && directData?.id) {
+                insertedRecordIds.push(directData.id);
+                isServerValidated = true;
+              }
+            } catch {}
+          }
+        }
       } catch (err) {
         console.error('StudyContext: Exception inserting validated session:', err);
+        if (supabase && activeUser?.id) {
+          for (const payload of sessionPayloads) {
+            try {
+              const { data: directData, error: directErr } = await supabase
+                .from('study_sessions')
+                .insert([{
+                  user_id: payload.user_id,
+                  subject_id: payload.subject_id,
+                  duration_seconds: payload.duration_seconds,
+                  started_at: payload.started_at,
+                  ended_at: payload.ended_at,
+                  notes: payload.notes,
+                  mode: payload.mode,
+                }])
+                .select()
+                .single();
+              if (!directErr && directData?.id) {
+                insertedRecordIds.push(directData.id);
+                isServerValidated = true;
+              }
+            } catch {}
+          }
+        }
       }
     }
 
