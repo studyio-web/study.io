@@ -42,6 +42,7 @@ import Image from 'next/image';
 import { getRankIconPath } from '../../utils/rankIcons';
 import { FacetedGearIcon } from './GeometricIcons';
 import { hapticTick } from '@/lib/haptics';
+import { registerBackButtonHandler } from '@/lib/native-feel';
 
 export type NavTabType = 'timer' | 'tasks' | 'analytics' | 'leaderboard' | 'settings' | 'rooms';
 
@@ -127,6 +128,22 @@ export function Navbar({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showPersonaMenu]);
+
+  // Handle hardware Android back button to dismiss persona dropdown or help modal
+  useEffect(() => {
+    if (!showPersonaMenu && !isHelpOpen) return;
+    return registerBackButtonHandler(() => {
+      if (isHelpOpen) {
+        setIsHelpOpen(false);
+        return true;
+      }
+      if (showPersonaMenu) {
+        setShowPersonaMenu(false);
+        return true;
+      }
+      return false;
+    });
+  }, [showPersonaMenu, isHelpOpen]);
 
   // Sync fullscreen state with document fullscreenchange events & vendor fallbacks
   useEffect(() => {
@@ -597,7 +614,10 @@ export function Navbar({
                   </button>
 
                   <button
-                    onClick={() => { onOpenSettings(); setShowPersonaMenu(false); }}
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setShowPersonaMenu(false);
+                    }}
                     className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text)] hover:bg-fg/[0.06] border border-transparent hover:border-fg/10 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
                   >
                     <FacetedGearIcon className="w-3.5 h-3.5 text-[var(--text-dim)]" />

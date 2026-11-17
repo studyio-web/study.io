@@ -13,6 +13,8 @@ import { preloadRankAdvancement } from '../lib/preloadRankBadges';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useThemeColorOverride } from '../hooks/useThemeColorOverride';
+import { Capacitor } from '@capacitor/core';
+import { registerBackButtonHandler } from '../lib/native-feel';
 
 interface RankSettlementModalProps {
   isOpen: boolean;
@@ -118,6 +120,28 @@ export function RankSettlementModal({
   const [showProgress, setShowProgress] = useState(false);
   const [showContinue, setShowContinue] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+
+  const [isAndroid, setIsAndroid] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsAndroid(
+      (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') ||
+      Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+      Boolean(navigator?.userAgent && (
+        navigator.userAgent.includes('StudyIoNativeApp') ||
+        /Android/i.test(navigator.userAgent)
+      ))
+    );
+  }, []);
+
+  // Hardware Android back button closes info popup modal if open
+  useEffect(() => {
+    if (!showInfoModal) return;
+    return registerBackButtonHandler(() => {
+      setShowInfoModal(false);
+      return true;
+    });
+  }, [showInfoModal]);
 
   // Reveal Animation States
   const [punchMode, setPunchMode] = useState<'idle' | 'small' | 'large'>('idle');
@@ -559,7 +583,7 @@ export function RankSettlementModal({
           onContinue();
         }
       }}
-      className="fixed inset-0 z-50 bg-[#07090e]/98 backdrop-blur-md flex flex-col items-center justify-center select-none overflow-y-auto px-4 pt-[max(env(safe-area-inset-top,0px)+52px,60px)] pb-[max(env(safe-area-inset-bottom,0px)+24px,28px)] animate-in fade-in duration-300"
+      className="fixed inset-0 z-50 bg-[#07090e]/98 backdrop-blur-md flex flex-col items-center justify-center select-none overflow-hidden px-4 pt-[max(env(safe-area-inset-top,0px)+52px,60px)] pb-[max(env(safe-area-inset-bottom,0px)+24px,28px)] animate-in fade-in duration-300"
     >
       {/* "How Rank Works" Info button in top-right (replaces unwanted cross icon) */}
       <button
@@ -948,10 +972,12 @@ export function RankSettlementModal({
             <span>CONTINUE &gt;</span>
           </button>
 
-          {/* Keyboard Hint */}
-          <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase mt-3">
-            PRESS SPACEBAR OR ENTER TO CONTINUE
-          </span>
+          {/* Keyboard Hint: Visible on desktop with physical keyboards, completely hidden in Android app and mobile screens */}
+          {!isAndroid && (
+            <span className="hidden sm:inline-block text-[10px] text-slate-500 font-mono tracking-widest uppercase mt-3">
+              PRESS SPACEBAR OR ENTER TO CONTINUE
+            </span>
+          )}
         </div>
 
       </div>

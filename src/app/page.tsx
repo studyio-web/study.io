@@ -25,6 +25,7 @@ import { useStudyMode } from '../context/StudyModeContext';
 import { getCachedUserState } from '../lib/userCache';
 import { setupNotificationListeners } from '../lib/notifications';
 import { initPushNotifications } from '../lib/pushNotifications';
+import { registerBackButtonHandler } from '../lib/native-feel';
 
 // Lazy-load inactive tabs so chart, tasks, leaderboard, and WebRTC room libraries are deferred
 const TasksOverview = dynamic(
@@ -149,6 +150,7 @@ export default function Home() {
     seasonResetAlert,
     dismissSeasonResetAlert,
     isFocusModeOpen,
+    setIsFocusModeOpen,
   } = useStudy();
 
   // Navigation tabs: Timer, Tasks, Analytics, Leaderboard, Rooms, Settings
@@ -170,8 +172,12 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       try {
         const url = new URL(window.location.href);
-        url.searchParams.set('tab', newTab);
-        window.history.replaceState({}, '', url.toString());
+        if (newTab === 'timer') {
+          url.searchParams.delete('tab');
+        } else {
+          url.searchParams.set('tab', newTab);
+        }
+        window.history.pushState({ tab: newTab }, '', url.toString());
       } catch {}
     }
   }, []);
@@ -205,8 +211,8 @@ export default function Home() {
     const checkTab = () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const t = params.get('tab');
-        if (t && ['timer', 'tasks', 'analytics', 'leaderboard', 'settings', 'rooms'].includes(t)) {
+        const t = params.get('tab') || 'timer';
+        if (['timer', 'tasks', 'analytics', 'leaderboard', 'settings', 'rooms'].includes(t)) {
           setActiveTab(t as NavTabType);
         }
       } catch {}
@@ -215,11 +221,81 @@ export default function Home() {
     window.addEventListener('popstate', checkTab);
     return () => window.removeEventListener('popstate', checkTab);
   }, []);
+
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showDailyBoost, setShowDailyBoost] = useState(false);
   const hasTriggeredBoostRef = useRef(false);
+
+  // Hardware Android Back Button management via Native Feel Bridge:
+  // - Close any open modal / banner first
+  // - If in any secondary tab (tasks, analytics, rooms, leaderboard, settings), come back to 'timer' tab!
+  // - Only exit the app if already on 'timer' tab with no open modals
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (settlementData) {
+        dismissRankSettlement();
+        return true;
+      }
+      if (isSettingsOpen) {
+        setIsSettingsOpen(false);
+        return true;
+      }
+      if (isProfileOpen) {
+        setIsProfileOpen(false);
+        return true;
+      }
+      if (isAuthOpen) {
+        setIsAuthOpen(false);
+        return true;
+      }
+      if (showDailyBoost) {
+        setShowDailyBoost(false);
+        return true;
+      }
+      if (seasonRecap) {
+        dismissSeasonRecap();
+        return true;
+      }
+      if (seasonResetAlert) {
+        dismissSeasonResetAlert();
+        return true;
+      }
+      if (levelUpData) {
+        dismissLevelUpModal();
+        return true;
+      }
+      if (isFocusModeOpen) {
+        setIsFocusModeOpen(false);
+        return true;
+      }
+
+      if (activeTab !== 'timer') {
+        handleTabChange('timer');
+        return true;
+      }
+
+      return false; // Exit app at root timer tab
+    });
+  }, [
+    settlementData,
+    isSettingsOpen,
+    isProfileOpen,
+    isAuthOpen,
+    showDailyBoost,
+    seasonRecap,
+    seasonResetAlert,
+    levelUpData,
+    isFocusModeOpen,
+    activeTab,
+    dismissRankSettlement,
+    dismissSeasonRecap,
+    dismissSeasonResetAlert,
+    dismissLevelUpModal,
+    setIsFocusModeOpen,
+    handleTabChange,
+  ]);
 
   // Today's Boost Welcome Modal (Trigger on every session / sign-in)
   useEffect(() => {
@@ -374,7 +450,7 @@ export default function Home() {
           setActiveTab={handleTabChange}
           onOpenAuth={() => setIsAuthOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => handleTabChange('settings')}
         />
 
         {/* Monthly Season Settlement Recap Banner */}
@@ -403,7 +479,7 @@ export default function Home() {
                 <ErrorBoundary fallbackTitle="Analytics Dashboard">
                   <AnalyticsDashboard
                     onStartSession={() => handleTabChange('timer')}
-                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    onOpenSettings={() => handleTabChange('settings')}
                   />
                 </ErrorBoundary>
               ),

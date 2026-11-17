@@ -34,6 +34,7 @@ import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
 import ActiveRoom from './ActiveRoom';
 import { hapticMedium, hapticTick } from '@/lib/haptics';
+import { registerBackButtonHandler } from '@/lib/native-feel';
 
 function parseHoursMinutes(totalSeconds: number) {
   const safe = Math.max(0, Math.round(totalSeconds || 0));
@@ -132,6 +133,61 @@ CREATE POLICY "Hosts can update their own study rooms"
   const [codeLookupError, setCodeLookupError] = useState('');
 
   const realtimeChannelRef = useRef<any>(null);
+
+  // Hardware Android Back Button interceptor for room modals and views
+  useEffect(() => {
+    const hasAnySubView = Boolean(
+      activeRoomId ||
+      isExploreView ||
+      editingRoom ||
+      roomToDelete ||
+      isCreateModalOpen ||
+      selectedRoomToJoin ||
+      isJoinCodeModalOpen
+    );
+    if (!hasAnySubView) return;
+
+    return registerBackButtonHandler(() => {
+      if (roomToDelete) {
+        setRoomToDelete(null);
+        return true;
+      }
+      if (isCreateModalOpen) {
+        setIsCreateModalOpen(false);
+        return true;
+      }
+      if (selectedRoomToJoin) {
+        setSelectedRoomToJoin(null);
+        return true;
+      }
+      if (isJoinCodeModalOpen) {
+        setIsJoinCodeModalOpen(false);
+        return true;
+      }
+      if (editingRoom) {
+        setEditingRoom(null);
+        return true;
+      }
+      if (activeRoomId) {
+        setActiveRoomId(null);
+        setActiveRoomInitialTab('home');
+        return true;
+      }
+      if (isExploreView) {
+        setIsExploreView(false);
+        return true;
+      }
+      return false;
+    });
+  }, [
+    activeRoomId,
+    isExploreView,
+    editingRoom,
+    roomToDelete,
+    isCreateModalOpen,
+    selectedRoomToJoin,
+    isJoinCodeModalOpen,
+  ]);
 
   // Helper to copy room code
   const handleCopyCode = (code: string, roomId: string, e: React.MouseEvent) => {

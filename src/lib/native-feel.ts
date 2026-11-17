@@ -15,6 +15,25 @@ export type HapticType =
   | 'warning'
   | 'error';
 
+export type BackButtonHandler = () => boolean | Promise<boolean>;
+
+const backButtonHandlers: BackButtonHandler[] = [];
+
+/**
+ * Registers a hardware back-button interceptor.
+ * Handlers run in LIFO order (last registered runs first).
+ * If a handler returns `true`, the back action is considered consumed and halts further processing.
+ */
+export function registerBackButtonHandler(handler: BackButtonHandler): () => void {
+  backButtonHandlers.push(handler);
+  return () => {
+    const idx = backButtonHandlers.indexOf(handler);
+    if (idx !== -1) {
+      backButtonHandlers.splice(idx, 1);
+    }
+  };
+}
+
 /**
  * Triggers native haptic feedback on mobile devices via Capacitor Haptics,
  * falls back to navigator.vibrate on mobile browsers, and degrades silently on desktop.
@@ -102,13 +121,26 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
 
       // 2. Hardware Back Button handler
       if (Capacitor.isPluginAvailable('App')) {
-        const handle = await App.addListener('backButton', ({ canGoBack }) => {
-          // Check for any open modal / dialog
+        const handle = await App.addListener('backButton', async ({ canGoBack }) => {
+          // 1. Run custom registered handlers in LIFO order (latest registered runs first)
+          for (let i = backButtonHandlers.length - 1; i >= 0; i--) {
+            try {
+              const handled = await backButtonHandlers[i]();
+              if (handled) {
+                triggerHaptic('light');
+                return;
+              }
+            } catch (err) {
+              console.warn('Native Android back button handler error:', err);
+            }
+          }
+
+          // 2. Check for any open modal / dialog in DOM
           const openDialog = document.querySelector('[role="dialog"], [aria-modal="true"]');
           if (openDialog) {
             // Priority: Click existing close button or fire Escape
             const closeBtn = openDialog.querySelector<HTMLElement>(
-              'button[aria-label*="close" i], button[title*="close" i], button.modal-close'
+              'button[aria-label*="close" i], button[title*="close" i], button.modal-close, button[aria-label*="dismiss" i]'
             );
             if (closeBtn) {
               closeBtn.click();
@@ -120,12 +152,23 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
             return;
           }
 
-          // If history can go back, navigate back
+          // 3. Fallback: check if active tab from URL query is not timer (always return to timer first)
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const currentTab = params.get('tab');
+            if (currentTab && currentTab !== 'timer') {
+              window.dispatchEvent(new CustomEvent('switch_tab', { detail: 'timer' }));
+              triggerHaptic('light');
+              return;
+            }
+          } catch {}
+
+          // 4. If history can go back, navigate back
           if (canGoBack && window.history.length > 1) {
             window.history.back();
             triggerHaptic('light');
           } else {
-            // Exit app at root view
+            // Exit app at root timer view
             App.exitApp();
           }
         });
