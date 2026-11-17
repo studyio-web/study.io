@@ -52,12 +52,20 @@ export function enterFullscreenSafely() {
       }
     }
   } catch {}
+
+  // 4. Web Screen Orientation API (Lock to landscape)
+  try {
+    const orientation = window.screen?.orientation as any;
+    if (orientation?.lock) {
+      orientation.lock('landscape').catch(() => {});
+    }
+  } catch {}
 }
 
 export function exitFullscreenSafely() {
   if (typeof window === 'undefined') return;
 
-  // 1. Android Native Bridge (Restores top status bar and bottom gesture navigation bar)
+  // 1. Android Native Bridge (Restores portrait mode & top/bottom system bars)
   try {
     const androidBridge = (window as any).AndroidFullscreenBridge;
     if (androidBridge?.exitFullscreen) {
@@ -90,10 +98,14 @@ export function exitFullscreenSafely() {
     }
   } catch {}
 
-  // 4. Orientation unlock if locked
+  // 4. Web Screen Orientation API (Lock strictly back to portrait)
   try {
     const orientation = window.screen?.orientation as any;
-    if (orientation?.unlock) {
+    if (orientation?.lock) {
+      orientation.lock('portrait').catch(() => {
+        if (orientation?.unlock) orientation.unlock();
+      });
+    } else if (orientation?.unlock) {
       orientation.unlock();
     }
   } catch {}
@@ -146,6 +158,35 @@ export function FocusModeModal() {
       exitFullscreenSafely();
     }
   }, [isFocusModeOpen]);
+
+  // Listen for native exit event (e.g. phone turned back upright to portrait)
+  useEffect(() => {
+    if (!isFocusModeOpen) return;
+
+    const handleExitFocus = () => {
+      setIsFocusModeOpen(false);
+      exitFullscreenSafely();
+    };
+
+    window.addEventListener('studyio:exit-focus-mode', handleExitFocus);
+
+    // Auto-exit if viewport media query turns portrait while in focus mode
+    const mql = window.matchMedia('(orientation: portrait)');
+    const handlePortrait = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        setIsFocusModeOpen(false);
+        exitFullscreenSafely();
+      }
+    };
+    if (mql.addEventListener) mql.addEventListener('change', handlePortrait);
+    else mql.addListener(handlePortrait);
+
+    return () => {
+      window.removeEventListener('studyio:exit-focus-mode', handleExitFocus);
+      if (mql.removeEventListener) mql.removeEventListener('change', handlePortrait);
+      else mql.removeListener(handlePortrait);
+    };
+  }, [isFocusModeOpen, setIsFocusModeOpen]);
 
   const handlePause = () => {
     pauseTimer();

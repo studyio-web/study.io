@@ -3,10 +3,12 @@ package com.studyio.app;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.HapticFeedbackConstants;
+import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -18,11 +20,16 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private boolean isImmersiveFullscreen = false;
+    private boolean hasManuallyExitedFullscreen = false;
+    private OrientationEventListener orientationEventListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(TimerNotificationPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Lock default app orientation strictly to portrait on launch
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         // Ensure social_nudges notification channel exists natively for FCM background delivery
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -64,12 +71,20 @@ public class MainActivity extends BridgeActivity {
             getBridge().getWebView().addJavascriptInterface(new Object() {
                 @JavascriptInterface
                 public void enterFullscreen() {
-                    applyImmersiveMode(true);
+                    runOnUiThread(() -> {
+                        hasManuallyExitedFullscreen = false;
+                        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                        applyImmersiveMode(true);
+                    });
                 }
 
                 @JavascriptInterface
                 public void exitFullscreen() {
-                    applyImmersiveMode(false);
+                    runOnUiThread(() -> {
+                        hasManuallyExitedFullscreen = true;
+                        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                        applyImmersiveMode(false);
+                    });
                 }
 
                 @JavascriptInterface
@@ -87,7 +102,56 @@ public class MainActivity extends BridgeActivity {
             }, "AndroidFullscreenBridge");
         }
 
+        // Native orientation sensor: auto-open focus mode on physical landscape rotation,
+        // but automatically exit back to portrait when phone is returned upright.
+        orientationEventListener = new OrientationEventListener(this) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
+
+                boolean isLandscapeAngle = (orientation >= 60 && orientation <= 120) || (orientation >= 240 && orientation <= 300);
+                boolean isPortraitAngle = (orientation >= 330 || orientation <= 30) || (orientation >= 150 && orientation <= 210);
+
+                if (isPortraitAngle) {
+                    hasManuallyExitedFullscreen = false;
+                    if (isImmersiveFullscreen) {
+                        runOnUiThread(() -> {
+                            if (getBridge() != null && getBridge().getWebView() != null) {
+                                getBridge().getWebView().evaluateJavascript(
+                                    "window.dispatchEvent(new CustomEvent('studyio:exit-focus-mode'));",
+                                    null
+                                );
+                            }
+                        });
+                    }
+                } else if (isLandscapeAngle) {
+                    if (!isImmersiveFullscreen && !hasManuallyExitedFullscreen) {
+                        runOnUiThread(() -> {
+                            if (getBridge() != null && getBridge().getWebView() != null) {
+                                getBridge().getWebView().evaluateJavascript(
+                                    "window.dispatchEvent(new CustomEvent('studyio:open-focus-mode'));",
+                                    null
+                                );
+                            }
+                        });
+                    }
+                }
+            }
+        };
+
+        if (orientationEventListener.canDetectOrientation()) {
+            orientationEventListener.enable();
+        }
+
         handleNotificationIntent(getIntent());
+    }
+
+    @Override
+    public void onDestroy() {
+        if (orientationEventListener != null) {
+            orientationEventListener.disable();
+        }
+        super.onDestroy();
     }
 
     @Override

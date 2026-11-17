@@ -155,9 +155,16 @@ export function StudyTimer() {
 
   const [showDropdown, setShowDropdown] = useState(false);
   
-  // Auto-open Focus Mode on mobile landscape rotation
+  // Auto-open Focus Mode on mobile landscape rotation or native Android sensor rotation
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const handleOpenFocus = () => {
+      setIsFocusModeOpen(true);
+    };
+
+    window.addEventListener('studyio:open-focus-mode', handleOpenFocus);
+
     const mql = window.matchMedia('(orientation: landscape)');
     const handleOrientation = (e: MediaQueryListEvent) => {
       if (e.matches && window.innerWidth < 1024) {
@@ -169,6 +176,7 @@ export function StudyTimer() {
     else mql.addListener(handleOrientation); // fallback for older Safari
     
     return () => {
+      window.removeEventListener('studyio:open-focus-mode', handleOpenFocus);
       if (mql.removeEventListener) mql.removeEventListener('change', handleOrientation);
       else mql.removeListener(handleOrientation);
     };
