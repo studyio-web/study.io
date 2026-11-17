@@ -53,6 +53,7 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   hideTopBar?: boolean;
+  hideBottomBar?: boolean;
 }
 
 const StreakBadge = React.memo(function StreakBadge({ streak }: { streak: number }) {
@@ -76,6 +77,7 @@ export function Navbar({
   onOpenProfile,
   onOpenSettings,
   hideTopBar = false,
+  hideBottomBar = false,
 }: NavbarProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { isStudying, setIsFocusModeOpen, gamification, sessions } = useStudy();
@@ -85,7 +87,68 @@ export function Navbar({
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isKeyboardActive, setIsKeyboardActive] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Auto-hide mobile dock whenever user is typing in an input, textarea, or virtual keyboard is up
+  useEffect(() => {
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        setIsInputFocused(true);
+      }
+    };
+
+    const handleFocusOut = (e: FocusEvent) => {
+      const relatedTarget = e.relatedTarget as HTMLElement | null;
+      if (
+        relatedTarget &&
+        (relatedTarget.tagName === 'INPUT' ||
+          relatedTarget.tagName === 'TEXTAREA' ||
+          relatedTarget.isContentEditable)
+      ) {
+        return;
+      }
+      setIsInputFocused(false);
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
+
+  // Visual viewport resize detection for virtual keyboard opening
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleViewportResize = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const isKeyboard = window.innerHeight - vv.height > 120;
+      setIsKeyboardActive(isKeyboard);
+    };
+
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleViewportResize);
+    };
+  }, []);
+
+  const shouldHideBottom =
+    hideBottomBar ||
+    (hideTopBar && activeTab === 'rooms') ||
+    isInputFocused ||
+    isKeyboardActive;
 
   const handleTabClick = (tab: NavTabType) => {
     hapticTick();
@@ -674,86 +737,96 @@ export function Navbar({
     </header>
   )}
 
-    {/* Mobile Floating Dock Navigation: Full-width Pill with Sliding Tier Indicator */ }
-    < div className = "fixed bottom-3 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,16px)] pointer-events-none" >
-      <nav
-        aria-label="Mobile Floating Dock Navigation"
-        className="w-full max-w-md bg-[var(--surface)]/95 backdrop-blur-xl border border-[var(--border)] rounded-full p-1 shadow-card transition-all pointer-events-auto"
-      >
-        <div className="relative flex items-center justify-between w-full">
-          {/* Sliding active indicator pill in Tier Accent */}
-          <div
-            className="absolute top-0.5 bottom-0.5 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none bg-fg/[0.14] border border-fg/20 shadow-sm"
-            style={{
-              width: '25%',
-              transform: `translateX(${activeTab === 'timer'
-                ? '0%'
-                : activeTab === 'tasks'
-                  ? '100%'
-                  : activeTab === 'analytics'
-                    ? '200%'
-                    : activeTab === 'rooms'
-                      ? '300%'
-                      : '0%'
-                })`,
-              opacity: (activeTab === 'leaderboard' || activeTab === 'settings') ? 0 : 1,
-            }}
-          />
-
-          {/* Tab 1: Timer */}
-          <button
-            onClick={() => handleTabClick('timer')}
-            className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'timer'
-              ? 'text-[var(--text)] font-bold drop-shadow-sm'
-              : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            aria-label="Timer"
+    {/* Mobile Floating Dock Navigation: Full-width Pill with Sliding Tier Indicator */}
+    <AnimatePresence>
+      {!shouldHideBottom && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className="fixed bottom-3 sm:bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-3 pb-[env(safe-area-inset-bottom,16px)] pointer-events-none"
+        >
+          <nav
+            aria-label="Mobile Floating Dock Navigation"
+            className="w-full max-w-md bg-[var(--surface)]/95 backdrop-blur-xl border border-[var(--border)] rounded-full p-1 shadow-card transition-all pointer-events-auto"
           >
-            <Timer className="w-4 h-4" />
-            <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Timer</span>
-          </button>
+            <div className="relative flex items-center justify-between w-full">
+              {/* Sliding active indicator pill in Tier Accent */}
+              <div
+                className="absolute top-0.5 bottom-0.5 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none bg-fg/[0.14] border border-fg/20 shadow-sm"
+                style={{
+                  width: '25%',
+                  transform: `translateX(${activeTab === 'timer'
+                    ? '0%'
+                    : activeTab === 'tasks'
+                      ? '100%'
+                      : activeTab === 'analytics'
+                        ? '200%'
+                        : activeTab === 'rooms'
+                          ? '300%'
+                          : '0%'
+                    })`,
+                  opacity: (activeTab === 'leaderboard' || activeTab === 'settings') ? 0 : 1,
+                }}
+              />
 
-          {/* Tab 2: Tasks */}
-          <button
-            onClick={() => handleTabClick('tasks')}
-            className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'tasks'
-              ? 'text-[var(--text)] font-bold drop-shadow-sm'
-              : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            aria-label="Tasks"
-          >
-            <CheckSquare className="w-4 h-4" />
-            <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Tasks</span>
-          </button>
+              {/* Tab 1: Timer */}
+              <button
+                onClick={() => handleTabClick('timer')}
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'timer'
+                  ? 'text-[var(--text)] font-bold drop-shadow-sm'
+                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                  }`}
+                aria-label="Timer"
+              >
+                <Timer className="w-4 h-4" />
+                <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Timer</span>
+              </button>
 
-          {/* Tab 3: Analytics */}
-          <button
-            onClick={() => handleTabClick('analytics')}
-            className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'analytics'
-              ? 'text-[var(--text)] font-bold drop-shadow-sm'
-              : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            aria-label="Analytics"
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Stats</span>
-          </button>
+              {/* Tab 2: Tasks */}
+              <button
+                onClick={() => handleTabClick('tasks')}
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'tasks'
+                  ? 'text-[var(--text)] font-bold drop-shadow-sm'
+                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                  }`}
+                aria-label="Tasks"
+              >
+                <CheckSquare className="w-4 h-4" />
+                <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Tasks</span>
+              </button>
 
-          {/* Tab 4: Rooms */}
-          <button
-            onClick={() => handleTabClick('rooms')}
-            className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'rooms'
-              ? 'text-[var(--text)] font-bold drop-shadow-sm'
-              : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            aria-label="Rooms"
-          >
-            <Users className="w-4 h-4" />
-            <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Rooms</span>
-          </button>
-        </div>
-      </nav>
-    </div>
+              {/* Tab 3: Analytics */}
+              <button
+                onClick={() => handleTabClick('analytics')}
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'analytics'
+                  ? 'text-[var(--text)] font-bold drop-shadow-sm'
+                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                  }`}
+                aria-label="Analytics"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Stats</span>
+              </button>
+
+              {/* Tab 4: Rooms */}
+              <button
+                onClick={() => handleTabClick('rooms')}
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${activeTab === 'rooms'
+                  ? 'text-[var(--text)] font-bold drop-shadow-sm'
+                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                  }`}
+                aria-label="Rooms"
+              >
+                <Users className="w-4 h-4" />
+                <span className="text-[8.5px] font-hud font-bold tracking-wider uppercase mt-0.5">Rooms</span>
+              </button>
+            </div>
+          </nav>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* Help & Feedback Modal */}
     <HelpFeedbackModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />

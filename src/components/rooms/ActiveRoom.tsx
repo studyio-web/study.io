@@ -2218,7 +2218,7 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       <div className={`flex-1 min-h-0 w-full overflow-x-hidden ${roomTab === 'chat' ? 'flex flex-col' : 'overflow-y-auto p-4 scrollbar-thin'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
         {roomTab === 'home' && (
-          <div className="flex flex-col items-center w-full min-h-full pb-32 md:pb-24">
+          <div className="flex flex-col items-center w-full min-h-full pb-24 md:pb-20">
             <div className="flex flex-wrap gap-8 justify-center items-start mt-8 pb-4 w-full">
               {displayUsers.map((u, i) => {
               const isStudying = u.is_studying;
@@ -2520,8 +2520,8 @@ CREATE POLICY "Hosts can update their own study rooms"
               </div>
             </div>
 
-            {/* Input Form Dock positioned neatly above mobile floating bottom dock */}
-            <form onSubmit={handleSendMessage} className="px-3 pt-2 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shrink-0 z-20">
+            {/* Input Form Dock positioned neatly at bottom above safe area / keyboard */}
+            <form onSubmit={handleSendMessage} className="px-3 pt-2 pb-[max(env(safe-area-inset-bottom,0px),12px)] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shrink-0 z-20">
               <div className="max-w-3xl w-full mx-auto">
                 <div className="w-full bg-[var(--surface-2)] border border-[var(--border)] focus-within:border-[var(--accent)]/60 focus-within:ring-2 focus-within:ring-[var(--accent)]/20 rounded-2xl p-1.5 pl-4 flex items-center gap-2 transition-all shadow-inner">
                   <input
@@ -2548,7 +2548,7 @@ CREATE POLICY "Hosts can update their own study rooms"
 
 
         {roomTab === 'settings' && (
-          <div className="max-w-2xl mx-auto w-full py-4 sm:py-6 space-y-6 animate-in fade-in duration-200 pb-36">
+          <div className="max-w-2xl mx-auto w-full py-4 sm:py-6 space-y-6 animate-in fade-in duration-200 pb-24 md:pb-20">
             {/* Host Banner */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/10 via-white/[0.02] to-transparent border border-amber-500/20 p-5 sm:p-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -3176,7 +3176,7 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       {/* Floating Bottom Focus Timer Dock (Start & Pause) - Compact, Translucent & Bottom-Anchored */}
       {roomTab === 'home' && (
-        <div className="absolute bottom-[98px] sm:bottom-[108px] md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0c1017]/85 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.65)] transition-all">
             {/* Live Indicator & Timer Readout */}
             <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">

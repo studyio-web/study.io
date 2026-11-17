@@ -453,6 +453,7 @@ export default function Home() {
           onOpenProfile={() => setIsProfileOpen(true)}
           onOpenSettings={() => handleTabChange('settings')}
           hideTopBar={activeTab === 'rooms' && isInsideRoom}
+          hideBottomBar={activeTab === 'rooms' && isInsideRoom}
         />
 
         {/* Monthly Season Settlement Recap Banner */}
