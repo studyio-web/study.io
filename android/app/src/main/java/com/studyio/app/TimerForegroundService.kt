@@ -140,7 +140,13 @@ class TimerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action ?: ACTION_START
+        if (intent == null) {
+            Log.d(TAG, "onStartCommand with null intent (system restart). Cleaning up.")
+            handleStop()
+            return START_NOT_STICKY
+        }
+
+        val action = intent.action ?: ACTION_START
         Log.d(TAG, "onStartCommand action: $action")
 
         when (action) {
@@ -177,7 +183,7 @@ class TimerForegroundService : Service() {
             }
         }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun parseIntentExtras(intent: Intent?) {
@@ -231,6 +237,9 @@ class TimerForegroundService : Service() {
         isPaused = false
         isServiceRunning = false
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        val notificationManager = NotificationManagerCompat.from(this)
+        notificationManager.cancel(NOTIFICATION_ID_RUNNING)
+        notificationManager.cancel(NOTIFICATION_ID_FINISHED)
         stopSelf()
     }
 
@@ -257,6 +266,12 @@ class TimerForegroundService : Service() {
         if (!isRunning || isPaused) return
         val notification = buildTimerNotification()
         startInForeground(notification)
+        try {
+            val notificationManager = NotificationManagerCompat.from(this)
+            notificationManager.notify(NOTIFICATION_ID_RUNNING, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to notify in reanchorNotification", e)
+        }
     }
 
     private fun updateNotification() {
@@ -284,6 +299,7 @@ class TimerForegroundService : Service() {
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setSilent(true)
+            .setLocalOnly(true)
 
         if (subject.isNotBlank()) {
             builder.setSubText(subject)
@@ -300,7 +316,12 @@ class TimerForegroundService : Service() {
         if (isPaused) {
             // Paused state: static text, chronometer OFF, Resume and Stop actions
             builder.setUsesChronometer(false)
-            val timeText = formatSeconds(baseElapsedSeconds)
+            val timeText = if (mode == "countdown" || mode == "pomodoro") {
+                val rem = (targetSeconds - baseElapsedSeconds).coerceAtLeast(0)
+                formatSeconds(rem)
+            } else {
+                formatSeconds(baseElapsedSeconds)
+            }
             builder.setContentText("⏸ Paused · $timeText")
 
             builder.addAction(
@@ -317,17 +338,17 @@ class TimerForegroundService : Service() {
             // Running state: chronometer ON, Pause and Stop actions
             builder.setUsesChronometer(true)
 
+            // Calculate the exact virtual session origin timestamp where elapsed time was 0
+            val sessionOriginMs = startedAtMs - (baseElapsedSeconds * 1000L)
+
             if (mode == "stopwatch") {
                 builder.setChronometerCountDown(false)
-                // Base timestamp for counting UP
-                val baseTime = System.currentTimeMillis() - (baseElapsedSeconds * 1000L)
-                builder.setWhen(baseTime)
+                builder.setWhen(sessionOriginMs)
                 builder.setContentText("Focusing · In progress")
             } else {
                 // Countdown or Pomodoro: count DOWN
                 builder.setChronometerCountDown(true)
-                val remainingSeconds = (targetSeconds - baseElapsedSeconds).coerceAtLeast(0)
-                val targetFinishMs = System.currentTimeMillis() + (remainingSeconds * 1000L)
+                val targetFinishMs = sessionOriginMs + (targetSeconds * 1000L)
                 builder.setWhen(targetFinishMs)
                 builder.setContentText(if (mode == "pomodoro") "Pomodoro timer active" else "Countdown active")
             }
@@ -350,6 +371,8 @@ class TimerForegroundService : Service() {
                 Notification.FLAG_ONGOING_EVENT or
                 Notification.FLAG_NO_CLEAR or
                 Notification.FLAG_FOREGROUND_SERVICE
+        } else {
+            notification.flags = notification.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR).inv()
         }
         return notification
     }
@@ -370,7 +393,13 @@ class TimerForegroundService : Service() {
         cancelScheduledFinishCheck()
         if (mode == "stopwatch" || targetSeconds <= 0 || isPaused || !isRunning) return
 
-        val remainingSeconds = (targetSeconds - baseElapsedSeconds).coerceAtLeast(0)
+        val currentRunDeltaSeconds = if (isRunning && !isPaused && startedAtMs > 0L) {
+            ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
+        } else {
+            0
+        }
+        val totalElapsedSeconds = baseElapsedSeconds + currentRunDeltaSeconds
+        val remainingSeconds = (targetSeconds - totalElapsedSeconds).coerceAtLeast(0)
         val delayMs = (remainingSeconds * 1000L)
 
         if (delayMs <= 0L) {
@@ -523,12 +552,8 @@ class TimerForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.d(TAG, "onTaskRemoved: app swiped away from Recents. isRunning=$isRunning, isPaused=$isPaused")
-        // If timer is running, keep service alive and notification counting so the user doesn't lose focus time
-        // If not running, cleanly stop service and remove notification
-        if (!isRunning) {
-            handleStop()
-        }
+        Log.d(TAG, "onTaskRemoved: app closed from recent menu. Removing notification and stopping service.")
+        handleStop()
     }
 
     override fun onDestroy() {

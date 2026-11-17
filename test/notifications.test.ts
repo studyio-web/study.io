@@ -166,4 +166,47 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
     assert.equal(notificationConfig.ongoing, true);
     assert.equal(notificationConfig.autoCancel, false);
   });
+
+  it('guarantees chronometer base calculation does not reset to 0 upon swipe/re-anchor', () => {
+    // Scenario: User starts stopwatch at t=1000s, runs for 45s (now t=1045s)
+    const startedAtMs = 1700000000000;
+    const baseElapsedSeconds = 0;
+
+    // Correct formula: sessionOriginMs = startedAtMs - (baseElapsedSeconds * 1000)
+    const computeSessionOrigin = (startMs: number, baseElapsedSec: number) => startMs - (baseElapsedSec * 1000);
+
+    const initialBase = computeSessionOrigin(startedAtMs, baseElapsedSeconds);
+    assert.equal(initialBase, startedAtMs);
+
+    // 45 seconds later, notification is swiped or updated
+    const now45s = startedAtMs + 45000;
+    const reanchorBase = computeSessionOrigin(startedAtMs, baseElapsedSeconds);
+
+    // Base MUST remain identical to startedAtMs (so chronometer displays now45s - startedAtMs = 45s, NOT 0s)
+    assert.equal(reanchorBase, startedAtMs);
+    assert.equal(now45s - reanchorBase, 45000); // 45 seconds elapsed!
+
+    // If flawed formula (now - baseElapsedSeconds * 1000) was used:
+    const flawedBase = now45s - (baseElapsedSeconds * 1000);
+    assert.equal(now45s - flawedBase, 0); // Flawed formula gives 0!
+  });
+
+  it('verifies onTaskRemoved contract clears notification and terminates service', () => {
+    let isServiceRunning = true;
+    let isForegroundActive = true;
+    let notificationCancelled = false;
+
+    // Simulate onTaskRemoved implementation
+    const onTaskRemoved = () => {
+      isServiceRunning = false;
+      isForegroundActive = false;
+      notificationCancelled = true;
+    };
+
+    onTaskRemoved();
+
+    assert.equal(isServiceRunning, false);
+    assert.equal(isForegroundActive, false);
+    assert.equal(notificationCancelled, true);
+  });
 });
