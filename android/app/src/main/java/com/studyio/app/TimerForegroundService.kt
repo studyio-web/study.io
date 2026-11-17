@@ -8,12 +8,15 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.View
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
@@ -313,6 +316,11 @@ class TimerForegroundService : Service() {
         val deleteIntent = createDeletePendingIntent()
         builder.setDeleteIntent(deleteIntent)
 
+        // Custom aesthetic RemoteViews for large, beautiful HUD timer display
+        val collapsedView = RemoteViews(packageName, R.layout.notification_timer_collapsed)
+        val expandedView = RemoteViews(packageName, R.layout.notification_timer_expanded)
+        val subjectDisplay = if (subject.isNotBlank()) subject else "General Focus"
+
         if (isPaused) {
             // Paused state: static text, chronometer OFF, Resume and Stop actions
             builder.setUsesChronometer(false)
@@ -323,6 +331,23 @@ class TimerForegroundService : Service() {
                 formatSeconds(baseElapsedSeconds)
             }
             builder.setContentText("⏸ Paused · $timeText")
+
+            // Configure collapsed RemoteViews (26sp bold static text)
+            collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.GONE)
+            collapsedView.setViewVisibility(R.id.notif_timer_static, View.VISIBLE)
+            collapsedView.setTextViewText(R.id.notif_timer_static, timeText)
+            collapsedView.setTextViewText(R.id.notif_status_tag, "PAUSED")
+            collapsedView.setTextColor(R.id.notif_status_tag, Color.parseColor("#F59E0B"))
+            collapsedView.setTextViewText(R.id.notif_subject_text, subjectDisplay)
+
+            // Configure expanded RemoteViews (34sp bold static text)
+            expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.GONE)
+            expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.VISIBLE)
+            expandedView.setTextViewText(R.id.notif_exp_timer_static, timeText)
+            expandedView.setTextViewText(R.id.notif_exp_status_tag, "SESSION PAUSED")
+            expandedView.setTextColor(R.id.notif_exp_status_tag, Color.parseColor("#F59E0B"))
+            expandedView.setTextViewText(R.id.notif_exp_subject_text, subjectDisplay)
+            expandedView.setTextViewText(R.id.notif_exp_subtext, "Tap Resume to continue focusing")
 
             builder.addAction(
                 android.R.drawable.ic_media_play,
@@ -340,18 +365,81 @@ class TimerForegroundService : Service() {
 
             // Calculate the exact virtual session origin timestamp where elapsed time was 0
             val sessionOriginMs = startedAtMs - (baseElapsedSeconds * 1000L)
+            val deltaMs = if (startedAtMs > 0L) (System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L) else 0L
+
+            val statusTagText = when (mode) {
+                "pomodoro" -> if (phase == "work") "DEEP FOCUS" else "SHORT BREAK"
+                "countdown" -> "COUNTDOWN"
+                else -> "FOCUSING"
+            }
+            val statusTagColor = if (phase == "break") Color.parseColor("#38BDF8") else Color.parseColor("#10B981")
 
             if (mode == "stopwatch") {
                 builder.setChronometerCountDown(false)
                 builder.setWhen(sessionOriginMs)
                 builder.setContentText("Focusing · In progress")
+
+                // Elapsed time calculation for RemoteViews Chronometer base (SystemClock.elapsedRealtime reference)
+                val totalElapsedMs = (baseElapsedSeconds * 1000L) + deltaMs
+                val baseRealtime = SystemClock.elapsedRealtime() - totalElapsedMs
+
+                // Collapsed Chronometer (26sp bold)
+                collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.VISIBLE)
+                collapsedView.setViewVisibility(R.id.notif_timer_static, View.GONE)
+                collapsedView.setChronometer(R.id.notif_timer_chronometer, baseRealtime, "%s", true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    collapsedView.setChronometerCountDown(R.id.notif_timer_chronometer, false)
+                }
+
+                // Expanded Chronometer (34sp bold)
+                expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.VISIBLE)
+                expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.GONE)
+                expandedView.setChronometer(R.id.notif_exp_timer_chronometer, baseRealtime, "%s", true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    expandedView.setChronometerCountDown(R.id.notif_exp_timer_chronometer, false)
+                }
+                expandedView.setTextViewText(R.id.notif_exp_subtext, "Stopwatch Active · Keep studying")
             } else {
                 // Countdown or Pomodoro: count DOWN
                 builder.setChronometerCountDown(true)
                 val targetFinishMs = sessionOriginMs + (targetSeconds * 1000L)
                 builder.setWhen(targetFinishMs)
                 builder.setContentText(if (mode == "pomodoro") "Pomodoro timer active" else "Countdown active")
+
+                // Target remaining calculation for RemoteViews Chronometer
+                val totalElapsedMs = (baseElapsedSeconds * 1000L) + deltaMs
+                val remainingMs = ((targetSeconds * 1000L) - totalElapsedMs).coerceAtLeast(0L)
+                val targetFinishRealtime = SystemClock.elapsedRealtime() + remainingMs
+
+                // Collapsed Countdown Chronometer (26sp bold)
+                collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.VISIBLE)
+                collapsedView.setViewVisibility(R.id.notif_timer_static, View.GONE)
+                collapsedView.setChronometer(R.id.notif_timer_chronometer, targetFinishRealtime, "%s", true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    collapsedView.setChronometerCountDown(R.id.notif_timer_chronometer, true)
+                }
+
+                // Expanded Countdown Chronometer (34sp bold)
+                expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.VISIBLE)
+                expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.GONE)
+                expandedView.setChronometer(R.id.notif_exp_timer_chronometer, targetFinishRealtime, "%s", true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    expandedView.setChronometerCountDown(R.id.notif_exp_timer_chronometer, true)
+                }
+                expandedView.setTextViewText(
+                    R.id.notif_exp_subtext,
+                    if (mode == "pomodoro") "Pomodoro session · Target: ${formatSeconds(targetSeconds)}"
+                    else "Countdown timer · Target: ${formatSeconds(targetSeconds)}"
+                )
             }
+
+            collapsedView.setTextViewText(R.id.notif_status_tag, statusTagText)
+            collapsedView.setTextColor(R.id.notif_status_tag, statusTagColor)
+            collapsedView.setTextViewText(R.id.notif_subject_text, subjectDisplay)
+
+            expandedView.setTextViewText(R.id.notif_exp_status_tag, statusTagText)
+            expandedView.setTextColor(R.id.notif_exp_status_tag, statusTagColor)
+            expandedView.setTextViewText(R.id.notif_exp_subject_text, subjectDisplay)
 
             builder.addAction(
                 android.R.drawable.ic_media_pause,
@@ -364,6 +452,12 @@ class TimerForegroundService : Service() {
                 createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_STOP, 104)
             )
         }
+
+        // Apply DecoratedCustomViewStyle for system-integrated aesthetic custom layout
+        builder
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(collapsedView)
+            .setCustomBigContentView(expandedView)
 
         val notification = builder.build()
         if (isTimerActivelyRunning) {

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- Top line: Status Tag & Subject Chip -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/notif_exp_status_tag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DEEP FOCUS"
+            android:textColor="#10B981"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.08" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" · "
+            android:textColor="#64748B"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/notif_exp_subject_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="General Focus"
+            android:textColor="#CBD5E1"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-medium"
+            android:singleLine="true"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Hero Timer Readout: 34sp Bold -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <!-- Running Live Chronometer -->
+        <Chronometer
+            android:id="@+id/notif_exp_timer_chronometer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false" />
+
+        <!-- Paused Static Display -->
+        <TextView
+            android:id="@+id/notif_exp_timer_static"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- Bottom Context Subtitle -->
+    <TextView
+        android:id="@+id/notif_exp_subtext"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Focus session active · In flow"
+        android:textColor="#64748B"
+        android:textSize="11sp"
+        android:fontFamily="sans-serif"
+        android:layout_marginTop="3dp" />
+
+</LinearLayout>
