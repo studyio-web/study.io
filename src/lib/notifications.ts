@@ -357,6 +357,12 @@ export function setupNotificationListeners(onNavigate?: (tab: string) => void): 
 
   LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
     const extra = action.notification.extra;
+    if (extra?.type === 'app_update') {
+      if (typeof window !== 'undefined') {
+        window.location.href = extra?.url || '/api/download/apk';
+      }
+      return;
+    }
     const targetTab = extra?.tab || 'timer';
     if (onNavigate) {
       onNavigate(targetTab);

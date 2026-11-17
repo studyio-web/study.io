@@ -174,6 +174,12 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       (notification: ActionPerformed) => {
         console.log('[Push] pushNotificationActionPerformed:', notification);
         const data = notification.notification.data;
+        if (data?.type === 'app_update') {
+          if (typeof window !== 'undefined') {
+            window.location.href = data?.url || '/api/download/apk';
+          }
+          return;
+        }
         const targetTab =
           data?.tab ||
           (data?.type === 'nudge' || data?.type === 'chat' ? 'rooms' : 'timer');

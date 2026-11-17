@@ -186,6 +186,40 @@ export function SettingsTabContent() {
         </div>
       </div>
 
+      {/* Android Native App & Latest APK Update */}
+      <div className="p-5 rounded-2xl hud-surface border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border border-[var(--border)] bg-[var(--accent-soft)]"
+            style={{ color: 'var(--accent)' }}
+          >
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-hud font-bold text-[var(--text)] tracking-wider uppercase">
+                ANDROID APP (V2.5 LATEST)
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                UPDATE
+              </span>
+            </div>
+            <div className="text-[11px] text-[var(--text-dim)] mt-0.5">
+              Features background timer tracking, screen-off WakeLock, and live chronometer HUD
+            </div>
+          </div>
+        </div>
+
+        <a
+          href="/api/download/apk"
+          download="studyio-v2.5.apk"
+          className="px-4 py-2 rounded-xl bg-white text-[#07090E] hover:bg-slate-100 text-xs font-hud font-bold tracking-wider transition-all active:scale-95 flex items-center gap-2 shadow-md cursor-pointer flex-shrink-0 self-start sm:self-auto"
+        >
+          <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>DOWNLOAD APK</span>
+        </a>
+      </div>
+
       {/* PWA / Device Installation */}
       <div className="p-5 rounded-2xl hud-surface border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
