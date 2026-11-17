@@ -85,8 +85,8 @@ export function RankSettlementModal({
 
   const prevRankDetails = useMemo(() => getRankTier(prevRP), [prevRP]);
   const newRankDetails = useMemo(() => getRankTier(newRP), [newRP]);
-  const isRankUp = !isOfflinePending && (newRankDetails.name.toUpperCase() !== prevRankDetails.name.toUpperCase());
-  const isMajorTierUp = !isOfflinePending && (newRankDetails.tier !== prevRankDetails.tier);
+  const isRankUp = newRankDetails.name.toUpperCase() !== prevRankDetails.name.toUpperCase();
+  const isMajorTierUp = newRankDetails.tier !== prevRankDetails.tier;
 
   const TIER_INTENSITY_MAP: Record<RankTierName, number> = {
     Bronze: 1, Silver: 2, Gold: 3, Platinum: 4, Diamond: 5, Champion: 6, Master: 7, Grandmaster: 8,
@@ -585,20 +585,6 @@ export function RankSettlementModal({
       }}
       className="fixed inset-0 z-50 bg-[#07090e]/98 backdrop-blur-md flex flex-col items-center justify-center select-none overflow-hidden px-4 pt-[max(env(safe-area-inset-top,0px)+52px,60px)] pb-[max(env(safe-area-inset-bottom,0px)+24px,28px)] animate-in fade-in duration-300"
     >
-      {/* "How Rank Works" Info button in top-right (replaces unwanted cross icon) */}
-      <button
-        type="button"
-        onClick={() => {
-          soundFx.resumeContext();
-          setShowInfoModal(true);
-        }}
-        className="absolute top-[max(env(safe-area-inset-top,0px)+12px,20px)] right-6 sm:right-8 z-30 p-2 sm:p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-md active:scale-95"
-        title="How Rank Works (Info)"
-        aria-label="How Rank Works"
-      >
-        <Info className="w-5 h-5" />
-      </button>
-
       {/* 1. Backdrop Vignette: Darkening at screen edges to push focus to center */}
       <div
         className="absolute inset-0 pointer-events-none z-0"
@@ -864,26 +850,12 @@ export function RankSettlementModal({
               <span className="text-xs uppercase tracking-[0.25em] text-slate-400 font-semibold">
                 TIER PROGRESS
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  soundFx.resumeContext();
-                  setShowInfoModal(true);
-                }}
-                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                title="How Rank Works (Info)"
-                aria-label="How Rank Works"
-              >
-                <Info className="w-3.5 h-3.5" />
-              </button>
               <div className={`inline-flex items-center px-2 py-0.5 rounded ${
-                isOfflinePending
-                  ? 'bg-amber-500/10 border border-amber-500/25 text-amber-300'
-                  : totalGained > 0
-                    ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
-                    : 'bg-slate-500/10 border border-slate-500/25 text-slate-400'
+                totalGained > 0
+                  ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
+                  : 'bg-slate-500/10 border border-slate-500/25 text-slate-400'
               } font-mono font-semibold text-[11px]`}>
-                {isOfflinePending ? 'OFFLINE (PENDING)' : `+${displayedGain} RP`}
+                +{displayedGain} RP
               </div>
             </div>
             
@@ -1066,11 +1038,6 @@ export function RankSettlementModal({
                     +{totalGained} RP
                   </span>
                 </div>
-                {isOfflinePending && (
-                  <p className="text-[10px] text-amber-300/90 pt-0.5">
-                    * Saved offline. RP &amp; Rank will settle once reconnected to the internet.
-                  </p>
-                )}
                 {isUnderMinDuration && (
                   <p className="text-[10px] text-rose-300/90 pt-0.5">
                     * Sessions under 1 minute are too short to award RP.
