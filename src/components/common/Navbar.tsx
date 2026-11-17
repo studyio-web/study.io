@@ -692,7 +692,7 @@ export function Navbar({
                       ? '300%'
                       : '0%'
                 })`,
-              opacity: activeTab === 'leaderboard' ? 0 : 1,
+              opacity: (activeTab === 'leaderboard' || activeTab === 'settings') ? 0 : 1,
             }}
           />
 

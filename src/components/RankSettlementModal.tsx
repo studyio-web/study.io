@@ -121,10 +121,9 @@ export function RankSettlementModal({
   const [showContinue, setShowContinue] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
-  const [isAndroid, setIsAndroid] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setIsAndroid(
+  const [isAndroid, setIsAndroid] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
       (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') ||
       Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
       Boolean(navigator?.userAgent && (
@@ -132,7 +131,7 @@ export function RankSettlementModal({
         /Android/i.test(navigator.userAgent)
       ))
     );
-  }, []);
+  });
 
   // Hardware Android back button closes info popup modal if open
   useEffect(() => {
