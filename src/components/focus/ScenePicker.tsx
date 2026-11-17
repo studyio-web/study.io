@@ -152,255 +152,255 @@ export function ScenePicker({
 
   return (
     <>
-      {/* Invisible backdrop overlay to catch outside clicks */}
+      {/* Fullscreen dark backdrop overlay to catch outside clicks */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:bg-transparent"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity pointer-events-auto"
         onClick={handleClose}
       />
 
-      {/* Picker: bottom sheet on mobile (<640px) and anchored side panel on desktop to avoid covering center timer digits */}
-      <div
-        role="dialog"
-        aria-label="Focus scenes picker"
-        className="fixed z-50 bg-neutral-950/95 sm:bg-neutral-950/90 backdrop-blur-2xl border border-white/10 shadow-2xl text-white animate-in slide-in-from-bottom-3 fade-in duration-200
-          max-sm:inset-x-0 max-sm:bottom-0 max-sm:rounded-t-3xl max-sm:p-5 max-sm:max-h-[75vh] max-sm:overflow-y-auto
-          sm:right-8 sm:bottom-8 sm:w-[420px] sm:rounded-3xl sm:p-5"
-      >
-        {/* Header with Scenes / Atmosphere Tabs */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3.5">
-          <div className="flex items-center gap-1.5 p-0.5 rounded-full bg-white/[0.06] border border-white/10">
+      {/* Picker dialog: cleanly centered in viewport, constrained in height for landscape mobile, scrollable */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 pointer-events-none">
+        <div
+          role="dialog"
+          aria-label="Focus scenes picker"
+          className="pointer-events-auto relative w-full max-w-[560px] max-h-[min(94dvh,460px)] flex flex-col rounded-2xl sm:rounded-3xl bg-neutral-950/95 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-white overflow-hidden p-3.5 sm:p-5 animate-in fade-in zoom-in-95 duration-200"
+        >
+          {/* Pinned Header with Scenes / Atmosphere Tabs and Close Button */}
+          <div className="shrink-0 flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+            <div className="flex items-center gap-1.5 p-0.5 rounded-full bg-white/[0.06] border border-white/10">
+              <button
+                type="button"
+                onClick={() => setActiveTab('scenes')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'scenes'
+                    ? 'bg-white/90 text-neutral-950 shadow-sm font-bold'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                Scenes
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('atmosphere')}
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'atmosphere'
+                    ? 'bg-white/90 text-neutral-950 shadow-sm font-bold'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Music className="w-3 h-3" />
+                <span>Atmosphere</span>
+                {ambientSound !== 'none' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                )}
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setActiveTab('scenes')}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'scenes'
-                  ? 'bg-white/90 text-neutral-950 shadow-sm font-bold'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
+              onClick={handleClose}
+              className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Close picker"
             >
-              Scenes
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('atmosphere')}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'atmosphere'
-                  ? 'bg-white/90 text-neutral-950 shadow-sm font-bold'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Music className="w-3 h-3" />
-              <span>Atmosphere</span>
-              {ambientSound !== 'none' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
-              )}
+              <X className="w-4 h-4" />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            aria-label="Close picker"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {activeTab === 'scenes' ? (
-          <>
-            {/* 2-column Grid of 16:9 Scene Cards */}
-            <div className="grid grid-cols-2 gap-3 mb-4 max-h-[50vh] sm:max-h-[380px] overflow-y-auto pr-0.5 scrollbar-thin">
-              {AVAILABLE_SCENES.map((scene: FocusScene, index: number) => {
-                const isSelected = activeSceneId === scene.id;
-                const isLocked = scene.premium && !isPremium;
-                const svgMarkup = getSvgScene(scene.id);
-                const thumbUrl = !svgMarkup ? getSceneThumbnailDataUrl(scene.id) : null;
+          {activeTab === 'scenes' ? (
+            <div className="flex-1 overflow-y-auto pr-1 sm:pr-1.5 scrollbar-thin space-y-3.5 overscroll-contain">
+              {/* Responsive Grid of 16:9 Scene Cards: 2-col on narrow, 3-col on wide/landscape */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {AVAILABLE_SCENES.map((scene: FocusScene, index: number) => {
+                  const isSelected = activeSceneId === scene.id;
+                  const isLocked = scene.premium && !isPremium;
+                  const svgMarkup = getSvgScene(scene.id);
+                  const thumbUrl = !svgMarkup ? getSceneThumbnailDataUrl(scene.id) : null;
 
-                return (
-                  <button
-                    key={scene.id}
-                    ref={(el) => {
-                      cardRefs.current[index] = el;
-                    }}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => onSelectScene(scene.id)}
-                    className={`relative flex flex-col rounded-2xl border overflow-hidden transition-all duration-200 cursor-pointer outline-none group text-left ${
-                      isSelected
-                        ? 'border-[var(--tier-accent,#f59e0b)] ring-2 ring-[var(--tier-accent,#f59e0b)]/60 shadow-[0_0_24px_rgba(245,158,11,0.35)] scale-[1.01]'
-                        : 'border-white/10 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.06] hover:scale-[1.01]'
-                    }`}
-                  >
-                    {/* 16:9 Thumbnail preview filling the card */}
-                    <div
-                      className="w-full aspect-video relative overflow-hidden bg-neutral-900"
-                      style={{ background: scene.thumbnail }}
+                  return (
+                    <button
+                      key={scene.id}
+                      ref={(el) => {
+                        cardRefs.current[index] = el;
+                      }}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => onSelectScene(scene.id)}
+                      className={`relative flex flex-col rounded-2xl border overflow-hidden transition-all duration-200 cursor-pointer outline-none group text-left ${
+                        isSelected
+                          ? 'border-[var(--tier-accent,#f59e0b)] ring-2 ring-[var(--tier-accent,#f59e0b)]/60 shadow-[0_0_24px_rgba(245,158,11,0.35)] scale-[1.01]'
+                          : 'border-white/10 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.06] hover:scale-[1.01]'
+                      }`}
                     >
-                      {svgMarkup ? (
-                        <div
-                          className="w-full h-full pointer-events-none select-none transition-transform duration-300 group-hover:scale-105 [&_svg]:w-full [&_svg]:h-full [&_svg]:object-cover [&_svg_*]:!animation-none"
-                          dangerouslySetInnerHTML={{ __html: svgMarkup }}
-                        />
-                      ) : thumbUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={thumbUrl}
-                          alt={scene.name}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      ) : null}
+                      {/* 16:9 Thumbnail preview filling the card */}
+                      <div
+                        className="w-full aspect-video relative overflow-hidden bg-neutral-900"
+                        style={{ background: scene.thumbnail }}
+                      >
+                        {svgMarkup ? (
+                          <div
+                            className="w-full h-full pointer-events-none select-none transition-transform duration-300 group-hover:scale-105 [&_svg]:w-full [&_svg]:h-full [&_svg]:object-cover [&_svg_*]:!animation-none"
+                            dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                          />
+                        ) : thumbUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={thumbUrl}
+                            alt={scene.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : null}
 
-                      {/* Lock overlay for free users on premium scenes */}
-                      {isLocked && (
-                        <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center">
-                          <div className="p-1.5 rounded-full bg-black/75 border border-amber-400/40 text-[#E6C15A] shadow-md">
-                            <Lock className="w-3.5 h-3.5" />
+                        {/* Lock overlay for free users on premium scenes */}
+                        {isLocked && (
+                          <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center">
+                            <div className="p-1.5 rounded-full bg-black/75 border border-amber-400/40 text-[#E6C15A] shadow-md">
+                              <Lock className="w-3.5 h-3.5" />
+                            </div>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Check badge when selected */}
-                      {isSelected && (
-                        <div className="absolute top-2 right-2 p-1 rounded-md bg-[var(--tier-accent,#f59e0b)] text-slate-950 font-bold shadow-md z-10">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      )}
-
-                      {/* Soft bottom gradient overlay with name and crown */}
-                      <div className="absolute inset-x-0 bottom-0 pt-6 pb-2 px-2.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between pointer-events-none">
-                        <span className="text-[11px] sm:text-xs font-semibold text-white drop-shadow-md truncate">
-                          {scene.name}
-                        </span>
-                        {scene.premium && (
-                          <Crown className="w-3.5 h-3.5 text-[#E6C15A] fill-[#E6C15A] shrink-0 drop-shadow ml-1" />
                         )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
 
-            {/* Background Dim slider (default 20%, range 0 to 60%) */}
-            <div className="pt-2.5 border-t border-white/10 mb-2.5">
-              <div className="flex items-center justify-between mb-1.5 text-xs">
-                <span className="flex items-center gap-1.5 text-neutral-300 font-medium">
-                  <Sliders className="w-3 h-3 text-neutral-400" />
-                  <span>Background Dim</span>
-                </span>
-                <span className="font-mono text-neutral-400 text-[11px] font-semibold">{dim}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="60"
-                step="1"
-                value={dim}
-                onChange={(e) => onDimChange(parseInt(e.target.value, 10))}
-                className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-[var(--tier-accent,#f59e0b)]"
-                aria-label="Background Dim"
-              />
-            </div>
-
-            {/* Background Animation Toggle */}
-            {onToggleAnimation && (
-              <div className="flex items-center justify-between pt-2.5 border-t border-white/10 mb-2.5">
-                <span className="text-xs text-neutral-300 font-medium">
-                  Background Animation
-                </span>
-                <button
-                  type="button"
-                  onClick={onToggleAnimation}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                    isAnimated
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                      : 'bg-white/10 text-neutral-400 border border-white/10'
-                  }`}
-                >
-                  {isAnimated ? 'On' : 'Off'}
-                </button>
-              </div>
-            )}
-
-            {/* Quiet battery consumption note */}
-            <div className="text-[10px] text-neutral-400 text-center tracking-tight">
-              Scenes use more battery • Choose Default to turn off
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Atmosphere Soundscape Grid */}
-            <div className="grid grid-cols-2 gap-2 mb-3.5 max-h-[50vh] sm:max-h-[340px] overflow-y-auto pr-0.5 scrollbar-thin">
-              {atmosphereOptions.map((opt: AtmosphereOption, index: number) => {
-                const isSelected = ambientSound === opt.id;
-
-                return (
-                  <button
-                    key={opt.id}
-                    ref={(el) => {
-                      cardRefs.current[index] = el;
-                    }}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => selectAtmosphere(opt.id)}
-                    className={`relative flex items-start gap-2.5 p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer outline-none group ${
-                      isSelected
-                        ? 'border-[var(--tier-accent,#f59e0b)] bg-[var(--tier-accent,#f59e0b)]/10 ring-1 ring-[var(--tier-accent,#f59e0b)]/50 shadow-[0_0_18px_rgba(245,158,11,0.2)]'
-                        : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
-                    }`}
-                  >
-                    <div className="mt-0.5">{renderAtmosphereIcon(opt.id, isSelected)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold text-white truncate drop-shadow-sm">
-                          {opt.label}
-                        </span>
+                        {/* Check badge when selected */}
                         {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-[var(--tier-accent,#f59e0b)] shrink-0 stroke-[2.5]" />
+                          <div className="absolute top-2 right-2 p-1 rounded-md bg-[var(--tier-accent,#f59e0b)] text-slate-950 font-bold shadow-md z-10">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
                         )}
-                      </div>
-                      <p className="text-[10px] text-neutral-400 truncate mt-0.5 leading-snug">
-                        {opt.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
 
-            {/* Volume Slider Section */}
-            {ambientSound !== 'none' && (
-              <div className="pt-3 border-t border-white/10 mb-2">
-                <div className="flex items-center justify-between mb-2 text-xs">
+                        {/* Soft bottom gradient overlay with name and crown */}
+                        <div className="absolute inset-x-0 bottom-0 pt-6 pb-2 px-2.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between pointer-events-none">
+                          <span className="text-[11px] sm:text-xs font-semibold text-white drop-shadow-md truncate">
+                            {scene.name}
+                          </span>
+                          {scene.premium && (
+                            <Crown className="w-3.5 h-3.5 text-[#E6C15A] fill-[#E6C15A] shrink-0 drop-shadow ml-1" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Background Dim slider (default 20%, range 0 to 60%) */}
+              <div className="pt-2.5 border-t border-white/10">
+                <div className="flex items-center justify-between mb-1.5 text-xs">
                   <span className="flex items-center gap-1.5 text-neutral-300 font-medium">
-                    <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>Volume</span>
+                    <Sliders className="w-3 h-3 text-neutral-400" />
+                    <span>Background Dim</span>
                   </span>
-                  <span className="font-mono text-neutral-400 text-[11px] font-semibold">
-                    {Math.round(ambientVolume * 100)}%
-                  </span>
+                  <span className="font-mono text-neutral-400 text-[11px] font-semibold">{dim}%</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="1"
-                  step="0.01"
-                  value={ambientVolume}
-                  onChange={(e) => setAtmosphereVolume(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-[var(--tier-accent,#f59e0b)]"
-                  aria-label="Atmosphere Volume"
+                  max="60"
+                  step="1"
+                  value={dim}
+                  onChange={(e) => onDimChange(parseInt(e.target.value, 10))}
+                  className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-[var(--tier-accent,#f59e0b)]"
+                  aria-label="Background Dim"
                 />
               </div>
-            )}
 
-            {/* Bottom Helper Note */}
-            <div className="text-[10px] text-neutral-400 text-center tracking-tight pt-1">
-              {ambientSound === 'none'
-                ? 'Select a soundscape to play calming background audio'
-                : 'Audio loops seamlessly in the background'}
+              {/* Background Animation Toggle */}
+              {onToggleAnimation && (
+                <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                  <span className="text-xs text-neutral-300 font-medium">
+                    Background Animation
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onToggleAnimation}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                      isAnimated
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-white/10 text-neutral-400 border border-white/10'
+                    }`}
+                  >
+                    {isAnimated ? 'On' : 'Off'}
+                  </button>
+                </div>
+              )}
+
+              {/* Quiet battery consumption note */}
+              <div className="text-[10px] text-neutral-400 text-center tracking-tight pt-1">
+                Scenes use more battery • Choose Default to turn off
+              </div>
             </div>
-          </>
-        )}
+          ) : (
+            <div className="flex-1 overflow-y-auto pr-1 sm:pr-1.5 scrollbar-thin space-y-3.5 overscroll-contain">
+              {/* Atmosphere Soundscape Grid: 2-col on narrow, 3-col on wide/landscape */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {atmosphereOptions.map((opt: AtmosphereOption, index: number) => {
+                  const isSelected = ambientSound === opt.id;
+
+                  return (
+                    <button
+                      key={opt.id}
+                      ref={(el) => {
+                        cardRefs.current[index] = el;
+                      }}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => selectAtmosphere(opt.id)}
+                      className={`relative flex items-start gap-2.5 p-2.5 sm:p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer outline-none group ${
+                        isSelected
+                          ? 'border-[var(--tier-accent,#f59e0b)] bg-[var(--tier-accent,#f59e0b)]/10 ring-1 ring-[var(--tier-accent,#f59e0b)]/50 shadow-[0_0_18px_rgba(245,158,11,0.2)]'
+                          : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      <div className="mt-0.5">{renderAtmosphereIcon(opt.id, isSelected)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold text-white truncate drop-shadow-sm">
+                            {opt.label}
+                          </span>
+                          {isSelected && (
+                            <Check className="w-3.5 h-3.5 text-[var(--tier-accent,#f59e0b)] shrink-0 stroke-[2.5]" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-neutral-400 truncate mt-0.5 leading-snug">
+                          {opt.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Volume Slider Section */}
+              {ambientSound !== 'none' && (
+                <div className="pt-2.5 border-t border-white/10">
+                  <div className="flex items-center justify-between mb-1.5 text-xs">
+                    <span className="flex items-center gap-1.5 text-neutral-300 font-medium">
+                      <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
+                      <span>Volume</span>
+                    </span>
+                    <span className="font-mono text-neutral-400 text-[11px] font-semibold">
+                      {Math.round(ambientVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={ambientVolume}
+                    onChange={(e) => setAtmosphereVolume(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-[var(--tier-accent,#f59e0b)]"
+                    aria-label="Atmosphere Volume"
+                  />
+                </div>
+              )}
+
+              {/* Bottom Helper Note */}
+              <div className="text-[10px] text-neutral-400 text-center tracking-tight pt-0.5">
+                {ambientSound === 'none'
+                  ? 'Select a soundscape to play calming background audio'
+                  : 'Audio loops seamlessly in the background'}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

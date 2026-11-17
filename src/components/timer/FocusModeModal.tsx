@@ -601,28 +601,28 @@ export function FocusModeModal() {
             <span className="hidden sm:inline">Exit</span>
           </button>
         </div>
-
-        {/* Atmosphere Audio Drawer Popover */}
-        <AtmospherePicker
-          isOpen={isAtmosphereOpen}
-          onClose={() => setIsAtmosphereOpen(false)}
-          triggerButtonRef={atmosphereButtonRef}
-        />
-
-        {/* Detailed Scene Drawer Popover */}
-        <ScenePicker
-          isOpen={isPickerOpen}
-          onClose={() => setIsPickerOpen(false)}
-          activeSceneId={activeSceneId}
-          onSelectScene={(id) => selectScene(id)}
-          dim={dim}
-          onDimChange={setDim}
-          isPremium={isPremium}
-          triggerButtonRef={settingsButtonRef}
-          isAnimated={isAnimated}
-          onToggleAnimation={handleToggleAnimation}
-        />
       </div>
+
+      {/* 5. Atmosphere Audio Drawer Popover (Placed at root so fixed positioning is viewport-relative) */}
+      <AtmospherePicker
+        isOpen={isAtmosphereOpen}
+        onClose={() => setIsAtmosphereOpen(false)}
+        triggerButtonRef={atmosphereButtonRef}
+      />
+
+      {/* 6. Detailed Scene Drawer Popover (Placed at root so fixed positioning is viewport-relative) */}
+      <ScenePicker
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        activeSceneId={activeSceneId}
+        onSelectScene={(id) => selectScene(id)}
+        dim={dim}
+        onDimChange={setDim}
+        isPremium={isPremium}
+        triggerButtonRef={settingsButtonRef}
+        isAnimated={isAnimated}
+        onToggleAnimation={handleToggleAnimation}
+      />
     </div>
   );
 }
