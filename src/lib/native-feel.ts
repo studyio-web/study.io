@@ -42,19 +42,35 @@ export async function triggerHaptic(type: HapticType = 'light'): Promise<void> {
   if (typeof window === 'undefined') return;
   if (!isHapticsEnabled()) return;
 
+  // 1. Highest priority: Native Android system haptic tick (CLOCK_TICK) for small, crisp, pleasant feedback
+  try {
+    if ((window as any).AndroidFullscreenBridge?.performSmallHaptic) {
+      (window as any).AndroidFullscreenBridge.performSmallHaptic();
+      return;
+    }
+  } catch {}
+
   try {
     if (Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('Haptics')) {
       switch (type) {
         case 'light':
         case 'selection':
+          try {
+            await Haptics.vibrate({ duration: 8 });
+          } catch {
+            await Haptics.selectionChanged();
+          }
+          break;
         case 'medium':
         case 'heavy':
         case 'warning':
         case 'error':
-          await Haptics.impact({ style: ImpactStyle.Light });
-          break;
         case 'success':
-          await Haptics.impact({ style: ImpactStyle.Light });
+          try {
+            await Haptics.vibrate({ duration: 12 });
+          } catch {
+            await Haptics.impact({ style: ImpactStyle.Light });
+          }
           break;
       }
       return;
@@ -65,16 +81,16 @@ export async function triggerHaptic(type: HapticType = 'light'): Promise<void> {
       switch (type) {
         case 'light':
         case 'selection':
-          navigator.vibrate(5);
+          navigator.vibrate(4);
           break;
         case 'medium':
         case 'heavy':
         case 'warning':
         case 'error':
-          navigator.vibrate(8);
+          navigator.vibrate(6);
           break;
         case 'success':
-          navigator.vibrate([5, 25, 5]);
+          navigator.vibrate([4, 18, 4]);
           break;
       }
     }

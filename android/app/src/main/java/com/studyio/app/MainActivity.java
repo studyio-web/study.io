@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -69,6 +70,19 @@ public class MainActivity extends BridgeActivity {
                 @JavascriptInterface
                 public void exitFullscreen() {
                     applyImmersiveMode(false);
+                }
+
+                @JavascriptInterface
+                public void performSmallHaptic() {
+                    if (getBridge() != null && getBridge().getWebView() != null) {
+                        View webView = getBridge().getWebView();
+                        webView.post(() -> {
+                            webView.performHapticFeedback(
+                                HapticFeedbackConstants.CLOCK_TICK,
+                                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                            );
+                        });
+                    }
                 }
             }, "AndroidFullscreenBridge");
         }

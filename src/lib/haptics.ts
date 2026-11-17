@@ -60,6 +60,14 @@ async function runHaptic(
   if (now - lastHapticTime < 60) return;
   lastHapticTime = now;
 
+  // 1. Highest priority: Native Android system haptic tick (CLOCK_TICK) for small, crisp, pleasant feedback
+  try {
+    if ((window as any).AndroidFullscreenBridge?.performSmallHaptic) {
+      (window as any).AndroidFullscreenBridge.performSmallHaptic();
+      return;
+    }
+  } catch {}
+
   try {
     if (Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('Haptics')) {
       await nativeAction();
@@ -82,8 +90,14 @@ async function runHaptic(
  */
 export async function hapticTick(): Promise<void> {
   await runHaptic(
-    () => Haptics.impact({ style: ImpactStyle.Light }),
-    5
+    async () => {
+      try {
+        await Haptics.vibrate({ duration: 8 });
+      } catch {
+        await Haptics.selectionChanged();
+      }
+    },
+    4
   );
 }
 
@@ -93,8 +107,14 @@ export async function hapticTick(): Promise<void> {
  */
 export async function hapticMedium(): Promise<void> {
   await runHaptic(
-    () => Haptics.impact({ style: ImpactStyle.Light }),
-    8
+    async () => {
+      try {
+        await Haptics.vibrate({ duration: 12 });
+      } catch {
+        await Haptics.impact({ style: ImpactStyle.Light });
+      }
+    },
+    6
   );
 }
 
