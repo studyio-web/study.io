@@ -177,7 +177,7 @@ export default function Home() {
         } else {
           url.searchParams.set('tab', newTab);
         }
-        window.history.pushState({ tab: newTab }, '', url.toString());
+        window.history.replaceState({ tab: newTab }, '', url.toString());
       } catch {}
     }
   }, []);

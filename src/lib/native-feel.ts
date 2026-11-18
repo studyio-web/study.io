@@ -173,18 +173,33 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
             const params = new URLSearchParams(window.location.search);
             const currentTab = params.get('tab');
             if (currentTab && currentTab !== 'timer') {
-              window.dispatchEvent(new CustomEvent('switch_tab', { detail: 'timer' }));
+              window.dispatchEvent(new CustomEvent('studyio:navigate-tab', { detail: { tab: 'timer' } }));
               triggerHaptic('light');
               return;
             }
           } catch {}
 
-          // 4. If history can go back, navigate back
+          // 4. Check if we are on the primary dashboard root (/ or /dashboard)
+          const isDashboardOrHome =
+            typeof window !== 'undefined' &&
+            (window.location.pathname === '/' ||
+              window.location.pathname === '/dashboard' ||
+              window.location.pathname.startsWith('/dashboard'));
+
+          if (isDashboardOrHome) {
+            // All custom handlers and root timer checks have resolved without intercepting.
+            // This guarantees the user is at the root timer tab with zero open modals.
+            // Exit the app directly rather than oscillating between internal pushState history items.
+            App.exitApp();
+            return;
+          }
+
+          // 5. If on a secondary subpage (e.g. /premium, /recap) and history can go back, navigate back
           if (canGoBack && window.history.length > 1) {
             window.history.back();
             triggerHaptic('light');
           } else {
-            // Exit app at root timer view
+            // Exit app at root
             App.exitApp();
           }
         });

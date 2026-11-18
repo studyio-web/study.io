@@ -82,7 +82,7 @@ import { getLocalDateString, isSessionToday, isSessionYesterday } from '../../li
 import { Skeleton } from '../common/Skeleton';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import { useStudyMode } from '../../context/StudyModeContext';
-import { triggerHaptic } from '../../lib/native-feel';
+import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 
 const EMPTY_STATE_QUOTES = [
@@ -223,6 +223,54 @@ export function StudyTimer() {
       }).catch(() => { });
     }
   }, [isAndroid, isStrictMode, allowedApps, isUltraStrict]);
+
+  // Hardware Android Back Button: dismiss any open timer modal before leaving tab or exiting app
+  useEffect(() => {
+    const hasAnyTimerModal = Boolean(
+      isAllowedAppsModalOpen ||
+      isPermissionModalOpen ||
+      isStrictWarningModalOpen ||
+      isStrictConfigOpen ||
+      isEditingCountdown ||
+      isManageSubjectsOpen
+    );
+    if (!hasAnyTimerModal) return;
+
+    return registerBackButtonHandler(() => {
+      if (isAllowedAppsModalOpen) {
+        setIsAllowedAppsModalOpen(false);
+        return true;
+      }
+      if (isPermissionModalOpen) {
+        setIsPermissionModalOpen(false);
+        return true;
+      }
+      if (isStrictWarningModalOpen) {
+        setIsStrictWarningModalOpen(false);
+        return true;
+      }
+      if (isStrictConfigOpen) {
+        setIsStrictConfigOpen(false);
+        return true;
+      }
+      if (isEditingCountdown) {
+        setIsEditingCountdown(false);
+        return true;
+      }
+      if (isManageSubjectsOpen) {
+        setIsManageSubjectsOpen(false);
+        return true;
+      }
+      return false;
+    });
+  }, [
+    isAllowedAppsModalOpen,
+    isPermissionModalOpen,
+    isStrictWarningModalOpen,
+    isStrictConfigOpen,
+    isEditingCountdown,
+    isManageSubjectsOpen,
+  ]);
 
   const handleToggleStrictMode = async () => {
     if (isStudying) {

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, ClipboardPaste, CheckCircle2, Trash2 } from 'lucide-react';
 import { parseSmartTasks } from '../../lib/smartTaskParser';
 import { soundFx } from '../../lib/audio';
+import { registerBackButtonHandler } from '../../lib/native-feel';
 
 interface SmartPasteModalProps {
   isOpen: boolean;
@@ -38,6 +39,15 @@ export function SmartPasteModal({ isOpen, onClose, onImport }: SmartPasteModalPr
       setInputText('');
     }
   }, [isOpen]);
+
+  // Hardware Android Back Button dismiss handler
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackButtonHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [isOpen, onClose]);
 
   // Handle ESC and Ctrl+Enter keyboard shortcuts
   useEffect(() => {

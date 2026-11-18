@@ -51,7 +51,7 @@ import { ProAvatarRing } from '../ui/ProAvatarRing';
 import { ScholarProfileModal, ScholarModalData } from '../common/ScholarProfileModal';
 import { ClassicNudgeButton } from './ClassicNudgeButton';
 import { playClassicNudgeSound } from '../../lib/nudgeSound';
-import { triggerHaptic } from '../../lib/native-feel';
+import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticTick, isHapticsEnabled, setHapticsEnabled } from '@/lib/haptics';
 import {
   NUDGE_COOLDOWN_MS,
@@ -889,6 +889,53 @@ CREATE POLICY "Hosts can update their own study rooms"
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionAtIdx, setMentionAtIdx] = useState<number | null>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+
+  // Hardware Android Back Button navigation within ActiveRoom:
+  // Step 1: Dismiss any active submodal / sheet (scholar profile, ban, delete)
+  // Step 2: Dismiss mention popup or active reply quote
+  // Step 3: If on 'chat' or 'settings', step back to 'home'
+  // Step 4: If already on 'home', step back to Study Rooms list (calls onBack())
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (selectedScholar) {
+        setSelectedScholar(null);
+        return true;
+      }
+      if (showDeleteConfirm) {
+        setShowDeleteConfirm(false);
+        return true;
+      }
+      if (memberToBan) {
+        setMemberToBan(null);
+        return true;
+      }
+      if (mentionQuery !== null) {
+        setMentionQuery(null);
+        return true;
+      }
+      if (replyingTo !== null) {
+        setReplyingTo(null);
+        return true;
+      }
+
+      if (roomTab !== 'home') {
+        handleSelectRoomTab('home');
+        return true;
+      }
+
+      onBack();
+      return true;
+    });
+  }, [
+    selectedScholar,
+    showDeleteConfirm,
+    memberToBan,
+    mentionQuery,
+    replyingTo,
+    roomTab,
+    handleSelectRoomTab,
+    onBack,
+  ]);
 
   const isTimerRunning = isRunning;
 

@@ -147,7 +147,6 @@ CREATE POLICY "Hosts can update their own study rooms"
   // Hardware Android Back Button interceptor for room modals and views
   useEffect(() => {
     const hasAnySubView = Boolean(
-      activeRoomId ||
       isExploreView ||
       editingRoom ||
       roomToDelete ||
@@ -155,7 +154,7 @@ CREATE POLICY "Hosts can update their own study rooms"
       selectedRoomToJoin ||
       isJoinCodeModalOpen
     );
-    if (!hasAnySubView) return;
+    if (!hasAnySubView || activeRoomId) return;
 
     return registerBackButtonHandler(() => {
       if (roomToDelete) {
@@ -176,11 +175,6 @@ CREATE POLICY "Hosts can update their own study rooms"
       }
       if (editingRoom) {
         setEditingRoom(null);
-        return true;
-      }
-      if (activeRoomId) {
-        setActiveRoomId(null);
-        setActiveRoomInitialTab('home');
         return true;
       }
       if (isExploreView) {
