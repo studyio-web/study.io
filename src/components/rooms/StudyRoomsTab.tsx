@@ -10,6 +10,7 @@ import {
   Globe,
   Compass,
   ChevronLeft,
+  ChevronDown,
   Plus,
   Minus,
   Search,
@@ -101,6 +102,47 @@ export default function StudyRoomsTab({
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [editMaxCapacity, setEditMaxCapacity] = useState(4);
+  const [isCapacityDropdownOpen, setIsCapacityDropdownOpen] = useState(false);
+  const capacityDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedCapacityItemRef = useRef<HTMLButtonElement>(null);
+
+  // Close capacity dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (
+        capacityDropdownRef.current &&
+        !capacityDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCapacityDropdownOpen(false);
+      }
+    }
+    if (isCapacityDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCapacityDropdownOpen]);
+
+  // Hardware back button dismisses capacity dropdown
+  useEffect(() => {
+    if (!isCapacityDropdownOpen) return;
+    return registerBackButtonHandler(() => {
+      setIsCapacityDropdownOpen(false);
+      return true;
+    });
+  }, [isCapacityDropdownOpen]);
+
+  // Scroll selected number into view
+  useEffect(() => {
+    if (isCapacityDropdownOpen) {
+      setTimeout(() => {
+        selectedCapacityItemRef.current?.scrollIntoView({ block: 'nearest' });
+      }, 50);
+    }
+  }, [isCapacityDropdownOpen]);
   const [isUpdatingRoom, setIsUpdatingRoom] = useState(false);
   const [copiedEditPassword, setCopiedEditPassword] = useState(false);
   const [editRoomError, setEditRoomError] = useState('');
@@ -2198,32 +2240,80 @@ CREATE POLICY "Hosts can update their own study rooms"
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
-                  <span className="text-xs text-[var(--text-dim)] font-mono">Max Scholars</span>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={editMaxCapacity <= Math.max(2, editingRoom.room_members?.[0]?.count || 1)}
-                      onClick={() => setEditMaxCapacity((prev) => Math.max(Math.max(2, editingRoom.room_members?.[0]?.count || 1), prev - 1))}
-                      className="w-8 h-8 rounded-lg bg-fg/[0.04] hover:bg-fg/[0.08] disabled:opacity-30 border border-[var(--border)] text-[var(--text)] flex items-center justify-center cursor-pointer font-bold"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-
-                    <span className="min-w-[40px] text-center font-mono font-bold text-[var(--text)] text-base">
-                      {editMaxCapacity}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] relative">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-[var(--text-dim)] font-hud">Max Scholars</span>
+                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                      Min {Math.max(2, editingRoom.room_members?.[0]?.count || 1)} • Max 32
                     </span>
+                  </div>
 
+                  <div className="relative" ref={capacityDropdownRef}>
                     <button
                       type="button"
-                      disabled={editMaxCapacity >= 32}
-                      onClick={() => setEditMaxCapacity((prev) => Math.min(32, prev + 1))}
-                      className="w-8 h-8 rounded-lg hover:brightness-110 disabled:opacity-30 border border-[var(--border)] flex items-center justify-center cursor-pointer font-bold shadow-sm"
-                      style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                      onClick={() => {
+                        hapticTick();
+                        setIsCapacityDropdownOpen((prev) => !prev);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-fg/[0.04] hover:bg-fg/[0.08] active:bg-fg/[0.12] border border-[var(--border)] text-[var(--text)] font-hud font-bold text-xs tracking-wider uppercase transition-all cursor-pointer shadow-sm select-none"
+                      aria-haspopup="listbox"
+                      aria-expanded={isCapacityDropdownOpen}
+                      title="Select maximum room members"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <span className="text-[var(--accent)] font-mono text-sm font-extrabold">{editMaxCapacity}</span>
+                      <span>Scholars</span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-dim)] transition-transform duration-200 ${isCapacityDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
+
+                    {isCapacityDropdownOpen && (
+                      <div
+                        role="listbox"
+                        className="absolute right-0 top-full mt-1.5 z-50 w-52 max-h-56 overflow-y-auto rounded-xl bg-[var(--surface)] border border-[var(--border)] p-1.5 shadow-2xl backdrop-blur-xl scrollbar-thin animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        <div className="px-2 py-1 text-[9px] font-hud-mono font-bold text-[var(--text-dim)] uppercase tracking-widest border-b border-[var(--border)] mb-1 flex items-center justify-between">
+                          <span>Choose Limit</span>
+                          <span className="font-mono text-[var(--accent)]">{editMaxCapacity} / 32</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          {Array.from({ length: 31 }, (_, i) => i + 2).map((num) => {
+                            const isSelected = editMaxCapacity === num;
+                            const currentCount = editingRoom.room_members?.[0]?.count || 1;
+                            const isDisabled = num < currentCount;
+
+                            return (
+                              <button
+                                key={num}
+                                ref={isSelected ? selectedCapacityItemRef : undefined}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => {
+                                  setEditMaxCapacity(num);
+                                  setIsCapacityDropdownOpen(false);
+                                  hapticTick();
+                                }}
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-hud font-bold transition-all cursor-pointer select-none ${
+                                  isSelected
+                                    ? 'bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40'
+                                    : isDisabled
+                                    ? 'opacity-30 text-[var(--text-faint)] cursor-not-allowed'
+                                    : 'text-[var(--text)] hover:bg-fg/[0.06]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-xs font-bold">{num}</span>
+                                  <span className="text-[10px] font-normal text-[var(--text-dim)]">Scholars</span>
+                                </div>
+                                {isSelected ? (
+                                  <Check className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                                ) : isDisabled ? (
+                                  <span className="text-[9px] font-mono text-[var(--text-faint)]">Enrolled</span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

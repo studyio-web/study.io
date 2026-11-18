@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronUp,
+  ChevronDown,
   Flame,
   Home,
   MessageCircle,
@@ -538,6 +539,47 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   const [editPassword, setEditPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [editMaxCapacity, setEditMaxCapacity] = useState(4);
+  const [isCapacityDropdownOpen, setIsCapacityDropdownOpen] = useState(false);
+  const capacityDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedCapacityItemRef = useRef<HTMLButtonElement>(null);
+
+  // Close capacity dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (
+        capacityDropdownRef.current &&
+        !capacityDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCapacityDropdownOpen(false);
+      }
+    }
+    if (isCapacityDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCapacityDropdownOpen]);
+
+  // Hardware back button dismisses capacity dropdown
+  useEffect(() => {
+    if (!isCapacityDropdownOpen) return;
+    return registerBackButtonHandler(() => {
+      setIsCapacityDropdownOpen(false);
+      return true;
+    });
+  }, [isCapacityDropdownOpen]);
+
+  // Smoothly scroll selected number into view when dropdown opens
+  useEffect(() => {
+    if (isCapacityDropdownOpen) {
+      setTimeout(() => {
+        selectedCapacityItemRef.current?.scrollIntoView({ block: 'nearest' });
+      }, 50);
+    }
+  }, [isCapacityDropdownOpen]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
@@ -3569,49 +3611,91 @@ CREATE POLICY "Hosts can update their own study rooms"
                   </div>
                 </div>
 
-                {/* Interactive Capacity Stepper */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                {/* Member Limit Selector Dropdown */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.04] border border-white/10 relative">
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-200">Max Member Limit</span>
-                    <span className="text-[11px] text-slate-500">Min {Math.max(2, dbMembers.length)} • Max 32</span>
+                    <span className="text-xs sm:text-sm font-bold text-white tracking-wide">
+                      Max Member Limit
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400 mt-0.5">
+                      Min {Math.max(2, dbMembers.length)} • Max 32
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="relative" ref={capacityDropdownRef}>
                     <button
                       type="button"
-                      disabled={editMaxCapacity <= Math.max(2, dbMembers.length)}
                       onClick={() => {
-                        isFormDirtyRef.current = true;
-                        setEditMaxCapacity((prev) => Math.max(Math.max(2, dbMembers.length), prev - 1));
+                        hapticTick();
+                        setIsCapacityDropdownOpen((prev) => !prev);
                       }}
-                      className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 border border-white/10 text-white flex items-center justify-center transition-all cursor-pointer font-bold text-lg"
-                      title="Decrease capacity"
+                      className="flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.15] border border-white/15 text-white font-hud font-bold text-xs sm:text-sm tracking-wider uppercase transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      aria-haspopup="listbox"
+                      aria-expanded={isCapacityDropdownOpen}
+                      title="Click to select maximum members"
                     >
-                      <Minus className="w-4 h-4" />
+                      <span className="text-amber-400 font-mono text-base font-extrabold">{editMaxCapacity}</span>
+                      <span className="text-slate-200">Members</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 transition-transform duration-200 ${
+                          isCapacityDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
                     </button>
 
-                    <div className="min-w-[70px] text-center">
-                      <span className="text-2xl font-mono font-bold text-white">
-                        {editMaxCapacity}
-                      </span>
-                      <span className="block text-[10px] text-slate-400 uppercase font-semibold">
-                        Members
-                      </span>
-                    </div>
+                    {isCapacityDropdownOpen && (
+                      <div
+                        role="listbox"
+                        className="absolute right-0 top-full mt-2 z-50 w-60 max-h-64 overflow-y-auto rounded-2xl bg-[#0c1017]/95 border border-white/15 p-1.5 shadow-2xl backdrop-blur-2xl scrollbar-thin animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-hud font-bold text-slate-400 uppercase tracking-widest border-b border-white/10 mb-1 flex items-center justify-between">
+                          <span>Choose Limit</span>
+                          <span className="font-mono text-amber-400 font-bold">{editMaxCapacity} / 32</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          {Array.from({ length: 31 }, (_, i) => i + 2).map((num) => {
+                            const isSelected = editMaxCapacity === num;
+                            const isDisabled = num < dbMembers.length;
 
-                    <button
-                      type="button"
-                      disabled={editMaxCapacity >= 32}
-                      onClick={() => {
-                        isFormDirtyRef.current = true;
-                        setEditMaxCapacity((prev) => Math.min(32, prev + 1));
-                      }}
-                      className="w-10 h-10 rounded-xl hover:brightness-110 disabled:opacity-30 border border-[var(--border)] flex items-center justify-center transition-all cursor-pointer font-bold text-lg shadow-md"
-                      style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
-                      title="Increase capacity"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
+                            return (
+                              <button
+                                key={num}
+                                ref={isSelected ? selectedCapacityItemRef : undefined}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => {
+                                  isFormDirtyRef.current = true;
+                                  setEditMaxCapacity(num);
+                                  setIsCapacityDropdownOpen(false);
+                                  hapticTick();
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-hud font-bold transition-all cursor-pointer select-none ${
+                                  isSelected
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40 shadow-sm'
+                                    : isDisabled
+                                    ? 'opacity-30 text-slate-600 cursor-not-allowed'
+                                    : 'text-slate-200 hover:text-white hover:bg-white/[0.08]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-extrabold">{num}</span>
+                                  <span className="text-xs font-normal text-slate-400">
+                                    {num === 1 ? 'Member' : 'Members'}
+                                  </span>
+                                </div>
+                                {isSelected ? (
+                                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                                ) : isDisabled ? (
+                                  <span className="text-[10px] font-mono text-slate-500">
+                                    Enrolled ({dbMembers.length})
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
