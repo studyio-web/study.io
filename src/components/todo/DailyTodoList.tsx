@@ -1182,7 +1182,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
             </div>
 
             {isCompletedOpen && (
-              <div className="space-y-1">
+              <div className="space-y-1 pb-3">
                 {displayCompletedTodos.map(item => (
                   <div
                     key={item.id}
@@ -1223,7 +1223,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       </div>
 
       {/* Bottom Floating Nav Clearance Spacer (Ensures the last task never hides behind the mobile bottom bar) */}
-      <div className="h-28 md:h-8 w-full shrink-0 pointer-events-none" aria-hidden="true" />
+      <div className="h-36 sm:h-40 md:h-12 w-full shrink-0 pointer-events-none" aria-hidden="true" />
     </div>
   );
 }

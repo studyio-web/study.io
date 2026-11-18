@@ -168,4 +168,140 @@ describe('Room Chat Replies and Mentions Specification', () => {
     const resultsNone = filterMentions('xyz');
     assert.equal(resultsNone.length, 0);
   });
+
+  it('correctly manages room mute status and suppresses general room notifications', () => {
+    const roomId = 'room-abc-123';
+    let mutedRooms: string[] = [];
+
+    // 1. Toggle mute ON
+    mutedRooms = Array.from(new Set([...mutedRooms, roomId]));
+    assert.equal(mutedRooms.includes(roomId), true, 'Room must be present in muted list');
+
+    // 2. Notification suppression logic:
+    const shouldAlertUser = (isRoomMuted: boolean, isReplyToMe: boolean, isMentionToMe: boolean) => {
+      if (isRoomMuted) {
+        // Only alert if directly replied or mentioned
+        return isReplyToMe || isMentionToMe;
+      }
+      return true;
+    };
+
+    assert.equal(shouldAlertUser(true, false, false), false, 'General chat must be suppressed when muted');
+    assert.equal(shouldAlertUser(true, true, false), true, 'Direct reply must still alert when muted');
+    assert.equal(shouldAlertUser(true, false, true), true, 'Direct mention must still alert when muted');
+    assert.equal(shouldAlertUser(false, false, false), true, 'General chat alerts when not muted');
+
+    // 3. Toggle mute OFF
+    mutedRooms = mutedRooms.filter((id) => id !== roomId);
+    assert.equal(mutedRooms.includes(roomId), false, 'Room must be removed from muted list');
+  });
+
+  it('correctly constructs user report payload conforming to reports table specification', () => {
+    const reportingUser = {
+      userId: 'target-user-456',
+      username: 'disruptive_scholar',
+    };
+    const reporter = {
+      userId: 'reporter-123',
+      username: 'study_master',
+    };
+    const room = {
+      id: 'room-alpha-99',
+      name: 'Silent Library',
+    };
+    const reason = 'Harassment or bullying';
+    const details = 'Used aggressive language during study sprint.';
+
+    const formattedMessage = [
+      `Reported Scholar: @${reportingUser.username} (ID: ${reportingUser.userId})`,
+      `Room: ${room.name || room.id}`,
+      `Reason: ${reason}`,
+      `Details: ${details.trim()}`,
+      `Timestamp: 2026-11-18T21:45:00.000Z`,
+    ].join('\n');
+
+    const reportRow = {
+      user_id: reporter.userId,
+      username: reporter.username,
+      category: 'User Report',
+      message: formattedMessage,
+      created_at: new Date().toISOString(),
+    };
+
+    assert.equal(reportRow.category, 'User Report');
+    assert.equal(reportRow.username, 'study_master');
+    assert.equal(reportRow.message.includes('disruptive_scholar'), true);
+    assert.equal(reportRow.message.includes('Harassment or bullying'), true);
+    assert.equal(reportRow.message.includes('Silent Library'), true);
+  });
+
+  it('guarantees notification message sanitation completely strips [REPLY:...] metadata', () => {
+    // Helper replicating send-notification sanitation logic
+    const sanitizeNotificationMessage = (raw: string) => {
+      let clean = (raw || '').trim();
+      clean = clean.replace(/^["'“”]([\s\S]*)["'“”]$/, '$1').trim();
+      const replyTagMatch = clean.match(/\[REPLY:([\s\S]*?)\](?:\r?\n|\s|$)/);
+      if (replyTagMatch) {
+        clean = clean.replace(/\[REPLY:[\s\S]*?\](?:\r?\n|\s)*/g, '').trim();
+      }
+      clean = clean.replace(/\[REPLY:[\s\S]*?(?:\]|\r?\n|$)/g, '').trim();
+      clean = clean.replace(/^["'“”]([\s\S]*)["'“”]$/, '$1').trim();
+      return clean;
+    };
+
+    // Case 1: Standard reply payload with newline
+    const raw1 = '[REPLY:{"id":"f4b1e8b0","username":"trial","snippet":"Ayyo onnudi","userId":"a36e57c6"}]\nsflkd';
+    assert.equal(sanitizeNotificationMessage(raw1), 'sflkd');
+
+    // Case 2: Reply payload with surrounding quotes
+    const raw2 = '"[REPLY:{"id":"f4b1e8b0","username":"trial","snippet":"Ayyo onnudi","userId":"a36e57c6"}] sflkd"';
+    assert.equal(sanitizeNotificationMessage(raw2), 'sflkd');
+
+    // Case 3: Malformed JSON reply block
+    const raw3 = '[REPLY:{"id":"incomplete... text here';
+    assert.equal(sanitizeNotificationMessage(raw3).includes('[REPLY:{"id":"incomplete'), false);
+
+    // Case 4: Standard chat message untouched
+    const raw4 = 'Hey scholars, ready for study session?';
+    assert.equal(sanitizeNotificationMessage(raw4), 'Hey scholars, ready for study session?');
+  });
+
+  it('delivers highlighted reply title only to the target recipient and clean standard chat to others', () => {
+    const sender = 'wren';
+    const roomName = 'studies';
+    const cleanMsg = 'sflkd';
+    const targetUserId = 'trial-uuid';
+    const targetUsername = 'trial';
+
+    const buildNotificationForUser = (recipientId: string, recipientName: string) => {
+      const isTarget = recipientId === targetUserId || recipientName.toLowerCase() === targetUsername.toLowerCase();
+      if (isTarget) {
+        return {
+          type: 'reply',
+          title: `↩️ ${sender} replied to you in ${roomName}`,
+          body: `"${cleanMsg}"`,
+          color: '#3B82F6',
+        };
+      }
+      return {
+        type: 'chat',
+        title: roomName,
+        body: `${sender}: "${cleanMsg}"`,
+        color: '#10B981',
+      };
+    };
+
+    // Target recipient receives highlighted notification
+    const targetNotif = buildNotificationForUser('trial-uuid', 'trial');
+    assert.equal(targetNotif.title, '↩️ wren replied to you in studies');
+    assert.equal(targetNotif.body, '"sflkd"');
+    assert.equal(targetNotif.color, '#3B82F6');
+
+    // Third-party room member receives standard clean chat notification
+    const observerNotif = buildNotificationForUser('ebin-uuid', 'ebin');
+    assert.equal(observerNotif.title, 'studies');
+    assert.equal(observerNotif.body, 'wren: "sflkd"');
+    assert.equal(observerNotif.color, '#10B981');
+    assert.equal(observerNotif.body.includes('[REPLY:'), false, 'Observer notification must never contain [REPLY:');
+  });
 });

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, Zap, Flame, Shield, Target, Ban } from 'lucide-react';
+import { X, Clock, Zap, Flame, Shield, Target, Ban, Flag } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
@@ -43,6 +43,7 @@ interface ScholarProfileModalProps {
   isSelf?: boolean;
   isHost?: boolean;
   onBan?: (userId: string, username: string) => void;
+  onReport?: (userId: string, username: string) => void;
 }
 
 function formatHoursMinutes(totalSeconds: number): { formatted: string; decimalHours: string } {
@@ -66,6 +67,7 @@ export function ScholarProfileModal({
   isSelf,
   isHost,
   onBan,
+  onReport,
 }: ScholarProfileModalProps) {
   const [mounted, setMounted] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -620,6 +622,18 @@ export function ScholarProfileModal({
               >
                 <Ban className="w-3.5 h-3.5" />
                 <span>BAN</span>
+              </button>
+            )}
+
+            {onReport && !isSelf && scholar && (
+              <button
+                type="button"
+                onClick={() => onReport(scholar.userId, scholar.name || scholar.username || 'Scholar')}
+                className="px-3.5 py-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/15 border border-white/10 hover:border-rose-500/30 text-neutral-400 hover:text-rose-400 text-xs font-hud font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                title={`Report ${scholar.name || scholar.username || 'Scholar'}`}
+              >
+                <Flag className="w-3.5 h-3.5" />
+                <span>REPORT</span>
               </button>
             )}
           </div>

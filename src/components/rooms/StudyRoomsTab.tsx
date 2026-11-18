@@ -29,7 +29,8 @@ import {
   Settings,
   Eye,
   EyeOff,
-  Crown
+  Crown,
+  BellOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
@@ -77,6 +78,26 @@ export default function StudyRoomsTab({
   const [explorerRooms, setExplorerRooms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+
+  const [mutedRoomIds, setMutedRoomIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('studyio_muted_rooms') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const refreshMutedRooms = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      setMutedRoomIds(JSON.parse(localStorage.getItem('studyio_muted_rooms') || '[]'));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    refreshMutedRooms();
+  }, [activeRoomId, refreshMutedRooms]);
   const [activeRoomInitialTab, setActiveRoomInitialTab] = useState<'home' | 'chat' | 'settings'>('home');
 
   // Notify parent dashboard whenever active room state changes
@@ -1099,9 +1120,16 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 {initial}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate block">
-                                  {room.name}
-                                </span>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate block">
+                                    {room.name}
+                                  </span>
+                                  {mutedRoomIds.includes(room.id) && (
+                                    <span title="Room messages muted" className="text-rose-400 shrink-0">
+                                      <BellOff className="w-3 h-3" />
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-1 font-mono text-xs text-[var(--text-dim)] mt-0.5">
                                   <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                                   <span className="font-semibold text-[var(--text)]">{memberCount}</span>
@@ -1159,6 +1187,11 @@ CREATE POLICY "Hosts can update their own study rooms"
                                   <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
                                     {room.name}
                                   </span>
+                                  {mutedRoomIds.includes(room.id) && (
+                                    <span title="Room messages muted" className="text-rose-400 shrink-0">
+                                      <BellOff className="w-3.5 h-3.5" />
+                                    </span>
+                                  )}
                                   {room.is_private ? (
                                     <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
                                       <Lock className="w-2.5 h-2.5" />
@@ -1424,9 +1457,16 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 {initial}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate block">
-                                  {room.name}
-                                </span>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-sans font-bold text-sm text-[var(--text)] tracking-tight truncate block">
+                                    {room.name}
+                                  </span>
+                                  {mutedRoomIds.includes(room.id) && (
+                                    <span title="Room messages muted" className="text-rose-400 shrink-0">
+                                      <BellOff className="w-3 h-3" />
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-1 font-mono text-xs text-[var(--text-dim)] mt-0.5">
                                   <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                                   <span className="font-semibold text-[var(--text)]">{memberCount}</span>
@@ -1482,6 +1522,11 @@ CREATE POLICY "Hosts can update their own study rooms"
                                   <span className="font-sans font-bold text-sm sm:text-base text-[var(--text)] tracking-tight truncate">
                                     {room.name}
                                   </span>
+                                  {mutedRoomIds.includes(room.id) && (
+                                    <span title="Room messages muted" className="text-rose-400 shrink-0">
+                                      <BellOff className="w-3.5 h-3.5" />
+                                    </span>
+                                  )}
                                   {room.is_private ? (
                                     <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-hud-mono font-bold px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] shrink-0">
                                       <Lock className="w-2.5 h-2.5" />

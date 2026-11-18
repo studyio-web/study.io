@@ -160,24 +160,31 @@ Deno.serve(async (req: Request) => {
     let replyUsername = reply_to_username ? reply_to_username.replace(/^@/, '') : undefined;
     let cleanMsg = (message || "").trim();
 
-    // Strip surrounding quotes if present (e.g. "[REPLY:...] text")
-    cleanMsg = cleanMsg.replace(/^["'](.*)["']$/s, '$1').trim();
+    // Strip surrounding quotes if present (e.g. "[REPLY:...] text" or “...”)
+    cleanMsg = cleanMsg.replace(/^["'“”]([\s\S]*)["'“”]$/, '$1').trim();
 
-    // Match [REPLY:{"id":...,"username":...,"userId":...}] with flexible whitespace/newlines
-    const replyRegex = /\[REPLY:(\{.*?\})\]\s*/s;
-    const replyMatch = cleanMsg.match(replyRegex);
-    if (replyMatch) {
+    // Match [REPLY: ... ] block
+    const replyTagMatch = cleanMsg.match(/\[REPLY:([\s\S]*?)\](?:\r?\n|\s|$)/);
+    if (replyTagMatch) {
+      const rawMeta = replyTagMatch[1];
       try {
-        const meta = JSON.parse(replyMatch[1]);
+        const meta = JSON.parse(rawMeta);
         if (!replyUserId && meta.userId) replyUserId = meta.userId;
         if (!replyUsername && meta.username) replyUsername = String(meta.username).replace(/^@/, '');
-        cleanMsg = cleanMsg.replace(replyRegex, '').trim();
-      } catch (err) {
-        console.warn('[send-notification] Failed to parse reply JSON:', err);
+      } catch (parseErr) {
+        // Fallback regex if JSON.parse fails
+        const uidMatch = rawMeta.match(/"userId"\s*:\s*"([^"]+)"/);
+        const unameMatch = rawMeta.match(/"username"\s*:\s*"([^"]+)"/);
+        if (!replyUserId && uidMatch) replyUserId = uidMatch[1];
+        if (!replyUsername && unameMatch) replyUsername = unameMatch[1].replace(/^@/, '');
       }
+      // ALWAYS unconditionally strip the [REPLY:...] block so raw metadata NEVER leaks to notifications
+      cleanMsg = cleanMsg.replace(/\[REPLY:[\s\S]*?\](?:\r?\n|\s)*/g, '').trim();
     }
-    // Clean any remaining surrounding quotes
-    cleanMsg = cleanMsg.replace(/^["'](.*)["']$/s, '$1').trim();
+
+    // Safety sweep: strip any leftover [REPLY: ...] tags or unclosed [REPLY: headers
+    cleanMsg = cleanMsg.replace(/\[REPLY:[\s\S]*?(?:\]|\r?\n|$)/g, '').trim();
+    cleanMsg = cleanMsg.replace(/^["'“”]([\s\S]*)["'“”]$/, '$1').trim();
 
     // Extract mentions from text and combine with body.mentions
     const extractedMentions = (cleanMsg.match(/@[a-zA-Z0-9_\-\.]+/g) || []).map((m) =>
@@ -251,11 +258,20 @@ Deno.serve(async (req: Request) => {
         });
       }
     } else if (room_id) {
-      // Find all room members except sender
+      // Find all room members except sender, checking for muted room preferences
       const { data: members } = await supabase
         .from("room_members")
-        .select("user_id")
+        .select("user_id, is_muted")
         .eq("room_id", room_id);
+
+      const mutedUserIds = new Set<string>();
+      if (members) {
+        for (const m of members) {
+          if (m.is_muted) {
+            mutedUserIds.add(m.user_id);
+          }
+        }
+      }
 
       // Also get room host to guarantee delivery if host isn't in room_members, and query room name
       const { data: roomData } = await supabase
@@ -375,7 +391,7 @@ Deno.serve(async (req: Request) => {
         recipientBody = `@${cleanUsername} nudged you to focus!`;
         notificationColor = "#10B981";
       } else {
-        const recipientUsernameLower = recipient.username ? recipient.username.toLowerCase() : "";
+        const recipientUsernameLower = recipient.username ? recipient.username.replace(/^@/, '').toLowerCase() : "";
         const isRepliedTo = Boolean(
           (replyUserId && recipient.userId === replyUserId) ||
           (replyUsername && recipientUsernameLower && recipientUsernameLower === replyUsername.toLowerCase())
@@ -384,6 +400,13 @@ Deno.serve(async (req: Request) => {
         const isMentioned = Boolean(
           recipientUsernameLower && mentionsSet.has(recipientUsernameLower)
         );
+
+        // Check if recipient has muted this room
+        const isMuted = mutedUserIds.has(recipient.userId);
+        if (isMuted && !isRepliedTo && !isMentioned) {
+          // Room is muted by this user: do not send general chat push notifications
+          return null;
+        }
 
         if (isRepliedTo) {
           // Highlighted Reply Notification ONLY for the user who received the reply!
@@ -434,7 +457,19 @@ Deno.serve(async (req: Request) => {
           },
         },
       };
-    });
+    }).filter(Boolean) as admin.messaging.Message[];
+
+    if (fcmMessages.length === 0) {
+      console.log(`[send-notification] All eligible recipients have muted this room or were sender. Skipping FCM send.`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          delivered: false,
+          reason: "All recipients have muted this room or were sender",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log(`[send-notification] Sending ${fcmMessages.length} FCM message(s) for type=${type}:`, {
       room: resolvedRoomName,

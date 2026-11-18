@@ -11,7 +11,7 @@ export function TasksOverview() {
   const showHint = isHintVisible('tasks');
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-2 sm:px-6 py-3 sm:py-4 animate-in fade-in duration-200 space-y-3">
+    <div className="w-full max-w-4xl mx-auto px-2 sm:px-6 py-3 sm:py-4 pb-10 md:pb-6 animate-in fade-in duration-200 space-y-3">
       {/* One-time dismissible intro hint (if active) */}
       {showHint && (
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-amber-300 flex items-center justify-between gap-3 shadow-sm">

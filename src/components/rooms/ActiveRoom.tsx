@@ -42,6 +42,9 @@ import {
   AtSign,
   CornerUpLeft,
   Reply,
+  Bell,
+  BellOff,
+  Flag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../common/UserAvatar';
@@ -325,6 +328,113 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
       setUnreadCount(0);
     }
   }, []);
+
+  // Room message mute state
+  const [isRoomMuted, setIsRoomMuted] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = localStorage.getItem('studyio_muted_rooms') || '[]';
+      return JSON.parse(raw).includes(roomId);
+    } catch {
+      return false;
+    }
+  });
+  const isRoomMutedRef = useRef(isRoomMuted);
+  useEffect(() => {
+    isRoomMutedRef.current = isRoomMuted;
+  }, [isRoomMuted]);
+
+  // User reporting state
+  const [reportingUser, setReportingUser] = useState<{ userId: string; username: string } | null>(null);
+  const [reportReason, setReportReason] = useState<string>('Harassment or bullying');
+  const [reportDetails, setReportDetails] = useState<string>('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false);
+
+  const handleToggleMuteRoom = useCallback(async () => {
+    const nextMuted = !isRoomMuted;
+    setIsRoomMuted(nextMuted);
+    isRoomMutedRef.current = nextMuted;
+    hapticTick();
+
+    try {
+      const raw = localStorage.getItem('studyio_muted_rooms') || '[]';
+      const list: string[] = JSON.parse(raw);
+      const updated = nextMuted
+        ? Array.from(new Set([...list, roomId]))
+        : list.filter((id) => id !== roomId);
+      localStorage.setItem('studyio_muted_rooms', JSON.stringify(updated));
+    } catch {}
+
+    toast(
+      nextMuted
+        ? 'Room notifications muted. Direct mentions and replies will still notify you.'
+        : 'Room notifications unmuted.',
+      {
+        icon: nextMuted ? '🔕' : '🔔',
+        duration: 3000,
+      }
+    );
+
+    try {
+      const supabase = getSupabase();
+      if (supabase && user?.id) {
+        await supabase
+          .from('room_members')
+          .update({ is_muted: nextMuted })
+          .eq('room_id', roomId)
+          .eq('user_id', user.id);
+      }
+    } catch (err) {
+      console.warn('[ActiveRoom] Failed to persist room mute state:', err);
+    }
+  }, [isRoomMuted, roomId, user?.id]);
+
+  const handleSubmitReport = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!reportingUser) return;
+
+    setIsSubmittingReport(true);
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        const myName = (user as any)?.username || user?.displayName || user?.username || 'Anonymous';
+        const formattedMessage = [
+          `Reported Scholar: @${reportingUser.username} (ID: ${reportingUser.userId})`,
+          `Room: ${roomName || roomId}`,
+          `Reason: ${reportReason}`,
+          `Details: ${reportDetails.trim() || 'No additional details provided.'}`,
+          `Timestamp: ${new Date().toISOString()}`,
+        ].join('\n');
+
+        const { error: dbError } = await supabase.from('reports').insert({
+          user_id: user?.id || null,
+          username: myName,
+          category: 'User Report',
+          message: formattedMessage,
+          created_at: new Date().toISOString(),
+        });
+
+        if (dbError) {
+          console.error('[ActiveRoom] Report submission failed:', dbError);
+          toast.error('Failed to submit report. Please try again.');
+          return;
+        }
+      }
+
+      toast.success(`Report submitted for @${reportingUser.username}. Thank you for keeping study.io safe!`, {
+        icon: '🛡️',
+        duration: 4000,
+      });
+
+      setReportingUser(null);
+      setReportReason('Harassment or bullying');
+      setReportDetails('');
+    } catch (err: any) {
+      toast.error(err?.message || 'Error submitting report');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  }, [reportingUser, roomName, roomId, (user as any)?.username, user?.displayName, user?.username, user?.id, reportReason, reportDetails]);
 
   // Sync track when roomTab changes (e.g. from header button click)
   useEffect(() => {
@@ -962,6 +1072,10 @@ CREATE POLICY "Hosts can update their own study rooms"
         setMemberToBan(null);
         return true;
       }
+      if (reportingUser) {
+        setReportingUser(null);
+        return true;
+      }
       if (mentionQuery !== null) {
         setMentionQuery(null);
         return true;
@@ -983,6 +1097,7 @@ CREATE POLICY "Hosts can update their own study rooms"
     selectedScholar,
     showDeleteConfirm,
     memberToBan,
+    reportingUser,
     mentionQuery,
     replyingTo,
     roomTab,
@@ -1265,8 +1380,16 @@ CREATE POLICY "Hosts can update their own study rooms"
       // 2. Fetch all registered room members
       const { data: membersData } = await supabase
         .from('room_members')
-        .select('user_id')
+        .select('user_id, is_muted')
         .eq('room_id', roomId);
+
+      if (membersData && user?.id) {
+        const myMembership = membersData.find((m: any) => m.user_id === user.id);
+        if (myMembership && typeof myMembership.is_muted === 'boolean') {
+          setIsRoomMuted(myMembership.is_muted);
+          isRoomMutedRef.current = myMembership.is_muted;
+        }
+      }
 
       const hostId = roomData?.host_id;
       const allUserIds = Array.from(
@@ -2172,7 +2295,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           sender_id: user.id,
           sender_username: myUsername,
           type: notifType,
-          message: data.content,
+          message: newMessage.trim(),
           mentions,
           reply_to_user_id: replyUserId,
           reply_to_username: replyUsername,
@@ -2785,7 +2908,26 @@ CREATE POLICY "Hosts can update their own study rooms"
           </div>
         </div>
 
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mute Room Messages Toggle Button */}
+          <button
+            type="button"
+            onClick={handleToggleMuteRoom}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border transition-all flex items-center justify-center cursor-pointer shrink-0 touch-manipulation active:scale-95 shadow-sm ${
+              isRoomMuted
+                ? 'bg-rose-500/15 border-rose-500/35 text-rose-400 hover:bg-rose-500/25 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-neutral-400 hover:text-white'
+            }`}
+            title={isRoomMuted ? 'Room messages MUTED (click to unmute)' : 'Mute room messages'}
+            aria-label={isRoomMuted ? 'Unmute room messages' : 'Mute room messages'}
+          >
+            {isRoomMuted ? (
+              <BellOff className="w-4 h-4 text-rose-400" />
+            ) : (
+              <Bell className="w-4 h-4 text-neutral-400" />
+            )}
+          </button>
+
           <div className="flex bg-black/60 border border-[var(--border)] p-1 rounded-full shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
             <button
               type="button"
@@ -3079,6 +3221,22 @@ CREATE POLICY "Hosts can update their own study rooms"
 
                 {tab === 'chat' && (
                   <div className="w-full flex-1 min-h-0 flex flex-col h-full overflow-hidden">
+                    {/* Muted Room Notice */}
+                    {isRoomMuted && (
+                      <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-2 flex items-center justify-between text-xs text-rose-300 shrink-0">
+                        <span className="flex items-center gap-1.5 font-hud text-[11px] uppercase tracking-wider">
+                          <BellOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>Room notifications muted (direct replies and mentions will still notify you)</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleToggleMuteRoom}
+                          className="font-hud font-bold text-[10px] uppercase tracking-wider underline text-rose-300 hover:text-white cursor-pointer ml-2 shrink-0 active:scale-95"
+                        >
+                          Unmute
+                        </button>
+                      </div>
+                    )}
             {/* Messages Scroll Area */}
             <div
               ref={messagesEndRef}
@@ -3215,6 +3373,17 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 title={`Ban ${username} from room`}
                               >
                                 <Ban className="w-3 h-3" />
+                              </button>
+                            )}
+                            {!isMe && (
+                              <button
+                                type="button"
+                                onClick={() => setReportingUser({ userId: firstMsg.user_id, username })}
+                                className="opacity-0 group-hover:opacity-100 max-sm:opacity-40 transition-opacity p-0.5 rounded text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                                title={`Report @${username}`}
+                                aria-label={`Report @${username}`}
+                              >
+                                <Flag className="w-3 h-3" />
                               </button>
                             )}
                           </div>
@@ -3946,16 +4115,31 @@ CREATE POLICY "Hosts can update their own study rooms"
 
                         <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                           {!member.is_current_user && (
-                            <ClassicNudgeButton
-                              targetUserId={member.user_id}
-                              targetUsername={member.username}
-                              onNudge={(e) => {
-                                e.stopPropagation();
-                                handleSendNudge(member.user_id, member.username);
-                              }}
-                              cooldownSeconds={nudgeCooldowns[member.user_id] || 0}
-                              size="sm"
-                            />
+                            <>
+                              <ClassicNudgeButton
+                                targetUserId={member.user_id}
+                                targetUsername={member.username}
+                                onNudge={(e) => {
+                                  e.stopPropagation();
+                                  handleSendNudge(member.user_id, member.username);
+                                }}
+                                cooldownSeconds={nudgeCooldowns[member.user_id] || 0}
+                                size="sm"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReportingUser({ userId: member.user_id, username: member.username });
+                                }}
+                                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-rose-500/15 border border-white/10 hover:border-rose-500/30 text-neutral-400 hover:text-rose-400 text-xs transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+                                title={`Report @${member.username}`}
+                                aria-label={`Report @${member.username}`}
+                              >
+                                <Flag className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
 
                           {isHost && !member.is_host && !member.is_current_user && (
@@ -4202,7 +4386,126 @@ CREATE POLICY "Hosts can update their own study rooms"
           setSelectedScholar(null);
           setMemberToBan({ userId: uid, username: name });
         }}
+        onReport={(uid, name) => {
+          setSelectedScholar(null);
+          setReportingUser({ userId: uid, username: name });
+        }}
       />
+
+      {/* Report User Modal */}
+      {mounted && typeof document !== 'undefined' && reportingUser && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="report-modal-title"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => !isSubmittingReport && setReportingUser(null)}
+        >
+          <div
+            className="w-full max-w-md bg-[#0D1117] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="report-modal-title" className="text-sm font-hud font-bold text-white uppercase tracking-wider">
+                    Report Scholar
+                  </h3>
+                  <p className="text-xs text-rose-300 font-mono">
+                    @{reportingUser.username}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSubmittingReport && setReportingUser(null)}
+                disabled={isSubmittingReport}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReport} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-hud font-bold text-neutral-300 uppercase tracking-wider">
+                  Select Reason
+                </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[
+                    'Harassment or bullying',
+                    'Spam or advertising links',
+                    'Inappropriate or offensive language',
+                    'Disruptive / AFK in focus room',
+                    'Other violation',
+                  ].map((reason) => (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setReportReason(reason)}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium text-left border transition-all cursor-pointer flex items-center justify-between ${
+                        reportReason === reason
+                          ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 font-semibold shadow-sm'
+                          : 'bg-white/[0.03] border-white/5 text-neutral-400 hover:text-white hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      <span>{reason}</span>
+                      {reportReason === reason && <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-hud font-bold text-neutral-300 uppercase tracking-wider">
+                  Additional Details (Optional)
+                </label>
+                <textarea
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Describe what occurred (optional)..."
+                  rows={3}
+                  maxLength={500}
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3 text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/30 transition-all font-mono resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setReportingUser(null)}
+                  disabled={isSubmittingReport}
+                  className="px-4 py-2 rounded-xl text-xs font-hud font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReport}
+                  className="px-4 py-2 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
+                >
+                  {isSubmittingReport ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Submit Report</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
 
 
     </div>

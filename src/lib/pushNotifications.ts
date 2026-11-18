@@ -157,10 +157,13 @@ export async function initPushNotifications(userId?: string): Promise<void> {
             notification.title ||
             notification.data?.title ||
             'study.io';
-          const body =
+          let body =
             notification.body ||
             notification.data?.body ||
             '';
+          // Sanitize any raw reply metadata tags if present
+          body = body.replace(/\[REPLY:[\s\S]*?(?:\]|\r?\n|$)/g, '').trim();
+          body = body.replace(/^["'“”]([\s\S]*)["'“”]$/, '$1').trim();
           const notifType = notification.data?.type;
           const channelId =
             notification.data?.channelId ||
