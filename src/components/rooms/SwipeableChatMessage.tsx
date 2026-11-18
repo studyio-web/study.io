@@ -160,7 +160,7 @@ export const SwipeableChatMessage = React.memo(function SwipeableChatMessage({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      className={`relative w-full overflow-visible touch-pan-y select-none ${className}`}
+      className={`relative w-fit max-w-full overflow-visible touch-pan-y select-none ${className}`}
     >
       {/* Revealed Swipe-To-Reply Action Indicator (Instagram / WhatsApp style) */}
       {absOffset > 4 && (
@@ -188,7 +188,7 @@ export const SwipeableChatMessage = React.memo(function SwipeableChatMessage({
       {/* Main Draggable Message Bubble */}
       <div
         ref={bubbleRef}
-        className="w-full will-change-transform relative z-10"
+        className="w-fit max-w-full will-change-transform relative z-10"
       >
         {children}
       </div>

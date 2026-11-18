@@ -3389,7 +3389,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                           </div>
 
                           {/* Avatar and Bubble Row */}
-                          <div className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''} items-end max-w-[88%] sm:max-w-[75%]`}>
+                          <div className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''} items-end max-w-[58%] sm:max-w-[55%] md:max-w-[50%]`}>
                             {/* Avatar */}
                             <div className="relative shrink-0">
                               <UserAvatar
@@ -3405,7 +3405,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                             </div>
 
                             {/* Bubble Stack */}
-                            <div className={`flex flex-col gap-1.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex flex-col gap-1.5 ${isMe ? 'items-end' : 'items-start'} max-w-full`}>
                               {group.map((msg: any, idx: number) => {
                                 const isFirst = idx === 0;
                                 const isLast = idx === group.length - 1;
@@ -3422,7 +3422,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                     }`}
                                   >
                                     <div
-                                      className={`px-4 py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${
+                                      className={`w-fit max-w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${
                                         isMe
                                           ? 'bg-gradient-to-br from-amber-500/25 via-amber-500/15 to-amber-600/10 border border-amber-500/35 text-amber-50 shadow-[0_2px_12px_rgba(245,158,11,0.1)]'
                                           : 'bg-white/[0.05] border border-white/[0.1] text-slate-100 shadow-md hover:border-white/20'
@@ -3441,7 +3441,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                           }}
                                           role="button"
                                           tabIndex={0}
-                                          className={`mb-2 px-2.5 py-1.5 rounded-xl text-xs border-l-2 flex flex-col gap-0.5 cursor-pointer transition-all select-none ${
+                                          className={`mb-2 px-2.5 py-1.5 rounded-xl text-xs border-l-2 flex flex-col gap-0.5 cursor-pointer transition-all select-none max-w-full overflow-hidden ${
                                             isMe
                                               ? 'bg-amber-500/15 border-amber-400 hover:bg-amber-500/25 text-amber-200'
                                               : 'bg-white/[0.06] border-amber-400/50 hover:bg-white/[0.1] text-slate-300'

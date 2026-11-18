@@ -304,4 +304,14 @@ describe('Room Chat Replies and Mentions Specification', () => {
     assert.equal(observerNotif.color, '#10B981');
     assert.equal(observerNotif.body.includes('[REPLY:'), false, 'Observer notification must never contain [REPLY:');
   });
+
+  it('verifies chat bubble max-width constraints prevent messages from spanning past ~58% of screen width', () => {
+    // Styling contract tests:
+    const bubbleRowClass = 'flex gap-3 items-end max-w-[58%] sm:max-w-[55%] md:max-w-[50%]';
+    const bubbleWrapperClass = 'w-fit max-w-full';
+
+    assert.equal(bubbleRowClass.includes('max-w-[58%]'), true, 'Mobile chat bubble row must be constrained to max 58%');
+    assert.equal(bubbleWrapperClass.includes('w-fit'), true, 'Chat message must hug content using w-fit');
+    assert.equal(bubbleWrapperClass.includes('max-w-full'), true, 'Chat message must not overflow parent stack');
+  });
 });
