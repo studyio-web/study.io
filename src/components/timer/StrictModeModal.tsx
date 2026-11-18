@@ -380,19 +380,6 @@ export function StrictCountdownWarningModal({
         className="relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 shadow-2xl text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Tag */}
-        <div className="flex justify-center mb-4">
-          <span
-            className={`px-3 py-1 rounded-full text-[10px] font-hud font-bold tracking-widest uppercase border ${
-              isUltraStrict
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                : 'bg-white/10 border-white/15 text-white/80'
-            }`}
-          >
-            {isUltraStrict ? '⚡ Ultra Strict Lockdown' : '🛡️ Strict Mode Active'}
-          </span>
-        </div>
-
         {/* Icon */}
         <div
           className={`w-14 h-14 rounded-3xl border flex items-center justify-center mx-auto mb-3.5 ${
