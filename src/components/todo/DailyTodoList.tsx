@@ -421,7 +421,11 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
 
     hapticMedium();
     setTaskInput('');
-    setTimeout(() => inputRef.current?.focus(), 20);
+    if (typeof window !== 'undefined' && window.innerWidth >= 768 && !('ontouchstart' in window)) {
+      setTimeout(() => inputRef.current?.focus(), 20);
+    } else {
+      inputRef.current?.blur();
+    }
 
     const supabase = getSupabase();
     if (!supabase) {

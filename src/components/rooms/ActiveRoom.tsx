@@ -2020,6 +2020,9 @@ CREATE POLICY "Hosts can update their own study rooms"
       setReplyingTo(null);
       setMentionQuery(null);
       setMentionAtIdx(null);
+      if (typeof window !== 'undefined' && (window.innerWidth < 768 || 'ontouchstart' in window)) {
+        chatInputRef.current?.blur();
+      }
       setMessages((prev) => [...prev, normalizedMsg]);
 
       // Detect mentions for notification
@@ -2940,7 +2943,15 @@ CREATE POLICY "Hosts can update their own study rooms"
                 {tab === 'chat' && (
                   <div className="w-full flex-1 min-h-0 flex flex-col h-full overflow-hidden">
             {/* Messages Scroll Area */}
-            <div ref={messagesEndRef} className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-4 scrollbar-thin">
+            <div
+              ref={messagesEndRef}
+              onPointerDown={() => {
+                if (document.activeElement === chatInputRef.current) {
+                  chatInputRef.current?.blur();
+                }
+              }}
+              className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-4 scrollbar-thin"
+            >
               <div className="max-w-3xl w-full mx-auto space-y-4">
                 {/* Load Previous Messages Pagination Button */}
                 {hasMoreMessages && (

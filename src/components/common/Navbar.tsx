@@ -87,67 +87,124 @@ export function Navbar({
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
   const [isKeyboardActive, setIsKeyboardActive] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const baselineHeightRef = useRef<number>(0);
 
-  // Auto-hide mobile dock whenever user is typing in an input, textarea, or virtual keyboard is up
+  // Synchronize keyboard open/close state via visualViewport and window height
   useEffect(() => {
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
-      ) {
-        setIsInputFocused(true);
-      }
+    if (typeof window === 'undefined') return;
+
+    const getViewportHeight = () => {
+      return window.visualViewport ? window.visualViewport.height : window.innerHeight;
     };
 
-    const handleFocusOut = (e: FocusEvent) => {
-      const relatedTarget = e.relatedTarget as HTMLElement | null;
-      if (
-        relatedTarget &&
-        (relatedTarget.tagName === 'INPUT' ||
-          relatedTarget.tagName === 'TEXTAREA' ||
-          relatedTarget.isContentEditable)
-      ) {
-        return;
+    // Initialize baseline height when keyboard is not visible
+    if (baselineHeightRef.current === 0) {
+      baselineHeightRef.current = getViewportHeight();
+    }
+
+    const checkKeyboard = () => {
+      const currentHeight = getViewportHeight();
+
+      // If user rotated or resized window, adapt baseline
+      if (currentHeight > baselineHeightRef.current) {
+        baselineHeightRef.current = currentHeight;
       }
-      setIsInputFocused(false);
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInput = Boolean(
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable)
+      );
+
+      // Keyboard is active ONLY IF an input is focused AND the viewport has contracted by > 120px
+      const vvDiff = window.visualViewport ? window.innerHeight - window.visualViewport.height : 0;
+      const heightShrunk = baselineHeightRef.current - currentHeight > 120;
+      const isKeyboardOpen = isInput && (heightShrunk || vvDiff > 120);
+
+      setIsKeyboardActive(isKeyboardOpen);
     };
 
-    window.addEventListener('focusin', handleFocusIn);
-    window.addEventListener('focusout', handleFocusOut);
+    const handleFocusChange = () => {
+      // Allow slight delay for virtual keyboard animation to begin or complete
+      setTimeout(checkKeyboard, 50);
+      setTimeout(checkKeyboard, 250);
+    };
+
+    window.visualViewport?.addEventListener('resize', checkKeyboard);
+    window.addEventListener('resize', checkKeyboard);
+    window.addEventListener('focusin', handleFocusChange);
+    window.addEventListener('focusout', handleFocusChange);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        baselineHeightRef.current = getViewportHeight();
+        checkKeyboard();
+      }, 300);
+    });
 
     return () => {
-      window.removeEventListener('focusin', handleFocusIn);
-      window.removeEventListener('focusout', handleFocusOut);
+      window.visualViewport?.removeEventListener('resize', checkKeyboard);
+      window.removeEventListener('resize', checkKeyboard);
+      window.removeEventListener('focusin', handleFocusChange);
+      window.removeEventListener('focusout', handleFocusChange);
     };
   }, []);
 
-  // Visual viewport resize detection for virtual keyboard opening
+  // Reset keyboard state and blur any dangling input when activeTab changes
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const activeEl = document.activeElement as HTMLElement | null;
+    if (
+      activeEl &&
+      (activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable)
+    ) {
+      activeEl.blur();
+    }
+    setIsKeyboardActive(false);
+  }, [activeTab]);
 
-    const handleViewportResize = () => {
-      const vv = window.visualViewport;
-      if (!vv) return;
-      const isKeyboard = window.innerHeight - vv.height > 120;
-      setIsKeyboardActive(isKeyboard);
+  // Dismiss keyboard when user taps on blank / non-interactive areas
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePointerDown = (e: PointerEvent | TouchEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable)
+      ) {
+        const target = e.target as HTMLElement | null;
+        if (
+          target &&
+          target !== activeEl &&
+          !activeEl.contains(target) &&
+          target.tagName !== 'INPUT' &&
+          target.tagName !== 'TEXTAREA' &&
+          !target.isContentEditable &&
+          !target.closest('button') &&
+          !target.closest('[role="button"]') &&
+          !target.closest('form')
+        ) {
+          activeEl.blur();
+        }
+      }
     };
 
-    window.visualViewport.addEventListener('resize', handleViewportResize);
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
     return () => {
-      window.visualViewport?.removeEventListener('resize', handleViewportResize);
+      window.removeEventListener('pointerdown', handlePointerDown);
     };
   }, []);
 
   const shouldHideBottom =
     hideBottomBar ||
     (hideTopBar && activeTab === 'rooms') ||
-    isInputFocused ||
     isKeyboardActive;
 
   const handleTabClick = (tab: NavTabType) => {

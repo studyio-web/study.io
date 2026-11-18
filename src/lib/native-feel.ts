@@ -168,7 +168,20 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
             return;
           }
 
-          // 3. Fallback: check if active tab from URL query is not timer (always return to timer first)
+          // 3. Check if an input or textarea is currently focused and blur it to dismiss virtual keyboard
+          const activeEl = document.activeElement as HTMLElement | null;
+          if (
+            activeEl &&
+            (activeEl.tagName === 'INPUT' ||
+              activeEl.tagName === 'TEXTAREA' ||
+              activeEl.isContentEditable)
+          ) {
+            activeEl.blur();
+            triggerHaptic('light');
+            return;
+          }
+
+          // 4. Fallback: check if active tab from URL query is not timer (always return to timer first)
           try {
             const params = new URLSearchParams(window.location.search);
             const currentTab = params.get('tab');
