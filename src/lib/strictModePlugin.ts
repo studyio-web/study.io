@@ -15,20 +15,28 @@ export interface ForegroundAppInfo {
 export interface StrictModePlugin {
   hasUsagePermission(): Promise<{ granted: boolean }>;
   requestUsagePermission(): Promise<void>;
+  hasOverlayPermission(): Promise<{ granted: boolean }>;
+  requestOverlayPermission(): Promise<void>;
   getInstalledApps(): Promise<{ apps: InstalledApp[] }>;
   getForegroundApp(): Promise<ForegroundAppInfo>;
+  syncStrictConfig(options: { enabled: boolean; allowedPackages: string[] }): Promise<void>;
+  blockAppDirect(options: { packageName: string; name: string }): Promise<void>;
 }
 
 const NativeStrictMode = registerPlugin<StrictModePlugin>('StrictMode', {
   web: {
     hasUsagePermission: async () => ({ granted: false }),
     requestUsagePermission: async () => {},
+    hasOverlayPermission: async () => ({ granted: false }),
+    requestOverlayPermission: async () => {},
     getInstalledApps: async () => ({ apps: [] }),
     getForegroundApp: async () => ({
       packageName: null,
       name: null,
       isSystemOrLauncher: false,
     }),
+    syncStrictConfig: async () => {},
+    blockAppDirect: async () => {},
   },
 });
 

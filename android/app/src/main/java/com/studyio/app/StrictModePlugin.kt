@@ -100,6 +100,111 @@ class StrictModePlugin : Plugin() {
     }
 
     /**
+     * Check if Display over other apps (SYSTEM_ALERT_WINDOW) is granted
+     */
+    @PluginMethod
+    fun hasOverlayPermission(call: PluginCall) {
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        val res = JSObject().apply { put("granted", granted) }
+        call.resolve(res)
+    }
+
+    /**
+     * Request Display over other apps (SYSTEM_ALERT_WINDOW)
+     */
+    @PluginMethod
+    fun requestOverlayPermission(call: PluginCall) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + context.packageName)
+                ).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            }
+            call.resolve()
+        } catch (e: Exception) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(fallback)
+                }
+                call.resolve()
+            } catch (e2: Exception) {
+                Log.e(TAG, "Error opening overlay settings", e2)
+                call.reject("Cannot open overlay settings: ${e2.message}", e2)
+            }
+        }
+    }
+
+    /**
+     * Sync strict mode active state and allowed packages to SharedPreferences
+     * and live TimerForegroundService
+     */
+    @PluginMethod
+    fun syncStrictConfig(call: PluginCall) {
+        try {
+            val enabled = call.getBoolean("enabled", false) ?: false
+            val packagesArray = call.getArray("allowedPackages")
+            val set = mutableSetOf<String>()
+            if (packagesArray != null) {
+                for (i in 0 until packagesArray.length()) {
+                    val pkg = packagesArray.optString(i)
+                    if (!pkg.isNullOrEmpty()) {
+                        set.add(pkg)
+                    }
+                }
+            }
+
+            val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putBoolean("enabled", enabled)
+                .putStringSet("allowed_packages", set)
+                .apply()
+
+            TimerForegroundService.updateStrictConfig(context, enabled, set)
+            call.resolve()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing strict config", e)
+            call.reject("Failed to sync strict config: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Launch BlockedAppActivity directly on screen
+     */
+    @PluginMethod
+    fun blockAppDirect(call: PluginCall) {
+        try {
+            val pkg = call.getString("packageName", "") ?: ""
+            val name = call.getString("name", "This app") ?: "This app"
+            if (pkg.isNotEmpty()) {
+                val intent = Intent(context, BlockedAppActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, pkg)
+                    putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, name)
+                }
+                context.startActivity(intent)
+            }
+            call.resolve()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching BlockedAppActivity directly", e)
+            call.reject("Failed to block app: ${e.message}", e)
+        }
+    }
+
+    /**
      * Get list of user-launchable apps installed on the device so user can pick allowed apps
      */
     @PluginMethod

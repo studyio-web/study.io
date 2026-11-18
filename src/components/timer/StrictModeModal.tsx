@@ -409,3 +409,167 @@ export function StrictModeBlockedModal({
     </div>
   );
 }
+
+/**
+ * Clean & Sleek Strict Mode Configuration Sheet / Modal
+ */
+interface StrictConfigModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isStrictMode: boolean;
+  onToggleStrictMode: () => void;
+  allowedAppsCount: number;
+  onOpenAllowedApps: () => void;
+  hasUsagePermission: boolean;
+  hasOverlayPermission: boolean;
+  onRequestUsagePermission: () => void;
+  onRequestOverlayPermission: () => void;
+}
+
+export function StrictModeConfigModal({
+  isOpen,
+  onClose,
+  isStrictMode,
+  onToggleStrictMode,
+  allowedAppsCount,
+  onOpenAllowedApps,
+  hasUsagePermission,
+  hasOverlayPermission,
+  onRequestUsagePermission,
+  onRequestOverlayPermission,
+}: StrictConfigModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.1))] p-6 shadow-2xl text-[var(--text,#fff)]">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-hud text-base font-bold text-white tracking-wide">
+                Strict Mode Settings
+              </h3>
+              <p className="text-xs text-white/50">
+                Lock down distractions during focus sessions
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3.5">
+          {/* Master Switch Card */}
+          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-4">
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white">Strict Mode</p>
+              <p className="text-[11px] text-white/50 mt-0.5">
+                Block all non-allowed apps when timer is active
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                onToggleStrictMode();
+              }}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isStrictMode ? 'bg-amber-400' : 'bg-white/20'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-black shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  isStrictMode ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Allowed Apps Card */}
+          <div
+            onClick={() => {
+              triggerHaptic('light');
+              onOpenAllowedApps();
+            }}
+            className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors cursor-pointer flex items-center justify-between gap-4 text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold text-white">Allowed Apps</p>
+              <p className="text-[11px] text-white/50 mt-0.5">
+                {allowedAppsCount === 0
+                  ? 'No apps permitted (full lockdown)'
+                  : `${allowedAppsCount} app${allowedAppsCount === 1 ? '' : 's'} permitted`}
+              </p>
+            </div>
+            <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20 font-bold shrink-0">
+              Manage →
+            </span>
+          </div>
+
+          {/* Required Permissions Section */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-3">
+            <p className="text-[11px] font-mono uppercase tracking-wider text-white/40">
+              Android Permissions
+            </p>
+
+            {/* Usage Access */}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-white/70">1. Usage Access (Detect apps)</span>
+              {hasUsagePermission ? (
+                <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                  ✓ Granted
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRequestUsagePermission}
+                  className="px-2.5 py-1 rounded-lg bg-amber-400 text-black font-bold text-[10px] uppercase tracking-wider"
+                >
+                  Grant
+                </button>
+              )}
+            </div>
+
+            {/* Display Over Apps (Overlay) */}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-white/70">2. Display Over Apps (Block screen)</span>
+              {hasOverlayPermission ? (
+                <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                  ✓ Granted
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRequestOverlayPermission}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] uppercase tracking-wider transition-colors"
+                >
+                  Grant
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Done Button */}
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

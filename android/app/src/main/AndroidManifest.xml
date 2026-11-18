@@ -79,6 +79,15 @@
                 <action android:name="com.studyio.app.ACTION_NOTIFICATION_DELETED" />
             </intent-filter>
         </receiver>
+        <!-- Activity launched when user opens a blocked app during Strict Mode -->
+        <activity
+            android:name=".BlockedAppActivity"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -91,4 +100,6 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 </manifest>

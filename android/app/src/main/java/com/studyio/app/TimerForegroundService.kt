@@ -5,8 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.os.Build
@@ -103,6 +107,20 @@ class TimerForegroundService : Service() {
             }
         }
 
+        fun updateStrictConfig(context: Context, enabled: Boolean, allowedPackages: Set<String>) {
+            val inst = instance
+            if (inst != null) {
+                inst.isStrictActive = enabled
+                inst.strictAllowedPackages = allowedPackages
+                if (enabled && inst.isRunning && !inst.isPaused) {
+                    inst.startStrictMonitoring()
+                } else {
+                    inst.stopStrictMonitoring()
+                }
+                Log.d(TAG, "updateStrictConfig live: enabled=$enabled, allowedCount=${allowedPackages.size}")
+            }
+        }
+
         fun recoverNotification(context: Context) {
             val inst = instance
             if (inst != null && isServiceRunning && inst.isRunning && !inst.isPaused) {
@@ -137,6 +155,163 @@ class TimerForegroundService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var finishRunnable: Runnable? = null
     private var wakeLock: PowerManager.WakeLock? = null
+
+    @Volatile
+    private var isStrictActive: Boolean = false
+    @Volatile
+    private var strictAllowedPackages: Set<String> = emptySet()
+    private val strictHandler = Handler(Looper.getMainLooper())
+    private var isStrictMonitoringRunning = false
+    private var lastBlockedLaunchTime = 0L
+
+    private val strictRunnable = object : Runnable {
+        override fun run() {
+            if (isRunning && !isPaused && isStrictActive) {
+                checkAndEnforceStrictMode()
+                strictHandler.postDelayed(this, 350)
+            } else {
+                isStrictMonitoringRunning = false
+            }
+        }
+    }
+
+    private fun startStrictMonitoring() {
+        if (!isStrictMonitoringRunning && isStrictActive && isRunning && !isPaused) {
+            isStrictMonitoringRunning = true
+            strictHandler.removeCallbacks(strictRunnable)
+            strictHandler.post(strictRunnable)
+            Log.d(TAG, "Started Strict Mode continuous app enforcement loop")
+        }
+    }
+
+    private fun stopStrictMonitoring() {
+        isStrictMonitoringRunning = false
+        strictHandler.removeCallbacks(strictRunnable)
+        Log.d(TAG, "Stopped Strict Mode continuous app enforcement loop")
+    }
+
+    private fun checkAndEnforceStrictMode() {
+        if (!isRunning || isPaused || !isStrictActive) return
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
+
+        val endTime = System.currentTimeMillis()
+        val startTime = endTime - 1000 * 6 // Look back 6 seconds
+
+        var currentPkg: String? = null
+        var lastTime: Long = 0
+
+        val events = usageStatsManager.queryEvents(startTime, endTime)
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val type = event.eventType
+            if (type == UsageEvents.Event.ACTIVITY_RESUMED ||
+                type == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                if (event.timeStamp >= lastTime) {
+                    currentPkg = event.packageName
+                    lastTime = event.timeStamp
+                }
+            }
+        }
+
+        if (currentPkg == null) {
+            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
+            val recent = stats?.maxByOrNull { it.lastTimeUsed }
+            if (recent != null && (endTime - recent.lastTimeUsed) < 10000) {
+                currentPkg = recent.packageName
+            }
+        }
+
+        if (currentPkg == null) return
+        if (currentPkg == packageName || isLauncherOrSystem(currentPkg)) return
+
+        if (!strictAllowedPackages.contains(currentPkg)) {
+            val now = System.currentTimeMillis()
+            if (now - lastBlockedLaunchTime < 800) return
+            lastBlockedLaunchTime = now
+
+            val appName = try {
+                val pm = packageManager
+                val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getApplicationInfo(currentPkg, PackageManager.ApplicationInfoFlags.of(0))
+                } else {
+                    pm.getApplicationInfo(currentPkg, 0)
+                }
+                pm.getApplicationLabel(info).toString()
+            } catch (e: Exception) {
+                currentPkg
+            }
+
+            Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName)")
+
+            val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, currentPkg)
+                putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, appName)
+            }
+
+            try {
+                startActivity(blockIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed startActivity from service, triggering fullScreenIntent fallback", e)
+                try {
+                    val pendingIntent = PendingIntent.getActivity(
+                        this,
+                        9999,
+                        blockIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    val notif = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
+                        .setSmallIcon(R.drawable.ic_stat_studyio)
+                        .setContentTitle("Blocked by Study.io")
+                        .setContentText("$appName is blocked during Strict Mode")
+                        .setPriority(NotificationCompat.PRIORITY_MAX)
+                        .setCategory(NotificationCompat.CATEGORY_ALARM)
+                        .setFullScreenIntent(pendingIntent, true)
+                        .setAutoCancel(true)
+                        .build()
+                    NotificationManagerCompat.from(this).notify(9999, notif)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Failed fullScreenIntent fallback", e2)
+                }
+            }
+        }
+    }
+
+    private fun isLauncherOrSystem(pkgName: String): Boolean {
+        if (pkgName == packageName) return true
+        if (pkgName == "android" || pkgName == "com.android.systemui") return true
+
+        try {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                packageManager.resolveActivity(intent, 0)
+            }
+            val homePkg = resolveInfo?.activityInfo?.packageName
+            if (homePkg != null && homePkg == pkgName) {
+                return true
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        val lower = pkgName.lowercase()
+        return lower.startsWith("com.android.launcher") ||
+                lower.contains("nexuslauncher") ||
+                lower.contains("quickstep") ||
+                lower.contains("miui.home") ||
+                lower.contains("sec.android.app.launcher") ||
+                lower.contains("huawei.android.launcher") ||
+                lower.contains("oppo.launcher") ||
+                lower.contains("oneplus.launcher")
+    }
 
     private fun acquireWakeLock() {
         try {
@@ -199,7 +374,16 @@ class TimerForegroundService : Service() {
         instance = this
         isServiceRunning = true
         ensureNotificationChannels()
-        Log.d(TAG, "TimerForegroundService created")
+
+        try {
+            val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+            isStrictActive = strictPrefs.getBoolean("enabled", false)
+            strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed reading studyio_strict_prefs on create", e)
+        }
+
+        Log.d(TAG, "TimerForegroundService created (isStrictActive=$isStrictActive, allowedCount=${strictAllowedPackages.size})")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -224,6 +408,7 @@ class TimerForegroundService : Service() {
                 if (!isPaused) {
                     acquireWakeLock()
                     scheduleFinishCheckIfNeeded()
+                    startStrictMonitoring()
                 }
                 return START_STICKY
             } else {
@@ -245,6 +430,7 @@ class TimerForegroundService : Service() {
                 val notification = buildTimerNotification()
                 startInForeground(notification)
                 scheduleFinishCheckIfNeeded()
+                startStrictMonitoring()
             }
 
             ACTION_UPDATE -> {
@@ -308,6 +494,7 @@ class TimerForegroundService : Service() {
         isPaused = true
         releaseWakeLock()
         cancelScheduledFinishCheck()
+        stopStrictMonitoring()
         savePersistedState()
         updateNotification()
         Log.d(TAG, "Timer paused at elapsed: $baseElapsedSeconds seconds")
@@ -331,6 +518,7 @@ class TimerForegroundService : Service() {
         val notification = buildTimerNotification()
         startInForeground(notification)
         scheduleFinishCheckIfNeeded()
+        startStrictMonitoring()
         Log.d(TAG, "Timer resumed at base elapsed: $baseElapsedSeconds seconds")
     }
 
@@ -338,6 +526,7 @@ class TimerForegroundService : Service() {
         Log.d(TAG, "Stopping TimerForegroundService")
         cancelScheduledFinishCheck()
         releaseWakeLock()
+        stopStrictMonitoring()
         clearPersistedState()
         isRunning = false
         isPaused = false
@@ -759,6 +948,7 @@ class TimerForegroundService : Service() {
         super.onDestroy()
         cancelScheduledFinishCheck()
         releaseWakeLock()
+        stopStrictMonitoring()
         instance = null
         isServiceRunning = false
         Log.d(TAG, "TimerForegroundService destroyed")

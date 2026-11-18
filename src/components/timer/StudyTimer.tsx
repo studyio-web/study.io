@@ -57,6 +57,7 @@ import {
   StrictModeAllowedAppsModal,
   StrictModePermissionModal,
   StrictModeBlockedModal,
+  StrictModeConfigModal,
 } from './StrictModeModal';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
@@ -175,7 +176,10 @@ export function StudyTimer() {
   const [isStrictMode, setIsStrictMode] = useState(false);
   const [allowedApps, setAllowedApps] = useState<string[]>([]);
   const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
+  const [isStrictConfigOpen, setIsStrictConfigOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [hasUsagePerm, setHasUsagePerm] = useState(false);
+  const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
   const [blockedAppInfo, setBlockedAppInfo] = useState<{ name: string; packageName: string } | null>(null);
 
   const isStudyingRef = useRef(isStudying);
@@ -193,6 +197,18 @@ export function StudyTimer() {
       setAllowedApps(loadAllowedApps());
     }
   }, []);
+
+  // Sync state to native SharedPreferences and live Foreground Service
+  useEffect(() => {
+    if (isAndroid) {
+      StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => {});
+      StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => {});
+      StrictMode.syncStrictConfig({
+        enabled: isStrictMode,
+        allowedPackages: allowedApps,
+      }).catch(() => {});
+    }
+  }, [isAndroid, isStrictMode, allowedApps]);
 
   const handleToggleStrictMode = async () => {
     if (isStrictMode) {
@@ -228,23 +244,33 @@ export function StudyTimer() {
     }
   };
 
+  const handleRequestOverlayPermission = async () => {
+    try {
+      await StrictMode.requestOverlayPermission();
+    } catch (e) {
+      console.warn('[StrictMode] request overlay permission failed:', e);
+    }
+  };
+
   // Re-verify permission on window focus if permission modal was waiting
   useEffect(() => {
     if (!isAndroid) return;
     const handleFocus = async () => {
-      if (!isStrictModeRef.current) {
-        try {
-          const { granted } = await StrictMode.hasUsagePermission();
-          if (granted && isPermissionModalOpen) {
-            setIsPermissionModalOpen(false);
-            setIsStrictMode(true);
-            saveStrictModeEnabled(true);
-            if (allowedAppsRef.current.length === 0) {
-              setIsAllowedAppsModalOpen(true);
-            }
+      try {
+        const { granted: usageGranted } = await StrictMode.hasUsagePermission();
+        setHasUsagePerm(usageGranted);
+        const { granted: overlayGranted } = await StrictMode.hasOverlayPermission();
+        setHasOverlayPerm(overlayGranted);
+
+        if (!isStrictModeRef.current && usageGranted && isPermissionModalOpen) {
+          setIsPermissionModalOpen(false);
+          setIsStrictMode(true);
+          saveStrictModeEnabled(true);
+          if (allowedAppsRef.current.length === 0) {
+            setIsAllowedAppsModalOpen(true);
           }
-        } catch {}
-      }
+        }
+      } catch {}
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
@@ -269,9 +295,15 @@ export function StudyTimer() {
           if (!allowed.includes(fg.packageName)) {
             // Blocked app violation detected!
             triggerHaptic('heavy');
+            // Trigger native full-screen BlockedAppActivity immediately!
+            StrictMode.blockAppDirect({
+              packageName: fg.packageName,
+              name: fg.name || fg.packageName,
+            }).catch(() => {});
+
             notify('strict_mode_blocked', {
-              title: `🚫 Strict Mode: ${fg.name || 'App'} Blocked!`,
-              body: 'Return to Study.io to protect your focus streak!',
+              title: `🚫 Blocked by Study.io`,
+              body: `${fg.name || 'App'} is blocked during your focus session!`,
             }).catch(() => {});
 
             setBlockedAppInfo({
@@ -287,9 +319,10 @@ export function StudyTimer() {
 
     App.addListener('appStateChange', ({ isActive }) => {
       if (!isActive && isStudyingRef.current && isStrictModeRef.current) {
-        // App went to background: check after 800ms & 2000ms
+        // App went to background: check after 400ms, 800ms & 1600ms
+        setTimeout(checkForegroundViolation, 400);
         setTimeout(checkForegroundViolation, 800);
-        setTimeout(checkForegroundViolation, 2000);
+        setTimeout(checkForegroundViolation, 1600);
       } else if (isActive && isStudyingRef.current && isStrictModeRef.current) {
         // Returned to foreground: verify what app was just open
         checkForegroundViolation();
@@ -1856,34 +1889,27 @@ export function StudyTimer() {
           )}
       </div>
 
-      {/* 5. Quiet Row of Ghost Buttons */}
-      <div className="flex items-center justify-center gap-2.5 mt-1.5 relative z-20">
+      {/* 5. Sleek Row of Auxiliary Control Buttons */}
+      <div className="flex items-center justify-center gap-2 mt-2 relative z-20 max-w-full px-2">
         {/* Atmosphere Button */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setIsAmbientMenuOpen(!isAmbientMenuOpen)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer select-none"
+            className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap"
           >
             {isAmbientLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)] shrink-0" />
             ) : (
-              <Music className={`w-3.5 h-3.5 ${ambientSound !== 'none' ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'}`} />
+              <Music className={`w-3.5 h-3.5 shrink-0 ${ambientSound !== 'none' ? 'text-[var(--accent,#E6C15A)]' : 'text-[var(--text-dim)]'}`} />
             )}
-            <span>
-              {isAmbientLoading ? (
-                <>Loading {ambientLoadingSound ? (atmosphereOptions?.find(o => o.id === ambientLoadingSound)?.label || ambientLoadingSound) : ambientLabel}...</>
-              ) : (
-                <>
-                  Atmosphere: {ambientLabel}
-                  {isPaused && ambientSound !== 'none' ? ' (Paused)' : ''}
-                </>
-              )}
+            <span className="truncate max-w-[85px]">
+              {ambientSound === 'none' ? 'Atmosphere' : ambientLabel}
             </span>
             {ambientSound !== 'none' && !isAmbientLoading && (
               <span
-                className={`w-1.5 h-1.5 rounded-full ml-0.5 ${
-                  isPaused ? 'bg-amber-400' : 'bg-[var(--text)] animate-pulse'
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isPaused ? 'bg-amber-400' : 'bg-[var(--accent,#E6C15A)] animate-pulse'
                 }`}
               />
             )}
@@ -1970,42 +1996,34 @@ export function StudyTimer() {
             enterFullscreenSafely();
             setIsFocusModeOpen(true);
           }}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer select-none"
+          className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0"
           title="Fullscreen Focus Mode"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
+          <Maximize2 className="w-3.5 h-3.5 shrink-0" />
           <span>Focus</span>
         </button>
 
         {/* Strict Mode Button (Strictly Native Android Only) */}
         {isAndroid && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={handleToggleStrictMode}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs transition-colors cursor-pointer select-none ${
-                isStrictMode
-                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-400 font-medium'
-                  : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-              title="Strict Mode App Blocker"
-            >
-              <Shield className={`w-3.5 h-3.5 ${isStrictMode ? 'text-amber-400' : 'text-[var(--text-dim)]'}`} />
-              <span>Strict Mode: {isStrictMode ? 'ON' : 'OFF'}</span>
-              {isStrictMode && (
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsAllowedAppsModalOpen(true);
-                  }}
-                  className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono hover:bg-amber-500/30"
-                  title="Configure Allowed Apps"
-                >
-                  {allowedApps.length} allowed
-                </span>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              setIsStrictConfigOpen(true);
+            }}
+            className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
+              isStrictMode
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-400 font-semibold shadow-[0_0_12px_rgba(245,158,11,0.1)]'
+                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+            }`}
+            title="Strict Mode App Blocker"
+          >
+            <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-amber-400' : 'text-[var(--text-dim)]'}`} />
+            <span>Strict{isStrictMode ? ': ON' : ': OFF'}</span>
+            {isStrictMode && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            )}
+          </button>
         )}
       </div>
 
@@ -2047,6 +2065,25 @@ export function StudyTimer() {
           isOpen={isPermissionModalOpen}
           onClose={() => setIsPermissionModalOpen(false)}
           onRequestPermission={handleRequestPermission}
+        />
+      )}
+
+      {/* Strict Mode Configuration Sheet */}
+      {isAndroid && isStrictConfigOpen && (
+        <StrictModeConfigModal
+          isOpen={isStrictConfigOpen}
+          onClose={() => setIsStrictConfigOpen(false)}
+          isStrictMode={isStrictMode}
+          onToggleStrictMode={handleToggleStrictMode}
+          allowedAppsCount={allowedApps.length}
+          onOpenAllowedApps={() => {
+            setIsStrictConfigOpen(false);
+            setIsAllowedAppsModalOpen(true);
+          }}
+          hasUsagePermission={hasUsagePerm}
+          hasOverlayPermission={hasOverlayPerm}
+          onRequestUsagePermission={handleRequestPermission}
+          onRequestOverlayPermission={handleRequestOverlayPermission}
         />
       )}
 
