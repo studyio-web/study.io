@@ -70,14 +70,27 @@ export function StrictModeAllowedAppsModal({
   };
 
   const filteredApps = useMemo(() => {
-    if (!searchQuery.trim()) return installedApps;
-    const q = searchQuery.toLowerCase();
-    return installedApps.filter(
-      (app) =>
-        app.name.toLowerCase().includes(q) ||
-        app.packageName.toLowerCase().includes(q)
-    );
-  }, [installedApps, searchQuery]);
+    let list = installedApps;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = installedApps.filter(
+        (app) =>
+          app.name.toLowerCase().includes(q) ||
+          app.packageName.toLowerCase().includes(q)
+      );
+    }
+    return [...list].sort((a, b) => {
+      const aSel = selectedPackages.has(a.packageName);
+      const bSel = selectedPackages.has(b.packageName);
+      if (aSel && !bSel) return -1;
+      if (!aSel && bSel) return 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+  }, [installedApps, searchQuery, selectedPackages]);
+
+  const selectedCountInFiltered = useMemo(() => {
+    return filteredApps.filter((a) => selectedPackages.has(a.packageName)).length;
+  }, [filteredApps, selectedPackages]);
 
   const toggleApp = (packageName: string) => {
     triggerHaptic('light');
@@ -194,7 +207,7 @@ export function StrictModeAllowedAppsModal({
         </div>
 
         {/* App List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-1.5 divide-y divide-white/[0.04]">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-white/50 text-xs">
               <Loader2 className="w-6 h-6 animate-spin text-white" />
@@ -205,50 +218,76 @@ export function StrictModeAllowedAppsModal({
               No matching apps found.
             </div>
           ) : (
-            filteredApps.map((app) => {
+            filteredApps.map((app, index) => {
               const isSelected = selectedPackages.has(app.packageName);
+              const isFirstSelected = isSelected && index === 0;
+              const prevApp = index > 0 ? filteredApps[index - 1] : null;
+              const isFirstUnselected =
+                !isSelected &&
+                prevApp !== null &&
+                selectedPackages.has(prevApp.packageName);
+
               return (
-                <div
-                  key={app.packageName}
-                  onClick={() => toggleApp(app.packageName)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors pt-2.5 ${
-                    isSelected
-                      ? 'bg-white/[0.08] hover:bg-white/[0.12]'
-                      : 'hover:bg-white/[0.04]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {app.icon ? (
-                      <img
-                        src={app.icon}
-                        alt=""
-                        className="w-8 h-8 rounded-lg shrink-0 object-contain"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-white/10 text-white/80 font-bold flex items-center justify-center text-xs shrink-0">
-                        {app.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0 text-left">
-                      <p className="text-xs font-medium text-white truncate">
-                        {app.name}
-                      </p>
-                      <p className="text-[10px] font-mono text-white/40 truncate">
-                        {app.packageName}
-                      </p>
+                <React.Fragment key={app.packageName}>
+                  {isFirstSelected && (
+                    <div className="pb-1 pt-0.5 px-1 flex items-center gap-2">
+                      <span className="text-[10px] font-mono tracking-wider uppercase text-white/50">
+                        Allowed Apps ({selectedCountInFiltered})
+                      </span>
+                      <div className="h-[1px] flex-1 bg-white/[0.08]" />
                     </div>
-                  </div>
+                  )}
+
+                  {isFirstUnselected && (
+                    <div className="pt-3 pb-1 px-1 flex items-center gap-2">
+                      <span className="text-[10px] font-mono tracking-wider uppercase text-white/40">
+                        Other Apps ({filteredApps.length - selectedCountInFiltered})
+                      </span>
+                      <div className="h-[1px] flex-1 bg-white/[0.08]" />
+                    </div>
+                  )}
 
                   <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ml-3 ${
+                    onClick={() => toggleApp(app.packageName)}
+                    className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors ${
                       isSelected
-                        ? 'border-white bg-white text-black'
-                        : 'border-white/20 bg-transparent'
+                        ? 'bg-white/[0.08] hover:bg-white/[0.12]'
+                        : 'hover:bg-white/[0.04]'
                     }`}
                   >
-                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    <div className="flex items-center gap-3 min-w-0">
+                      {app.icon ? (
+                        <img
+                          src={app.icon}
+                          alt=""
+                          className="w-8 h-8 rounded-lg shrink-0 object-contain"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-white/10 text-white/80 font-bold flex items-center justify-center text-xs shrink-0">
+                          {app.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 text-left">
+                        <p className="text-xs font-medium text-white truncate">
+                          {app.name}
+                        </p>
+                        <p className="text-[10px] font-mono text-white/40 truncate">
+                          {app.packageName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ml-3 ${
+                        isSelected
+                          ? 'border-white bg-white text-black'
+                          : 'border-white/20 bg-transparent'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
                   </div>
-                </div>
+                </React.Fragment>
               );
             })
           )}
