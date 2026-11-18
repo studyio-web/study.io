@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Download, Sparkles, X } from 'lucide-react';
 import { isNativeAndroid } from '@/lib/timerNotificationPlugin';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { startApkDownload, LATEST_APK_CDN_URL } from '@/lib/apkDownload';
 
 const CURRENT_CLIENT_BUILD = 240; // baseline build of previously installed APKs
 const TARGET_VERSION_KEY = 'studyio_update_v25_dismissed';
@@ -57,7 +58,7 @@ export function AppUpdateNotifier() {
                       sound: 'default',
                       extra: {
                         type: 'app_update',
-                        url: '/api/download/apk',
+                        url: data.downloadUrl || LATEST_APK_CDN_URL,
                       },
                     },
                   ],
@@ -96,8 +97,8 @@ export function AppUpdateNotifier() {
   const handleDownload = useCallback(() => {
     localStorage.setItem('studyio_app_build_version', '250');
     setIsVisible(false);
-    window.location.href = '/api/download/apk';
-  }, []);
+    startApkDownload(updateInfo?.downloadUrl || LATEST_APK_CDN_URL);
+  }, [updateInfo]);
 
   if (!isVisible || !updateInfo) return null;
 

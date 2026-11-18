@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.HapticFeedbackConstants;
@@ -99,7 +100,27 @@ public class MainActivity extends BridgeActivity {
                         });
                     }
                 }
+
+                @JavascriptInterface
+                public void openExternalUrl(String url) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
             }, "AndroidFullscreenBridge");
+
+            // Native download listener: when any file/APK download URL is triggered, pass to Android's system Intent so DownloadManager handles it
+            getBridge().getWebView().setDownloadListener((downloadUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
+                try {
+                    Intent downloadIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
+                    startActivity(downloadIntent);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         }
 
         // Native orientation sensor: auto-open focus mode on physical landscape rotation,

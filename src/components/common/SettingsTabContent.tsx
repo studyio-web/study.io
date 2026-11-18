@@ -28,6 +28,7 @@ import { RankCrestBadge } from './RankCrestBadge';
 import { ThemePicker } from '../settings/ThemePicker';
 import { SettingsPlanSection } from '../settings/SettingsPlanSection';
 import { SettingsStudyModeSection } from '../settings/SettingsStudyModeSection';
+import { startApkDownload, LATEST_APK_CDN_URL } from '@/lib/apkDownload';
 
 export function SettingsTabContent() {
   const { user, deleteAccount } = useAuth();
@@ -211,8 +212,14 @@ export function SettingsTabContent() {
         </div>
 
         <a
-          href="/api/download/apk"
+          href={LATEST_APK_CDN_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           download="studyio-v2.5.apk"
+          onClick={(e) => {
+            e.preventDefault();
+            startApkDownload(LATEST_APK_CDN_URL);
+          }}
           className="px-4 py-2 rounded-xl bg-white text-[#07090E] hover:bg-slate-100 text-xs font-hud font-bold tracking-wider transition-all active:scale-95 flex items-center gap-2 shadow-md cursor-pointer flex-shrink-0 self-start sm:self-auto"
         >
           <Download className="w-3.5 h-3.5 stroke-[2.5]" />

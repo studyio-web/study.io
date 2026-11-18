@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { RankCrestBadge } from '@/components/common/RankCrestBadge';
+import { startApkDownload, LATEST_APK_CDN_URL } from '@/lib/apkDownload';
 
 interface FeatureItem {
   id: string;
@@ -372,8 +373,14 @@ export default function MobileRestrictedPage() {
           <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-2">
             {/* Primary Button matching the app's clean white primary buttons */}
             <a
-              href="/api/download/apk"
+              href={LATEST_APK_CDN_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               download="studyio-v2.5.apk"
+              onClick={(e) => {
+                e.preventDefault();
+                startApkDownload(LATEST_APK_CDN_URL);
+              }}
               className="relative overflow-hidden w-full h-[56px] min-h-[56px] rounded-[16px] bg-white text-[#07090E] font-bold text-sm sm:text-base tracking-wide flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.12)] hover:bg-slate-100 transition-all duration-150 active:scale-[0.98] cursor-pointer"
             >
               {/* Subtle light sweep across button every 8s */}
@@ -494,8 +501,14 @@ export default function MobileRestrictedPage() {
             {!isNativeApp && (
               <div className="p-4 border-t border-white/[0.08] bg-[#0B0D13] shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
                 <a
-                  href="/api/download/apk"
+                  href={LATEST_APK_CDN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   download="studyio-v2.5.apk"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    startApkDownload(LATEST_APK_CDN_URL);
+                  }}
                   className="w-full h-[52px] rounded-xl bg-white text-[#07090E] font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-md hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4 stroke-[2.5]" />

@@ -11,6 +11,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { TimerNotification } from './timerNotificationPlugin';
 import { initNotificationChannels } from './notifications';
 import { getSupabase } from './supabase';
+import { startApkDownload } from './apkDownload';
 
 let isPushInitialized = false;
 let currentActiveUserId: string | null = null;
@@ -175,9 +176,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
         console.log('[Push] pushNotificationActionPerformed:', notification);
         const data = notification.notification.data;
         if (data?.type === 'app_update') {
-          if (typeof window !== 'undefined') {
-            window.location.href = data?.url || '/api/download/apk';
-          }
+          startApkDownload(data?.url);
           return;
         }
         const targetTab =
