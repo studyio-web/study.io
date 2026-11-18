@@ -27,6 +27,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(TimerNotificationPlugin.class);
+        registerPlugin(StrictModePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Lock default app orientation strictly to portrait on launch

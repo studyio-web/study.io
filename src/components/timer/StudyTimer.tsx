@@ -42,7 +42,22 @@ import {
   Loader2,
   Settings,
   WifiOff,
+  Shield,
 } from 'lucide-react';
+import { App } from '@capacitor/app';
+import {
+  StrictMode,
+  isStrictModeSupported,
+  loadStrictModeEnabled,
+  saveStrictModeEnabled,
+  loadAllowedApps,
+  saveAllowedApps,
+} from '../../lib/strictModePlugin';
+import {
+  StrictModeAllowedAppsModal,
+  StrictModePermissionModal,
+  StrictModeBlockedModal,
+} from './StrictModeModal';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
 import confetti from 'canvas-confetti';
@@ -154,6 +169,139 @@ export function StudyTimer() {
   const handleVolumeChange = (vol: number) => {
     setAmbientVolume(vol);
   };
+
+  // Strict Mode State & Background Enforcement (Strictly Native Android Only)
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isStrictMode, setIsStrictMode] = useState(false);
+  const [allowedApps, setAllowedApps] = useState<string[]>([]);
+  const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
+  const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [blockedAppInfo, setBlockedAppInfo] = useState<{ name: string; packageName: string } | null>(null);
+
+  const isStudyingRef = useRef(isStudying);
+  isStudyingRef.current = isStudying;
+  const isStrictModeRef = useRef(isStrictMode);
+  isStrictModeRef.current = isStrictMode;
+  const allowedAppsRef = useRef(allowedApps);
+  allowedAppsRef.current = allowedApps;
+
+  useEffect(() => {
+    const supported = isStrictModeSupported();
+    setIsAndroid(supported);
+    if (supported) {
+      setIsStrictMode(loadStrictModeEnabled());
+      setAllowedApps(loadAllowedApps());
+    }
+  }, []);
+
+  const handleToggleStrictMode = async () => {
+    if (isStrictMode) {
+      setIsStrictMode(false);
+      saveStrictModeEnabled(false);
+      triggerHaptic('light');
+    } else {
+      triggerHaptic('medium');
+      try {
+        const { granted } = await StrictMode.hasUsagePermission();
+        if (!granted) {
+          setIsPermissionModalOpen(true);
+        } else {
+          setIsStrictMode(true);
+          saveStrictModeEnabled(true);
+          const currentAllowed = loadAllowedApps();
+          if (currentAllowed.length === 0) {
+            setIsAllowedAppsModalOpen(true);
+          }
+        }
+      } catch (e) {
+        setIsPermissionModalOpen(true);
+      }
+    }
+  };
+
+  const handleRequestPermission = async () => {
+    try {
+      await StrictMode.requestUsagePermission();
+      setIsPermissionModalOpen(false);
+    } catch (e) {
+      console.warn('[StrictMode] request permission failed:', e);
+    }
+  };
+
+  // Re-verify permission on window focus if permission modal was waiting
+  useEffect(() => {
+    if (!isAndroid) return;
+    const handleFocus = async () => {
+      if (!isStrictModeRef.current) {
+        try {
+          const { granted } = await StrictMode.hasUsagePermission();
+          if (granted && isPermissionModalOpen) {
+            setIsPermissionModalOpen(false);
+            setIsStrictMode(true);
+            saveStrictModeEnabled(true);
+            if (allowedAppsRef.current.length === 0) {
+              setIsAllowedAppsModalOpen(true);
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isAndroid, isPermissionModalOpen]);
+
+  // Background app monitoring via Capacitor App listener
+  useEffect(() => {
+    if (!isAndroid) return;
+
+    let appListenerHandle: { remove: () => Promise<void> } | null = null;
+
+    const checkForegroundViolation = async () => {
+      if (!isStudyingRef.current || !isStrictModeRef.current) return;
+      try {
+        const fg = await StrictMode.getForegroundApp();
+        if (
+          fg.packageName &&
+          !fg.isSystemOrLauncher &&
+          fg.packageName !== 'com.studyio.app'
+        ) {
+          const allowed = allowedAppsRef.current;
+          if (!allowed.includes(fg.packageName)) {
+            // Blocked app violation detected!
+            triggerHaptic('heavy');
+            notify('strict_mode_blocked', {
+              title: `🚫 Strict Mode: ${fg.name || 'App'} Blocked!`,
+              body: 'Return to Study.io to protect your focus streak!',
+            }).catch(() => {});
+
+            setBlockedAppInfo({
+              name: fg.name || fg.packageName,
+              packageName: fg.packageName,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[StrictMode] App check error:', err);
+      }
+    };
+
+    App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive && isStudyingRef.current && isStrictModeRef.current) {
+        // App went to background: check after 800ms & 2000ms
+        setTimeout(checkForegroundViolation, 800);
+        setTimeout(checkForegroundViolation, 2000);
+      } else if (isActive && isStudyingRef.current && isStrictModeRef.current) {
+        // Returned to foreground: verify what app was just open
+        checkForegroundViolation();
+      }
+    }).then((handle) => {
+      appListenerHandle = handle;
+    }).catch(() => {});
+
+    return () => {
+      appListenerHandle?.remove().catch(() => {});
+    };
+  }, [isAndroid]);
 
   const [showDropdown, setShowDropdown] = useState(false);
   
@@ -1828,6 +1976,37 @@ export function StudyTimer() {
           <Maximize2 className="w-3.5 h-3.5" />
           <span>Focus</span>
         </button>
+
+        {/* Strict Mode Button (Strictly Native Android Only) */}
+        {isAndroid && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleToggleStrictMode}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs transition-colors cursor-pointer select-none ${
+                isStrictMode
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-400 font-medium'
+                  : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+              }`}
+              title="Strict Mode App Blocker"
+            >
+              <Shield className={`w-3.5 h-3.5 ${isStrictMode ? 'text-amber-400' : 'text-[var(--text-dim)]'}`} />
+              <span>Strict Mode: {isStrictMode ? 'ON' : 'OFF'}</span>
+              {isStrictMode && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsAllowedAppsModalOpen(true);
+                  }}
+                  className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono hover:bg-amber-500/30"
+                  title="Configure Allowed Apps"
+                >
+                  {allowedApps.length} allowed
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 6. Today total one-liner */}
@@ -1849,6 +2028,39 @@ export function StudyTimer() {
             setIsEditingCountdown(false);
           }}
           onCancel={() => setIsEditingCountdown(false)}
+        />
+      )}
+
+      {/* Strict Mode Allowed Apps Modal */}
+      {isAndroid && isAllowedAppsModalOpen && (
+        <StrictModeAllowedAppsModal
+          isOpen={isAllowedAppsModalOpen}
+          onClose={() => setIsAllowedAppsModalOpen(false)}
+          allowedApps={allowedApps}
+          onSaveAllowedApps={(apps) => setAllowedApps(apps)}
+        />
+      )}
+
+      {/* Strict Mode Permission Modal */}
+      {isAndroid && isPermissionModalOpen && (
+        <StrictModePermissionModal
+          isOpen={isPermissionModalOpen}
+          onClose={() => setIsPermissionModalOpen(false)}
+          onRequestPermission={handleRequestPermission}
+        />
+      )}
+
+      {/* Strict Mode Blocked App Alert Modal */}
+      {isAndroid && blockedAppInfo && (
+        <StrictModeBlockedModal
+          isOpen={Boolean(blockedAppInfo)}
+          blockedAppName={blockedAppInfo.name}
+          blockedPackageName={blockedAppInfo.packageName}
+          onDismiss={() => setBlockedAppInfo(null)}
+          onOpenSettings={() => {
+            setBlockedAppInfo(null);
+            setIsAllowedAppsModalOpen(true);
+          }}
         />
       )}
     </div>

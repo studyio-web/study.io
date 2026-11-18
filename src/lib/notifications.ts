@@ -13,6 +13,7 @@ export type NotificationType =
   | 'idle_check'
   | 'focus_nudge'
   | 'daily_goal_reached'
+  | 'strict_mode_blocked'
   | 'custom';
 
 export interface NotificationPayload {
@@ -239,6 +240,13 @@ export function resolveNotificationConfig(
       body = payload.body || "Log a study session today to protect your streak.";
       channelId = 'reminders';
       tab = 'stats';
+      break;
+
+    case 'strict_mode_blocked':
+      title = payload.title || 'App Blocked by Strict Mode 🚫';
+      body = payload.body || 'Return to Study.io to protect your focus streak!';
+      channelId = 'timer_alerts';
+      tab = 'timer';
       break;
 
     case 'custom':
