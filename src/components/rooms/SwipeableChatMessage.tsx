@@ -176,7 +176,7 @@ export const SwipeableChatMessage = React.memo(function SwipeableChatMessage({
           <div
             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
               hasTriggeredHaptic
-                ? 'bg-amber-500/30 text-amber-300 border border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)] scale-110'
+                ? 'bg-slate-700/80 text-white border border-slate-500 shadow-[0_0_12px_rgba(255,255,255,0.25)] scale-110'
                 : 'bg-white/[0.08] text-neutral-300 border border-white/15'
             }`}
           >

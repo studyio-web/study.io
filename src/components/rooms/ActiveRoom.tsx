@@ -142,8 +142,8 @@ export function renderFormattedMessage(text: string, currentUsername?: string) {
           key={i}
           className={`px-1.5 py-0.2 mx-0.5 rounded font-hud text-[11px] font-bold tracking-tight inline-block transition-all ${
             isMe
-              ? 'bg-amber-400/25 text-amber-300 border border-amber-400/40 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
-              : 'bg-white/[0.08] text-amber-300 border border-white/10'
+              ? 'bg-white/[0.18] text-white border border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+              : 'bg-white/[0.08] text-slate-300 border border-white/10'
           }`}
         >
           {part}
@@ -3342,7 +3342,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                               <span
                                 onClick={() => !isMe && handleMentionUser(username)}
                                 className={`text-xs font-hud font-bold tracking-tight cursor-pointer transition-colors ${
-                                  isMe ? 'text-amber-400' : 'text-slate-200 hover:text-amber-400 hover:underline'
+                                  isMe ? 'text-slate-100 font-bold' : 'text-slate-300 hover:text-white hover:underline'
                                 }`}
                                 title={!isMe ? `Click to mention @${username}` : undefined}
                               >
@@ -3422,7 +3422,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                     <div
                                       className={`w-fit max-w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${
                                         isMe
-                                          ? 'bg-gradient-to-br from-amber-500/25 via-amber-500/15 to-amber-600/10 border border-amber-500/35 text-amber-50 shadow-[0_2px_12px_rgba(245,158,11,0.1)]'
+                                          ? 'bg-gradient-to-br from-slate-800/95 via-slate-800/85 to-slate-900/95 border border-slate-600/60 text-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.4)] backdrop-blur-md hover:border-slate-500/70'
                                           : 'bg-white/[0.05] border border-white/[0.1] text-slate-100 shadow-md hover:border-white/20'
                                       } ${
                                         isMe
@@ -3441,13 +3441,13 @@ CREATE POLICY "Hosts can update their own study rooms"
                                           tabIndex={0}
                                           className={`mb-2 px-2.5 py-1.5 rounded-xl text-xs border-l-2 flex flex-col gap-0.5 cursor-pointer transition-all select-none max-w-full overflow-hidden ${
                                             isMe
-                                              ? 'bg-amber-500/15 border-amber-400 hover:bg-amber-500/25 text-amber-200'
-                                              : 'bg-white/[0.06] border-amber-400/50 hover:bg-white/[0.1] text-slate-300'
+                                              ? 'bg-white/[0.07] border-slate-400 hover:bg-white/[0.12] text-slate-200'
+                                              : 'bg-white/[0.05] border-slate-500/60 hover:bg-white/[0.08] text-slate-300'
                                           }`}
                                           title="Click to jump to original message"
                                         >
-                                          <div className="flex items-center gap-1 font-hud font-bold text-[10px] uppercase tracking-wider text-amber-400">
-                                            <CornerUpLeft className="w-3 h-3 text-amber-400" />
+                                          <div className="flex items-center gap-1 font-hud font-bold text-[10px] uppercase tracking-wider text-slate-300">
+                                            <CornerUpLeft className="w-3 h-3 text-slate-400" />
                                             <span>@{replyTo.username}</span>
                                           </div>
                                           <p className="text-[11px] text-neutral-300/80 line-clamp-2 italic truncate">
@@ -3474,7 +3474,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                       <button
                                         type="button"
                                         onClick={() => handleStartReply(msg, username)}
-                                        className="p-1 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer"
+                                        className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer"
                                         title="Reply to message"
                                         aria-label="Reply to message"
                                       >
@@ -3494,17 +3494,17 @@ CREATE POLICY "Hosts can update their own study rooms"
             </div>
 
             {/* Input Form Dock positioned neatly at bottom above safe area / keyboard */}
-            <form onSubmit={handleSendMessage} className="px-3 pt-2 pb-[max(env(safe-area-inset-bottom,0px),12px)] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shrink-0 z-20">
+            <form onSubmit={handleSendMessage} className="px-3 pt-2 pb-[max(env(safe-area-inset-bottom,0px),12px)] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md md:bg-transparent md:border-t-0 md:backdrop-blur-none shrink-0 z-20">
               <div className="max-w-3xl w-full mx-auto relative">
                 {/* Replying Preview Bar */}
                 {replyingTo && (
-                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-2 rounded-xl bg-white/[0.05] border border-amber-500/30 backdrop-blur-md shadow-md animate-in fade-in slide-in-from-bottom-1 duration-150">
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-2 rounded-xl bg-[#0c1017]/95 border border-white/15 backdrop-blur-md shadow-md animate-in fade-in slide-in-from-bottom-1 duration-150">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-5 h-5 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-                        <Reply className="w-3 h-3 text-amber-400" />
+                      <div className="w-5 h-5 rounded-md bg-white/[0.08] border border-white/15 flex items-center justify-center shrink-0">
+                        <Reply className="w-3 h-3 text-slate-300" />
                       </div>
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-[11px] font-hud font-bold text-amber-400 uppercase tracking-wider shrink-0">
+                        <span className="text-[11px] font-hud font-bold text-slate-200 uppercase tracking-wider shrink-0">
                           Replying to @{replyingTo.username}:
                         </span>
                         <span className="text-xs text-neutral-300 truncate max-w-[200px] xs:max-w-[280px] sm:max-w-[400px]">

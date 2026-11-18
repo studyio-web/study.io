@@ -334,4 +334,26 @@ describe('Room Chat Replies and Mentions Specification', () => {
       `flex gap-3 ${isMe ? 'flex-row-reverse' : ''} items-end max-w-[58%] sm:max-w-[55%] md:max-w-[50%]`;
     assert.equal(avatarRowClass(false).includes('items-end'), true, 'Avatar must align to the bottom of the message bubble');
   });
+
+  it('guarantees desktop chat input dock has transparent background and no top border', () => {
+    const inputDockClass =
+      'px-3 pt-2 pb-[max(env(safe-area-inset-bottom,0px),12px)] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md md:bg-transparent md:border-t-0 md:backdrop-blur-none shrink-0 z-20';
+    assert.equal(inputDockClass.includes('md:bg-transparent'), true, 'Desktop input dock must have transparent background');
+    assert.equal(inputDockClass.includes('md:border-t-0'), true, 'Desktop input dock must have top border removed');
+    assert.equal(inputDockClass.includes('md:backdrop-blur-none'), true, 'Desktop input dock must have backdrop-blur removed');
+  });
+
+  it('guarantees chat bubbles and mentions use Sleek Dark Slate / Frosted Glass styling without yellow/amber', () => {
+    const outgoingBubbleClass =
+      'bg-gradient-to-br from-slate-800/95 via-slate-800/85 to-slate-900/95 border border-slate-600/60 text-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.4)] backdrop-blur-md hover:border-slate-500/70';
+    assert.equal(outgoingBubbleClass.includes('amber'), false, 'Outgoing chat bubbles must not contain amber/yellow');
+    assert.equal(outgoingBubbleClass.includes('slate-800'), true, 'Outgoing chat bubbles must use sleek dark slate styling');
+
+    const mentionBadgeClass = (isMe: boolean) =>
+      isMe
+        ? 'bg-white/[0.18] text-white border border-white/30 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+        : 'bg-white/[0.08] text-slate-300 border border-white/10';
+    assert.equal(mentionBadgeClass(true).includes('amber'), false, 'Targeted mention badge must not contain amber');
+    assert.equal(mentionBadgeClass(false).includes('amber'), false, 'General mention badge must not contain amber');
+  });
 });
