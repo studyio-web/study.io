@@ -2657,7 +2657,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           animation: classicNudgePulse 0.75s ease-in-out infinite;
         }
       `}</style>
-      <header className="shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-[#0c1017]/95 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px)+14px,36px)] sm:pt-2.5 z-30 transition-all">
+      <header className="shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-[var(--border)] bg-[#0c1017]/95 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px)+12px,32px)] sm:pt-2.5 z-30 transition-all">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
@@ -2665,16 +2665,15 @@ CREATE POLICY "Hosts can update their own study rooms"
               hapticTick();
               onBack();
             }}
-            className="min-w-[40px] min-h-[40px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.15] border border-white/10 hover:border-white/20 text-slate-300 hover:text-white font-hud font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer shrink-0 touch-manipulation shadow-sm"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] border border-white/10 hover:border-white/20 text-slate-200 hover:text-white transition-all flex items-center justify-center cursor-pointer shrink-0 touch-manipulation shadow-sm active:scale-95"
             aria-label="Leave study room"
             title="Leave study room"
           >
-            <ChevronLeft className="w-4.5 h-4.5 text-slate-300" strokeWidth={2.5} />
-            <span className="hidden sm:inline">LEAVE</span>
+            <ChevronLeft className="w-5 h-5 text-slate-200" strokeWidth={2.5} />
           </button>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <h1 className="text-xs sm:text-base font-hud font-bold text-white tracking-wide uppercase truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[240px]">
+              <h1 className="text-xs sm:text-base font-hud font-bold text-white tracking-wide uppercase truncate max-w-[85px] xs:max-w-[130px] sm:max-w-[240px]">
                 {roomName}
               </h1>
               <span className="text-[10px] font-hud-mono text-neutral-400 bg-white/[0.04] border border-white/10 px-2 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1.5 shrink-0">
@@ -2691,29 +2690,29 @@ CREATE POLICY "Hosts can update their own study rooms"
         </div>
 
         <div className="flex items-center shrink-0">
-          <div className="flex bg-black/50 border border-white/15 p-1 rounded-2xl shadow-inner backdrop-blur-md gap-1">
+          <div className="flex bg-black/60 border border-[var(--border)] p-1 rounded-full shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
             <button
               type="button"
               onClick={() => handleSelectRoomTab('home')}
-              className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none active:scale-95 ${
+              className={`flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[34px] sm:min-h-[36px] cursor-pointer touch-manipulation select-none active:scale-95 ${
                 roomTab === 'home'
-                  ? 'bg-white/[0.14] border border-white/25 text-white shadow-sm'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
+                  ? 'bg-white/[0.14] border border-white/20 text-white shadow-sm'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
               }`}
             >
-              <Home className="w-4 h-4 shrink-0" />
+              <Home className="w-3.5 h-3.5 shrink-0" />
               <span>HOME</span>
             </button>
             <button
               type="button"
               onClick={() => handleSelectRoomTab('chat')}
-              className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none relative active:scale-95 ${
+              className={`flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[34px] sm:min-h-[36px] cursor-pointer touch-manipulation select-none relative active:scale-95 ${
                 roomTab === 'chat'
-                  ? 'bg-[var(--accent-soft)] border border-[var(--border)] text-[var(--accent)] shadow-sm'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
+                  ? 'bg-white/[0.14] border border-white/20 text-white shadow-sm'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
               }`}
             >
-              <MessageCircle className="w-4 h-4 shrink-0" />
+              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
               <span>CHAT</span>
               {unreadCount > 0 && (
                 <span
@@ -2728,13 +2727,13 @@ CREATE POLICY "Hosts can update their own study rooms"
               <button
                 type="button"
                 onClick={() => handleSelectRoomTab('settings')}
-                className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none active:scale-95 ${
+                className={`flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[34px] sm:min-h-[36px] cursor-pointer touch-manipulation select-none active:scale-95 ${
                   roomTab === 'settings'
-                    ? 'bg-white/[0.14] border border-white/25 text-white shadow-sm'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
+                    ? 'bg-white/[0.14] border border-white/20 text-white shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
-                <Settings className="w-4 h-4 shrink-0" />
+                <Settings className="w-3.5 h-3.5 shrink-0" />
                 <span>SETTINGS</span>
               </button>
             )}
@@ -2917,11 +2916,11 @@ CREATE POLICY "Hosts can update their own study rooms"
                           <span className="relative flex h-2.5 w-2.5">
                             {isRunning ? (
                               <>
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
                               </>
                             ) : isPaused ? (
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400/60" />
                             ) : (
                               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-600" />
                             )}
@@ -2952,10 +2951,9 @@ CREATE POLICY "Hosts can update their own study rooms"
                             className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
                               isRunning
                                 ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
-                                : isPaused
-                                ? 'bg-emerald-500/30 hover:bg-emerald-500/40 active:bg-emerald-500/50 text-emerald-300 border border-emerald-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(16,185,129,0.35)]'
-                                : 'bg-emerald-500/30 hover:bg-emerald-500/40 active:bg-emerald-500/50 text-emerald-300 border border-emerald-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(16,185,129,0.35)]'
+                                : 'bg-[var(--accent)] hover:brightness-110 active:brightness-95 text-[var(--accent-contrast)] border border-amber-300/40 shadow-[0_0_16px_var(--glow)]'
                             }`}
+                            style={!isRunning ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
                             title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
                             aria-label={isPaused ? 'Resume timer' : 'Start timer'}
                           >
@@ -2969,7 +2967,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                             disabled={!isRunning}
                             className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
                               isRunning
-                                ? 'bg-amber-500/30 hover:bg-amber-500/40 active:bg-amber-500/50 text-amber-300 border border-amber-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(245,158,11,0.35)]'
+                                ? 'bg-amber-500/25 hover:bg-amber-500/35 active:bg-amber-500/45 text-amber-300 border border-amber-400/50 backdrop-blur-sm shadow-[0_0_16px_rgba(245,158,11,0.35)]'
                                 : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
                             }`}
                             title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
@@ -3181,7 +3179,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                           className={`mb-2 px-2.5 py-1.5 rounded-xl text-xs border-l-2 flex flex-col gap-0.5 cursor-pointer transition-all select-none ${
                                             isMe
                                               ? 'bg-amber-500/15 border-amber-400 hover:bg-amber-500/25 text-amber-200'
-                                              : 'bg-white/[0.06] border-emerald-400 hover:bg-white/[0.1] text-slate-300'
+                                              : 'bg-white/[0.06] border-amber-400/50 hover:bg-white/[0.1] text-slate-300'
                                           }`}
                                           title="Click to jump to original message"
                                         >
