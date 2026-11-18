@@ -1230,9 +1230,11 @@ export function StudyTimer() {
         TimerNotification.stop().catch(() => {});
       }
       toast.success('Countdown completed! Click Save session to record your progress 🎉', { duration: 6000 });
-      notify('countdown_completed', {
-        body: 'Your timer is up! Click Save session to record your progress.',
-      });
+      if (!isNativeAndroid()) {
+        notify('countdown_completed', {
+          body: 'Your timer is up! Click Save session to record your progress.',
+        });
+      }
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setIsFocusModeOpen(false);
       exitFullscreenSafely();

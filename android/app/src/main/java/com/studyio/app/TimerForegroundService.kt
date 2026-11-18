@@ -591,7 +591,6 @@ class TimerForegroundService : Service() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         val notificationManager = NotificationManagerCompat.from(this)
         notificationManager.cancel(NOTIFICATION_ID_RUNNING)
-        notificationManager.cancel(NOTIFICATION_ID_FINISHED)
         stopSelf()
     }
 
