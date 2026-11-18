@@ -1,14 +1,11 @@
 package com.studyio.app
 
-import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -24,7 +21,11 @@ class BlockedAppActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_BLOCKED_PACKAGE = "blocked_package"
         const val EXTRA_BLOCKED_NAME = "blocked_name"
+        @Volatile
+        var isVisible = false
     }
+
+    private lateinit var subtitleView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,7 +36,6 @@ class BlockedAppActivity : AppCompatActivity() {
         window.navigationBarColor = Color.TRANSPARENT
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val blockedPackage = intent.getStringExtra(EXTRA_BLOCKED_PACKAGE) ?: ""
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
 
         val rootLayout = LinearLayout(this).apply {
@@ -57,9 +57,9 @@ class BlockedAppActivity : AppCompatActivity() {
             val cardPad = dpToPx(24)
             setPadding(cardPad, cardPad, cardPad, cardPad)
             val bg = GradientDrawable().apply {
-                setColor(Color.parseColor("#18181B"))
+                setColor(Color.parseColor("#141416"))
                 cornerRadius = dpToPx(28).toFloat()
-                setStroke(dpToPx(1), Color.parseColor("#3F3F46"))
+                setStroke(dpToPx(1), Color.parseColor("#27272A"))
             }
             background = bg
             layoutParams = LinearLayout.LayoutParams(
@@ -71,7 +71,7 @@ class BlockedAppActivity : AppCompatActivity() {
         // Top Pill Badge
         val badge = TextView(this).apply {
             text = "STRICT MODE ACTIVE"
-            setTextColor(Color.parseColor("#F59E0B"))
+            setTextColor(Color.parseColor("#E4E4E7"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -79,9 +79,9 @@ class BlockedAppActivity : AppCompatActivity() {
             val bPadV = dpToPx(4)
             setPadding(bPadH, bPadV, bPadH, bPadV)
             val badgeBg = GradientDrawable().apply {
-                setColor(Color.parseColor("#292524"))
+                setColor(Color.parseColor("#27272A"))
                 cornerRadius = dpToPx(16).toFloat()
-                setStroke(dpToPx(1), Color.parseColor("#78350F"))
+                setStroke(dpToPx(1), Color.parseColor("#3F3F46"))
             }
             background = badgeBg
             val lp = LinearLayout.LayoutParams(
@@ -122,7 +122,7 @@ class BlockedAppActivity : AppCompatActivity() {
         card.addView(titleView)
 
         // Subtitle: "[App Name] is blocked"
-        val subtitleView = TextView(this).apply {
+        subtitleView = TextView(this).apply {
             text = "$blockedName is blocked"
             setTextColor(Color.parseColor("#F87171"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -153,14 +153,14 @@ class BlockedAppActivity : AppCompatActivity() {
         }
         card.addView(descView)
 
-        // Primary Button: Return to Study.io
+        // Primary Button: Return to Study.io (Crisp White High-End Design)
         val returnButton = Button(this).apply {
             text = "RETURN TO STUDY.IO"
-            setTextColor(Color.parseColor("#18181B"))
+            setTextColor(Color.parseColor("#09090B"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             val btnBg = GradientDrawable().apply {
-                setColor(Color.parseColor("#E6C15A"))
+                setColor(Color.WHITE)
                 cornerRadius = dpToPx(16).toFloat()
             }
             background = btnBg
@@ -213,6 +213,28 @@ class BlockedAppActivity : AppCompatActivity() {
                 goToHomeScreen()
             }
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isVisible = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isVisible = false
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isVisible = false
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
+        subtitleView.text = "$blockedName is blocked"
     }
 
     private fun goToHomeScreen() {

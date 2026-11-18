@@ -175,7 +175,19 @@ class TimerForegroundService : Service() {
         }
     }
 
+    private fun reloadStrictConfig() {
+        try {
+            val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+            isStrictActive = strictPrefs.getBoolean("enabled", false)
+            strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
+            Log.d(TAG, "Reloaded strict config: enabled=$isStrictActive, allowedCount=${strictAllowedPackages.size}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed reading studyio_strict_prefs", e)
+        }
+    }
+
     private fun startStrictMonitoring() {
+        reloadStrictConfig()
         if (!isStrictMonitoringRunning && isStrictActive && isRunning && !isPaused) {
             isStrictMonitoringRunning = true
             strictHandler.removeCallbacks(strictRunnable)
@@ -192,10 +204,11 @@ class TimerForegroundService : Service() {
 
     private fun checkAndEnforceStrictMode() {
         if (!isRunning || isPaused || !isStrictActive) return
+        if (BlockedAppActivity.isVisible) return
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
 
         val endTime = System.currentTimeMillis()
-        val startTime = endTime - 1000 * 6 // Look back 6 seconds
+        val startTime = endTime - 1000 * 8 // Look back 8 seconds
 
         var currentPkg: String? = null
         var lastTime: Long = 0
@@ -204,11 +217,18 @@ class TimerForegroundService : Service() {
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
             val type = event.eventType
+
+            // Do not let BlockedAppActivity mask the underlying blocked app
+            if (pkg == packageName && event.className?.contains("BlockedAppActivity") == true) {
+                continue
+            }
+
             if (type == UsageEvents.Event.ACTIVITY_RESUMED ||
                 type == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                 if (event.timeStamp >= lastTime) {
-                    currentPkg = event.packageName
+                    currentPkg = pkg
                     lastTime = event.timeStamp
                 }
             }
@@ -216,8 +236,8 @@ class TimerForegroundService : Service() {
 
         if (currentPkg == null) {
             val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-            val recent = stats?.maxByOrNull { it.lastTimeUsed }
-            if (recent != null && (endTime - recent.lastTimeUsed) < 10000) {
+            val recent = stats?.filter { it.packageName != packageName }?.maxByOrNull { it.lastTimeUsed }
+            if (recent != null && (endTime - recent.lastTimeUsed) < 8000) {
                 currentPkg = recent.packageName
             }
         }
@@ -227,7 +247,7 @@ class TimerForegroundService : Service() {
 
         if (!strictAllowedPackages.contains(currentPkg)) {
             val now = System.currentTimeMillis()
-            if (now - lastBlockedLaunchTime < 800) return
+            if (now - lastBlockedLaunchTime < 450) return
             lastBlockedLaunchTime = now
 
             val appName = try {
@@ -248,7 +268,8 @@ class TimerForegroundService : Service() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or
-                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, currentPkg)
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, appName)
             }
@@ -509,6 +530,14 @@ class TimerForegroundService : Service() {
             baseElapsedSeconds = prefs.getInt("elapsed_seconds", 0)
             targetSeconds = prefs.getInt("target_seconds", 0)
             subject = prefs.getString("subject", "") ?: ""
+        }
+
+        try {
+            val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+            isStrictActive = strictPrefs.getBoolean("enabled", false)
+            strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed reading studyio_strict_prefs on resume", e)
         }
         startedAtMs = System.currentTimeMillis()
         isRunning = true
@@ -940,8 +969,16 @@ class TimerForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.d(TAG, "onTaskRemoved: app closed from recent menu. Removing notification and stopping service.")
-        handleStop()
+        Log.d(TAG, "onTaskRemoved: app closed from recent menu.")
+        // If Strict Mode is actively running, DO NOT kill the service!
+        // Keep the foreground service alive so users cannot bypass Strict Mode by swiping the app away.
+        if (isStrictActive && isRunning && !isPaused) {
+            Log.i(TAG, "Strict Mode is active: keeping TimerForegroundService alive in background")
+            acquireWakeLock()
+            startStrictMonitoring()
+        } else {
+            handleStop()
+        }
     }
 
     override fun onDestroy() {

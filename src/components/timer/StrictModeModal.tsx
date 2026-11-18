@@ -4,20 +4,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
   ShieldAlert,
-  ShieldCheck,
   Search,
   Check,
   X,
   Settings,
-  AlertTriangle,
   Loader2,
-  Sparkles,
   Lock,
 } from 'lucide-react';
 import {
   InstalledApp,
   StrictMode,
-  loadAllowedApps,
   saveAllowedApps,
 } from '../../lib/strictModePlugin';
 import { triggerHaptic } from '../../lib/native-feel';
@@ -128,12 +124,12 @@ export function StrictModeAllowedAppsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.1))] shadow-2xl text-[var(--text,#fff)] overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg max-h-[82vh] mb-16 sm:mb-0 flex flex-col rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] shadow-2xl text-[var(--text,#fff)] overflow-hidden">
         {/* Header */}
         <div className="p-5 pb-3 border-b border-white/[0.08] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 text-white flex items-center justify-center">
               <Shield className="w-5 h-5" />
             </div>
             <div>
@@ -163,7 +159,7 @@ export function StrictModeAllowedAppsModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search apps by name..."
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-white/30 focus:outline-none focus:border-amber-400/50"
+              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-white/30 focus:outline-none focus:border-white/30"
             />
           </div>
 
@@ -201,7 +197,7 @@ export function StrictModeAllowedAppsModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-1.5 divide-y divide-white/[0.04]">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-white/50 text-xs">
-              <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-white" />
               <span>Scanning installed apps...</span>
             </div>
           ) : filteredApps.length === 0 ? (
@@ -217,7 +213,7 @@ export function StrictModeAllowedAppsModal({
                   onClick={() => toggleApp(app.packageName)}
                   className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors pt-2.5 ${
                     isSelected
-                      ? 'bg-amber-500/[0.08] hover:bg-amber-500/[0.12]'
+                      ? 'bg-white/[0.08] hover:bg-white/[0.12]'
                       : 'hover:bg-white/[0.04]'
                   }`}
                 >
@@ -246,7 +242,7 @@ export function StrictModeAllowedAppsModal({
                   <div
                     className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ml-3 ${
                       isSelected
-                        ? 'border-amber-400 bg-amber-400 text-black'
+                        ? 'border-white bg-white text-black'
                         : 'border-white/20 bg-transparent'
                     }`}
                   >
@@ -258,8 +254,8 @@ export function StrictModeAllowedAppsModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-white/[0.08] flex items-center justify-end gap-2.5 shrink-0 bg-white/[0.02]">
+        {/* Footer (Guaranteed above navigation bar with safe-area padding) */}
+        <div className="p-4 pb-[max(env(safe-area-inset-bottom,0px)+16px,24px)] border-t border-white/[0.08] flex items-center justify-end gap-3 shrink-0 bg-[var(--surface,#121214)] z-20">
           <button
             type="button"
             onClick={onClose}
@@ -270,7 +266,7 @@ export function StrictModeAllowedAppsModal({
           <button
             type="button"
             onClick={handleSave}
-            className="px-5 py-2 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-amber-400 hover:bg-amber-300 text-black transition-colors shadow-md"
+            className="px-6 py-2.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white hover:bg-zinc-200 text-black transition-all shadow-md active:scale-95"
           >
             Save Allowed Apps
           </button>
@@ -297,9 +293,9 @@ export function StrictModePermissionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.1))] p-6 shadow-2xl text-[var(--text,#fff)] text-center">
-        <div className="w-14 h-14 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto mb-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 shadow-2xl text-[var(--text,#fff)] text-center">
+        <div className="w-14 h-14 rounded-3xl bg-white/10 border border-white/15 text-white flex items-center justify-center mx-auto mb-4">
           <ShieldAlert className="w-7 h-7" />
         </div>
         <h3 className="font-hud text-lg font-bold text-white tracking-wide">
@@ -320,7 +316,7 @@ export function StrictModePermissionModal({
               triggerHaptic('medium');
               onRequestPermission();
             }}
-            className="w-full py-3 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-amber-400 hover:bg-amber-300 text-black transition-all shadow-md flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white hover:bg-zinc-200 text-black transition-all shadow-md flex items-center justify-center gap-2"
           >
             <Settings className="w-4 h-4" />
             <span>Grant in Android Settings</span>
@@ -359,13 +355,13 @@ export function StrictModeBlockedModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-rose-950/40 border border-rose-500/40 p-6 shadow-[0_0_50px_rgba(244,63,94,0.3)] text-white text-center">
-        <div className="w-16 h-16 rounded-3xl bg-rose-500/20 border border-rose-500/50 text-rose-400 flex items-center justify-center mx-auto mb-4 animate-bounce">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-zinc-950 border border-rose-500/30 p-6 shadow-[0_0_50px_rgba(239,68,68,0.2)] text-white text-center">
+        <div className="w-16 h-16 rounded-3xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto mb-4 animate-bounce">
           <ShieldAlert className="w-8 h-8" />
         </div>
 
-        <span className="text-[10px] font-mono uppercase tracking-widest px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold">
+        <span className="text-[10px] font-mono uppercase tracking-widest px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold">
           Strict Mode Violation
         </span>
 
@@ -390,7 +386,7 @@ export function StrictModeBlockedModal({
               triggerHaptic('success');
               onDismiss();
             }}
-            className="w-full py-3 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-rose-500 hover:bg-rose-400 text-white transition-all shadow-lg flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white hover:bg-zinc-200 text-black transition-all shadow-lg flex items-center justify-center gap-2"
           >
             <span>Back to Focus Timer</span>
           </button>
@@ -411,12 +407,13 @@ export function StrictModeBlockedModal({
 }
 
 /**
- * Clean & Sleek Strict Mode Configuration Sheet / Modal
+ * Clean, High-End Strict Mode Configuration Sheet / Modal
  */
 interface StrictConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   isStrictMode: boolean;
+  isFocusing: boolean;
   onToggleStrictMode: () => void;
   allowedAppsCount: number;
   onOpenAllowedApps: () => void;
@@ -430,6 +427,7 @@ export function StrictModeConfigModal({
   isOpen,
   onClose,
   isStrictMode,
+  isFocusing,
   onToggleStrictMode,
   allowedAppsCount,
   onOpenAllowedApps,
@@ -441,12 +439,12 @@ export function StrictModeConfigModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.1))] p-6 shadow-2xl text-[var(--text,#fff)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 pb-[max(env(safe-area-inset-bottom,0px)+16px,24px)] mb-16 sm:mb-0 shadow-2xl text-[var(--text,#fff)]">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 text-white flex items-center justify-center">
               <Shield className="w-5 h-5" />
             </div>
             <div>
@@ -468,26 +466,50 @@ export function StrictModeConfigModal({
         </div>
 
         <div className="mt-5 space-y-3.5">
+          {/* Active Session Lock Notice */}
+          {isFocusing && (
+            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/15 text-white/90 text-xs flex items-center gap-3">
+              <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <Lock className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-white">Strict Mode is Locked</p>
+                <p className="text-[11px] text-white/50 mt-0.5">
+                  Locked during active focus sessions. Pause or stop your timer to modify allowed apps.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Master Switch Card */}
           <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-4">
             <div className="text-left">
-              <p className="text-sm font-semibold text-white">Strict Mode</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-white">Strict Mode</p>
+                {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+              </div>
               <p className="text-[11px] text-white/50 mt-0.5">
                 Block all non-allowed apps when timer is active
               </p>
             </div>
             <button
               type="button"
+              disabled={isFocusing}
               onClick={() => {
+                if (isFocusing) return;
                 triggerHaptic('medium');
                 onToggleStrictMode();
               }}
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isStrictMode ? 'bg-amber-400' : 'bg-white/20'
+              className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isFocusing
+                  ? 'opacity-40 cursor-not-allowed bg-emerald-500/40'
+                  : isStrictMode
+                  ? 'cursor-pointer bg-emerald-500'
+                  : 'cursor-pointer bg-white/20'
               }`}
             >
               <span
-                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-black shadow-lg ring-0 transition duration-200 ease-in-out ${
+                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                   isStrictMode ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
@@ -497,22 +519,37 @@ export function StrictModeConfigModal({
           {/* Allowed Apps Card */}
           <div
             onClick={() => {
+              if (isFocusing) return;
               triggerHaptic('light');
               onOpenAllowedApps();
             }}
-            className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors cursor-pointer flex items-center justify-between gap-4 text-left"
+            className={`p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] transition-colors flex items-center justify-between gap-4 text-left ${
+              isFocusing
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-white/[0.05] cursor-pointer'
+            }`}
           >
             <div>
-              <p className="text-sm font-semibold text-white">Allowed Apps</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-white">Allowed Apps</p>
+                {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+              </div>
               <p className="text-[11px] text-white/50 mt-0.5">
                 {allowedAppsCount === 0
                   ? 'No apps permitted (full lockdown)'
                   : `${allowedAppsCount} app${allowedAppsCount === 1 ? '' : 's'} permitted`}
               </p>
             </div>
-            <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20 font-bold shrink-0">
-              Manage →
-            </span>
+            {isFocusing ? (
+              <span className="text-xs font-mono text-white/40 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 shrink-0 flex items-center gap-1.5">
+                <Lock className="w-3 h-3" />
+                <span>Locked</span>
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-white bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 font-bold shrink-0">
+                Manage →
+              </span>
+            )}
           </div>
 
           {/* Required Permissions Section */}
@@ -532,7 +569,7 @@ export function StrictModeConfigModal({
                 <button
                   type="button"
                   onClick={onRequestUsagePermission}
-                  className="px-2.5 py-1 rounded-lg bg-amber-400 text-black font-bold text-[10px] uppercase tracking-wider"
+                  className="px-2.5 py-1 rounded-lg bg-white text-black font-bold text-[10px] uppercase tracking-wider"
                 >
                   Grant
                 </button>
@@ -559,14 +596,14 @@ export function StrictModeConfigModal({
           </div>
         </div>
 
-        {/* Done Button */}
+        {/* Done / Keep Focusing Button */}
         <div className="mt-6">
           <button
             type="button"
             onClick={onClose}
             className="w-full py-2.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-colors"
           >
-            Done
+            {isFocusing ? 'Understood (Keep Focusing)' : 'Done'}
           </button>
         </div>
       </div>

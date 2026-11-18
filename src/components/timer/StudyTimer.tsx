@@ -43,6 +43,7 @@ import {
   Settings,
   WifiOff,
   Shield,
+  Lock,
 } from 'lucide-react';
 import { App } from '@capacitor/app';
 import {
@@ -211,6 +212,10 @@ export function StudyTimer() {
   }, [isAndroid, isStrictMode, allowedApps]);
 
   const handleToggleStrictMode = async () => {
+    if (isStudying) {
+      toast('Strict Mode cannot be changed during active focus sessions', { icon: '🔒' });
+      return;
+    }
     if (isStrictMode) {
       setIsStrictMode(false);
       saveStrictModeEnabled(false);
@@ -2013,15 +2018,24 @@ export function StudyTimer() {
             }}
             className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
               isStrictMode
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-400 font-semibold shadow-[0_0_12px_rgba(245,158,11,0.1)]'
+                ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
                 : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
             }`}
-            title="Strict Mode App Blocker"
+            title={isStudying && isStrictMode ? 'Strict Mode is active and locked during study' : 'Strict Mode App Blocker'}
           >
-            <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-amber-400' : 'text-[var(--text-dim)]'}`} />
+            <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
             <span>Strict{isStrictMode ? ': ON' : ': OFF'}</span>
             {isStrictMode && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+              <span className="inline-flex items-center gap-1.5 ml-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                {isStudying ? (
+                  <Lock className="w-3 h-3 text-white/50 shrink-0" />
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[10px] font-mono text-white/70">
+                    {allowedApps.length > 0 ? `${allowedApps.length} allowed` : 'lockdown'}
+                  </span>
+                )}
+              </span>
             )}
           </button>
         )}
@@ -2077,6 +2091,10 @@ export function StudyTimer() {
           onToggleStrictMode={handleToggleStrictMode}
           allowedAppsCount={allowedApps.length}
           onOpenAllowedApps={() => {
+            if (isStudying) {
+              toast('Allowed apps cannot be modified during active focus sessions', { icon: '🔒' });
+              return;
+            }
             setIsStrictConfigOpen(false);
             setIsAllowedAppsModalOpen(true);
           }}
@@ -2084,6 +2102,7 @@ export function StudyTimer() {
           hasOverlayPermission={hasOverlayPerm}
           onRequestUsagePermission={handleRequestPermission}
           onRequestOverlayPermission={handleRequestOverlayPermission}
+          isFocusing={isStudying}
         />
       )}
 
