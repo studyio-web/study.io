@@ -143,38 +143,36 @@ export function TimerSWBridge() {
     if (isRunning && !wasRunning) {
       const isResume = wasStudying && wasPaused;
       if (isNative) {
-        if (isResume) {
-          TimerNotification.resume().catch((err) =>
-            console.warn('[Native Timer Bridge] resume failed:', err)
-          );
-        } else {
-          TimerNotification.start({
-            mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
-            phase: pomodoroPhase,
-            startTime: startTimeRef?.current ?? Date.now(),
-            elapsedSeconds,
-            targetSeconds: target,
-            subject: subjectName,
-          }).catch((err) =>
-            console.warn('[Native Timer Bridge] start failed:', err)
-          );
+        // ALWAYS dispatch start() with complete timer configuration.
+        // If the native service was killed when the app was closed from recents, a parameterless resume()
+        // fails because the service has no state. Calling start() ensures the foreground service is safely
+        // initialized/updated and the live chronometer notification appears immediately with accurate elapsed time.
+        TimerNotification.start({
+          mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
+          phase: pomodoroPhase,
+          startTime: startTimeRef?.current ?? Date.now(),
+          elapsedSeconds,
+          targetSeconds: target,
+          subject: subjectName,
+        }).catch((err) =>
+          console.warn('[Native Timer Bridge] start failed:', err)
+        );
 
-          // Check for battery optimization on native Android so background timer is never restricted after 2 mins
-          if (!localStorage.getItem('studyio_battery_prompt_checked')) {
-            localStorage.setItem('studyio_battery_prompt_checked', '1');
-            TimerNotification.isBatteryOptimized()
-              .then(({ isIgnoringBatteryOptimizations }) => {
-                if (!isIgnoringBatteryOptimizations) {
-                  console.info(
-                    '[Native Timer Bridge] Battery optimization is active. Requesting exemption for continuous background timer...'
-                  );
-                  TimerNotification.requestIgnoreBatteryOptimization().catch((err) =>
-                    console.warn('[Native Timer Bridge] Could not request battery exemption:', err)
-                  );
-                }
-              })
-              .catch(() => {});
-          }
+        // Check for battery optimization on native Android so background timer is never restricted after 2 mins
+        if (!localStorage.getItem('studyio_battery_prompt_checked')) {
+          localStorage.setItem('studyio_battery_prompt_checked', '1');
+          TimerNotification.isBatteryOptimized()
+            .then(({ isIgnoringBatteryOptimizations }) => {
+              if (!isIgnoringBatteryOptimizations) {
+                console.info(
+                  '[Native Timer Bridge] Battery optimization is active. Requesting exemption for continuous background timer...'
+                );
+                TimerNotification.requestIgnoreBatteryOptimization().catch((err) =>
+                  console.warn('[Native Timer Bridge] Could not request battery exemption:', err)
+                );
+              }
+            })
+            .catch(() => {});
         }
       } else {
         // Web Service Worker

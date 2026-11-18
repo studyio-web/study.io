@@ -76,7 +76,11 @@ class TimerForegroundService : Service() {
                     action = ACTION_RESUME
                 }
                 try {
-                    context.startService(intent)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to startService with ACTION_RESUME", e)
                 }
@@ -310,12 +314,22 @@ class TimerForegroundService : Service() {
     }
 
     private fun handleResume() {
-        if (!isPaused) return
+        val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+        if (!isRunning && prefs.getBoolean("is_running", false)) {
+            mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
+            phase = prefs.getString("phase", "work") ?: "work"
+            startedAtMs = prefs.getLong("start_time", System.currentTimeMillis())
+            baseElapsedSeconds = prefs.getInt("elapsed_seconds", 0)
+            targetSeconds = prefs.getInt("target_seconds", 0)
+            subject = prefs.getString("subject", "") ?: ""
+        }
         startedAtMs = System.currentTimeMillis()
+        isRunning = true
         isPaused = false
         acquireWakeLock()
         savePersistedState()
-        updateNotification()
+        val notification = buildTimerNotification()
+        startInForeground(notification)
         scheduleFinishCheckIfNeeded()
         Log.d(TAG, "Timer resumed at base elapsed: $baseElapsedSeconds seconds")
     }
@@ -384,8 +398,8 @@ class TimerForegroundService : Service() {
             .setSmallIcon(R.drawable.ic_stat_studyio)
             .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary))
             .setContentTitle(title)
-            .setOngoing(isTimerActivelyRunning)
-            .setAutoCancel(!isTimerActivelyRunning)
+            .setOngoing(isRunning || isPaused)
+            .setAutoCancel(false)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
