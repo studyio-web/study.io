@@ -54,7 +54,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
   const { isFocus } = useStudyMode();
 
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'high'>('all');
-  const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const taskPriority = 'medium';
   const [taskSubjectId, setTaskSubjectId] = useState<string>('none');
   const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
   const subjectDropdownRef = useRef<HTMLDivElement>(null);
@@ -624,11 +624,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       {/* HUD Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border)] relative z-10">
         <div>
-          <h2 className="text-lg sm:text-xl font-hud font-bold tracking-widest uppercase text-[var(--text)] drop-shadow-md flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-hud font-bold tracking-widest uppercase text-[var(--text)] drop-shadow-md">
             TO DO LIST
-            {todos.length > 0 && progressPercent === 100 && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse">ALL CLEARED</span>
-            )}
           </h2>
           <div className="text-xs text-[var(--text-dim)] font-mono tracking-wider mt-0.5">
             <span className="text-[var(--accent)] font-bold">{completedTodos.length}</span> / {todos.length} COMPLETED
@@ -691,34 +688,6 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pl-2 sm:pl-0 sm:border-l sm:border-fg/10 pt-2 sm:pt-0 border-t border-fg/10 sm:border-t-0">
-          {/* Priority Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              hapticTick();
-              const order: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
-              setTaskPriority(order[(order.indexOf(taskPriority) + 1) % 3]);
-            }}
-            className={`px-2.5 py-1.5 rounded-lg font-hud-mono text-[10px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border cursor-pointer ${
-              taskPriority === 'high'
-                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                : taskPriority === 'medium'
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-            }`}
-          >
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                taskPriority === 'high'
-                  ? 'bg-rose-500'
-                  : taskPriority === 'medium'
-                  ? 'bg-amber-500'
-                  : 'bg-blue-500'
-              }`}
-            />
-            {taskPriority}
-          </button>
-
           {/* Custom Subject Dropdown (hidden in Focus mode) */}
           {!isFocus && (
             <div
@@ -946,16 +915,10 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                     : ''
                 }`}
               >
-                {/* Priority Left-Border Indicator */}
-                <div
-                  className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${
-                    item.priority === 'high'
-                      ? 'bg-rose-500'
-                      : item.priority === 'medium'
-                      ? 'bg-amber-500'
-                      : 'bg-blue-500'
-                  }`}
-                />
+                {/* Priority Left-Border Indicator (High Priority only) */}
+                {item.priority === 'high' && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-rose-500" />
+                )}
 
                 {/* Grip Drag Handle */}
                 <div
