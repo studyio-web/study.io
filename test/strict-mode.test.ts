@@ -207,4 +207,86 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     onUserAccept();
     assert.equal(timerStarted, true, 'Timer must turn on only when user accepts');
   });
+
+  it('guarantees Strict Mode app blocking stays active while timer is paused and only stops on timer stop', () => {
+    // Contract simulation matching TimerForegroundService state machine
+    let isRunning = false;
+    let isPaused = false;
+    let isStrictActive = true;
+    let isMonitoring = false;
+
+    const startStrictMonitoring = () => {
+      if (isStrictActive && (isRunning || isPaused)) {
+        isMonitoring = true;
+      }
+    };
+
+    const stopStrictMonitoring = () => {
+      isMonitoring = false;
+    };
+
+    const handleStart = () => {
+      isRunning = true;
+      isPaused = false;
+      startStrictMonitoring();
+    };
+
+    const handlePause = () => {
+      if (!isRunning || isPaused) return;
+      isPaused = true;
+      // Strict Mode remains actively enforced during pause!
+      if (isStrictActive) {
+        startStrictMonitoring();
+      }
+    };
+
+    const handleResume = () => {
+      isPaused = false;
+      isRunning = true;
+      startStrictMonitoring();
+    };
+
+    const handleStop = () => {
+      stopStrictMonitoring();
+      isRunning = false;
+      isPaused = false;
+    };
+
+    const shouldBlockDistraction = (pkg: string, allowed: string[]) => {
+      // Enforcement condition: active when (isRunning || isPaused) and isStrictActive
+      if (!((isRunning || isPaused) && isStrictActive && isMonitoring)) {
+        return false;
+      }
+      return !allowed.includes(pkg);
+    };
+
+    const allowed = ['com.google.android.calculator'];
+
+    // 1. Initially stopped
+    assert.equal(shouldBlockDistraction('com.instagram.android', allowed), false);
+
+    // 2. Timer started
+    handleStart();
+    assert.equal(isMonitoring, true);
+    assert.equal(shouldBlockDistraction('com.google.android.calculator', allowed), false);
+    assert.equal(shouldBlockDistraction('com.instagram.android', allowed), true);
+
+    // 3. User pauses the timer: blocked apps MUST STILL BE BLOCKED!
+    handlePause();
+    assert.equal(isPaused, true);
+    assert.equal(isMonitoring, true, 'Monitoring must stay active during pause');
+    assert.equal(shouldBlockDistraction('com.instagram.android', allowed), true, 'Distracting app must remain blocked while paused');
+    assert.equal(shouldBlockDistraction('com.google.android.calculator', allowed), false, 'Allowed app remains accessible while paused');
+
+    // 4. User resumes the timer
+    handleResume();
+    assert.equal(isPaused, false);
+    assert.equal(isMonitoring, true);
+    assert.equal(shouldBlockDistraction('com.instagram.android', allowed), true);
+
+    // 5. Timer officially stopped: only NOW is blocking deactivated
+    handleStop();
+    assert.equal(isMonitoring, false, 'Monitoring must stop when timer stops');
+    assert.equal(shouldBlockDistraction('com.instagram.android', allowed), false, 'Apps unblocked after timer stop');
+  });
 });

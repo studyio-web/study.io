@@ -113,7 +113,7 @@ class TimerForegroundService : Service() {
                 inst.isStrictActive = enabled
                 inst.isUltraStrict = isUltra
                 inst.strictAllowedPackages = allowedPackages
-                if (enabled && inst.isRunning && !inst.isPaused) {
+                if (enabled && (inst.isRunning || inst.isPaused)) {
                     inst.startStrictMonitoring()
                 } else {
                     inst.stopStrictMonitoring()
@@ -169,7 +169,7 @@ class TimerForegroundService : Service() {
 
     private val strictRunnable = object : Runnable {
         override fun run() {
-            if (isRunning && !isPaused && isStrictActive) {
+            if ((isRunning || isPaused) && isStrictActive) {
                 checkAndEnforceStrictMode()
                 strictHandler.postDelayed(this, 350)
             } else {
@@ -192,7 +192,7 @@ class TimerForegroundService : Service() {
 
     private fun startStrictMonitoring() {
         reloadStrictConfig()
-        if (!isStrictMonitoringRunning && isStrictActive && isRunning && !isPaused) {
+        if (!isStrictMonitoringRunning && isStrictActive && (isRunning || isPaused)) {
             isStrictMonitoringRunning = true
             strictHandler.removeCallbacks(strictRunnable)
             strictHandler.post(strictRunnable)
@@ -207,7 +207,7 @@ class TimerForegroundService : Service() {
     }
 
     private fun checkAndEnforceStrictMode() {
-        if (!isRunning || isPaused || !isStrictActive) return
+        if ((!isRunning && !isPaused) || !isStrictActive) return
         if (BlockedAppActivity.isVisible) return
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
 
@@ -438,6 +438,9 @@ class TimerForegroundService : Service() {
                     acquireWakeLock()
                     scheduleFinishCheckIfNeeded()
                     startStrictMonitoring()
+                } else if (isStrictActive) {
+                    acquireWakeLock()
+                    startStrictMonitoring()
                 }
                 return START_STICKY
             } else {
@@ -529,9 +532,14 @@ class TimerForegroundService : Service() {
         val runDeltaSeconds = ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
         baseElapsedSeconds += runDeltaSeconds
         isPaused = true
-        releaseWakeLock()
+        if (!isStrictActive) {
+            releaseWakeLock()
+        }
         cancelScheduledFinishCheck()
-        stopStrictMonitoring()
+        // Strict Mode remains actively enforced during pause until the timer is explicitly stopped
+        if (isStrictActive) {
+            startStrictMonitoring()
+        }
         savePersistedState()
 
         if (mode == "countdown" && targetSeconds > 0 && baseElapsedSeconds >= targetSeconds) {
@@ -1036,7 +1044,7 @@ class TimerForegroundService : Service() {
         Log.d(TAG, "onTaskRemoved: app closed from recent menu.")
         // If Strict Mode is actively running, DO NOT kill the service!
         // Keep the foreground service alive so users cannot bypass Strict Mode by swiping the app away.
-        if (isStrictActive && isRunning && !isPaused) {
+        if (isStrictActive && (isRunning || isPaused)) {
             Log.i(TAG, "Strict Mode is active: keeping TimerForegroundService alive in background")
             acquireWakeLock()
             startStrictMonitoring()
