@@ -378,7 +378,7 @@ export function FocusModeModal() {
   return (
     <div
       style={{ colorScheme: 'dark' }}
-      className={`fixed inset-0 w-screen h-dvh z-[100] flex flex-col items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-black ${
+      className={`fixed inset-0 w-full h-full z-[100] flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-500 bg-black ${
         isIdle && !isPickerOpen && !isAtmosphereOpen ? 'cursor-none' : 'cursor-default'
       }`}
     >
@@ -421,7 +421,7 @@ export function FocusModeModal() {
 
       {/* 3. Big Clock with Space Grotesk tabular digits and scene-specific ambient glow */}
       <div
-        className="relative z-10 flex flex-col items-center justify-center text-center pointer-events-none landscape:my-1"
+        className="relative z-10 flex items-center justify-center text-center pointer-events-none"
         style={{
           contain: 'layout style',
           transform: 'translate3d(0, 0, 0)',
@@ -451,19 +451,21 @@ export function FocusModeModal() {
           />
         )}
 
+        {/* Mode Tag (Pomodoro / Countdown) positioned above without offsetting vertical center */}
         {timerMode === 'pomodoro' && (
-          <div className="mb-3 landscape:mb-1 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md">
+          <div className="absolute bottom-full mb-3.5 landscape:mb-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md whitespace-nowrap left-1/2 -translate-x-1/2">
             {pomodoroPhase === 'work' ? 'Deep Focus' : 'Rest Phase'}
           </div>
         )}
         {timerMode === 'countdown' && (
-          <div className="mb-3 landscape:mb-1 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md">
+          <div className="absolute bottom-full mb-3.5 landscape:mb-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md whitespace-nowrap left-1/2 -translate-x-1/2">
             Countdown
           </div>
         )}
 
+        {/* The Giant Tabular Timer Digits - 100% Dead-Center Aligned */}
         <div
-          className="font-bold leading-none text-white tabular-nums select-none tracking-tight"
+          className="font-bold leading-none text-white tabular-nums select-none tracking-tight flex items-center justify-center text-center"
           style={{
             fontFamily: "'Space Grotesk', var(--font-hud), sans-serif",
             fontSize: 'clamp(5rem, min(14.5vw, 25vh), 13.5rem)',
@@ -476,8 +478,9 @@ export function FocusModeModal() {
           {displayTime}
         </div>
 
+        {/* Subject Pill positioned below without offsetting vertical center */}
         <div
-          className="mt-4 sm:mt-5 landscape:mt-2 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white font-medium text-sm sm:text-base md:text-lg landscape:text-xs select-none flex items-center justify-center gap-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+          className="absolute top-full mt-3.5 sm:mt-4 landscape:mt-2.5 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white font-medium text-sm sm:text-base md:text-lg landscape:text-xs select-none flex items-center justify-center gap-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.6)] whitespace-nowrap left-1/2 -translate-x-1/2"
           style={{
             fontFamily: "'Outfit', var(--font-geist-sans), sans-serif",
           }}
