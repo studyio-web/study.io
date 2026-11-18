@@ -54,26 +54,32 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
   const { isFocus } = useStudyMode();
 
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'high'>('all');
-  const taskPriority = 'medium';
+  const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [isPriorityDropdownOpen, setIsPriorityDropdownOpen] = useState(false);
+  const priorityDropdownRef = useRef<HTMLDivElement>(null);
   const [taskSubjectId, setTaskSubjectId] = useState<string>('none');
   const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
   const subjectDropdownRef = useRef<HTMLDivElement>(null);
   const [bulkAddFeedback, setBulkAddFeedback] = useState<{ count: number; visible: boolean }>({ count: 0, visible: false });
 
-  // Dismiss custom subject dropdown on outside click or Escape key
+  // Dismiss custom dropdowns on outside click or Escape key
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(event.target as Node)) {
         setIsSubjectDropdownOpen(false);
       }
+      if (priorityDropdownRef.current && !priorityDropdownRef.current.contains(event.target as Node)) {
+        setIsPriorityDropdownOpen(false);
+      }
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsSubjectDropdownOpen(false);
+        setIsPriorityDropdownOpen(false);
       }
     }
 
-    if (isSubjectDropdownOpen) {
+    if (isSubjectDropdownOpen || isPriorityDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
@@ -83,7 +89,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isSubjectDropdownOpen]);
+  }, [isSubjectDropdownOpen, isPriorityDropdownOpen]);
 
   const handleFocusTask = (subjectId?: string) => {
     if (!isFocus && subjectId && subjectId !== 'none') {
@@ -671,7 +677,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       <form
         onSubmit={handleAddTask}
         className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3 sm:p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-card focus-within:border-[var(--accent)] focus-within:ring-1 focus-within:ring-[var(--accent)]/30 transition-all relative ${
-          isSubjectDropdownOpen ? 'z-30' : 'z-20'
+          isSubjectDropdownOpen || isPriorityDropdownOpen ? 'z-30' : 'z-20'
         }`}
       >
         <div className="flex-1 flex items-center gap-3 px-1">
@@ -688,6 +694,107 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pl-2 sm:pl-0 sm:border-l sm:border-fg/10 pt-2 sm:pt-0 border-t border-fg/10 sm:border-t-0">
+          {/* Priority Dropdown */}
+          <div
+            className="relative"
+            ref={priorityDropdownRef}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                hapticTick();
+                setIsPriorityDropdownOpen(prev => !prev);
+                setIsSubjectDropdownOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg sm:rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-medium tracking-wider uppercase text-zinc-200 transition-all cursor-pointer select-none active:scale-95"
+              aria-haspopup="listbox"
+              aria-expanded={isPriorityDropdownOpen}
+              title="Select task priority"
+            >
+              <Flag
+                className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                  taskPriority === 'high'
+                    ? 'text-rose-400 fill-rose-400/20'
+                    : taskPriority === 'low'
+                    ? 'text-zinc-500'
+                    : 'text-zinc-300'
+                }`}
+              />
+              <span className="text-xs capitalize">
+                {taskPriority}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-zinc-400 shrink-0 transition-transform duration-200 ${
+                  isPriorityDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {isPriorityDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  className="absolute left-0 top-full mt-1.5 z-50 min-w-[130px] rounded-xl bg-[#0c0c0e]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/80 p-1.5 select-none pointer-events-auto"
+                  role="listbox"
+                >
+                  {(['low', 'medium', 'high'] as const).map((p) => {
+                    const isSelected = taskPriority === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          hapticTick();
+                          setTaskPriority(p);
+                          setIsPriorityDropdownOpen(false);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          hapticTick();
+                          setTaskPriority(p);
+                          setIsPriorityDropdownOpen(false);
+                        }}
+                        className={`w-full rounded-lg px-3 py-2 text-xs uppercase tracking-wider transition-colors flex items-center justify-between text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-white/[0.1] text-white font-semibold'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
+                        }`}
+                        role="option"
+                        aria-selected={isSelected}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Flag
+                            className={`w-3.5 h-3.5 ${
+                              p === 'high'
+                                ? 'text-rose-400 fill-rose-400/20'
+                                : p === 'low'
+                                ? 'text-zinc-500'
+                                : 'text-zinc-300'
+                            }`}
+                          />
+                          <span className="capitalize">{p}</span>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-3.5 h-3.5 text-white shrink-0 ml-2" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Custom Subject Dropdown (hidden in Focus mode) */}
           {!isFocus && (
             <div
@@ -701,6 +808,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 onClick={() => {
                   hapticTick();
                   setIsSubjectDropdownOpen(prev => !prev);
+                  setIsPriorityDropdownOpen(false);
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-medium tracking-wider uppercase text-zinc-200 transition-all cursor-pointer select-none active:scale-95"
                 aria-haspopup="listbox"
