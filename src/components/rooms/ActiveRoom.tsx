@@ -215,6 +215,239 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   const [roomInfo, setRoomInfo] = useState<RoomDetails | null>(null);
   const isHost = Boolean(user?.id && roomInfo?.host_id === user.id);
 
+  // Dynamic tabs available in current room
+  const roomTabs = useMemo<Array<'home' | 'chat' | 'settings'>>(
+    () => (isHost ? ['home', 'chat', 'settings'] : ['home', 'chat']),
+    [isHost]
+  );
+
+  const activeRoomTabIdx = Math.max(0, roomTabs.indexOf(roomTab));
+  const currentRoomIdxRef = useRef(activeRoomTabIdx);
+
+  const roomSwipeContainerRef = useRef<HTMLDivElement>(null);
+  const roomSwipeTrackRef = useRef<HTMLDivElement>(null);
+
+  const isRoomDraggingRef = useRef(false);
+  const isRoomSwipeTransitioningRef = useRef(false);
+  const roomDragXRef = useRef(0);
+  const roomTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const isRoomHorizontalLockRef = useRef<boolean | null>(null);
+  const roomRafIdRef = useRef<number | null>(null);
+  const roomContainerWidthRef = useRef(0);
+
+  const handleSelectRoomTab = useCallback((targetTab: 'home' | 'chat' | 'settings') => {
+    hapticTick();
+    setRoomTab(targetTab);
+    if (targetTab === 'chat') {
+      setUnreadCount(0);
+    }
+  }, []);
+
+  // Sync track when roomTab changes (e.g. from header button click)
+  useEffect(() => {
+    const idx = Math.max(0, roomTabs.indexOf(roomTab));
+    currentRoomIdxRef.current = idx;
+
+    if (roomSwipeTrackRef.current && !isRoomDraggingRef.current && !isRoomSwipeTransitioningRef.current) {
+      roomSwipeTrackRef.current.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+      roomSwipeTrackRef.current.style.transform = `translate3d(-${idx * (100 / roomTabs.length)}%, 0, 0)`;
+    }
+  }, [roomTab, roomTabs]);
+
+  // If host status changes and user is on settings when not host, fall back to chat
+  useEffect(() => {
+    if (!isHost && roomTab === 'settings') {
+      setRoomTab('chat');
+    }
+  }, [isHost, roomTab]);
+
+  // Fast native check for non-swipable elements
+  const isRoomNonSwipable = useCallback((target: HTMLElement | null): boolean => {
+    if (!target) return false;
+    // Disable swiping if any modal or dialog is open
+    if (
+      typeof document !== 'undefined' &&
+      document.querySelector('[role="dialog"], [aria-modal="true"], .fixed.inset-0.z-\\[99999\\], .fixed.inset-0.z-50')
+    ) {
+      return true;
+    }
+    const nonSwipable = target.closest(
+      'input, textarea, select, [data-no-room-swipe="true"], .overflow-x-auto, .overflow-x-scroll'
+    );
+    if (nonSwipable) {
+      if (nonSwipable.getAttribute('data-no-room-swipe') === 'true') return true;
+      if (nonSwipable.tagName === 'INPUT' || nonSwipable.tagName === 'TEXTAREA' || nonSwipable.tagName === 'SELECT') {
+        return true;
+      }
+      if (nonSwipable.scrollWidth > nonSwipable.clientWidth) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
+  // Touch event listeners for 120fps hardware-composited swipe navigation
+  useEffect(() => {
+    const container = roomSwipeContainerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const target = e.target as HTMLElement | null;
+      if (isRoomNonSwipable(target)) {
+        roomTouchStartRef.current = null;
+        return;
+      }
+
+      roomContainerWidthRef.current = container.clientWidth || window.innerWidth || 360;
+
+      roomTouchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: performance.now(),
+      };
+      isRoomHorizontalLockRef.current = null;
+      isRoomDraggingRef.current = false;
+      roomDragXRef.current = 0;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!roomTouchStartRef.current || e.touches.length !== 1) return;
+
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const dx = currentX - roomTouchStartRef.current.x;
+      const dy = currentY - roomTouchStartRef.current.y;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      // Disambiguate horizontal swipe vs vertical scroll
+      if (isRoomHorizontalLockRef.current === null) {
+        // Wait until touch has moved at least 8px before deciding direction
+        if (absDx < 8 && absDy < 8) {
+          return;
+        }
+
+        if (absDx > absDy) {
+          isRoomHorizontalLockRef.current = true;
+          isRoomDraggingRef.current = true;
+          if (roomSwipeTrackRef.current) {
+            roomSwipeTrackRef.current.style.transition = 'none';
+          }
+        } else {
+          // Vertical scroll dominant: pass control entirely to native browser vertical scroll
+          isRoomHorizontalLockRef.current = false;
+          roomTouchStartRef.current = null;
+          return;
+        }
+      }
+
+      if (isRoomHorizontalLockRef.current) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+
+        const idx = currentRoomIdxRef.current;
+        const width = roomContainerWidthRef.current;
+
+        // Rubber-band resistance at boundary edges
+        let effectiveDx = dx;
+        if ((idx === 0 && dx > 0) || (idx === roomTabs.length - 1 && dx < 0)) {
+          effectiveDx = dx * 0.25;
+        }
+
+        roomDragXRef.current = effectiveDx;
+
+        // Hardware-composited translate3d for 120fps direct GPU response
+        if (roomRafIdRef.current === null) {
+          roomRafIdRef.current = requestAnimationFrame(() => {
+            if (roomSwipeTrackRef.current && isRoomDraggingRef.current) {
+              const currentPx = -(idx * width) + roomDragXRef.current;
+              roomSwipeTrackRef.current.style.transform = `translate3d(${currentPx}px, 0, 0)`;
+            }
+            roomRafIdRef.current = null;
+          });
+        }
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (roomRafIdRef.current !== null) {
+        cancelAnimationFrame(roomRafIdRef.current);
+        roomRafIdRef.current = null;
+      }
+
+      if (!roomTouchStartRef.current || !isRoomHorizontalLockRef.current || !isRoomDraggingRef.current) {
+        roomTouchStartRef.current = null;
+        isRoomHorizontalLockRef.current = null;
+        isRoomDraggingRef.current = false;
+        return;
+      }
+
+      const dt = Math.max(1, performance.now() - roomTouchStartRef.current.time);
+      const finalDx = roomDragXRef.current;
+      const velocity = Math.abs(finalDx) / dt; // px/ms
+      const distanceThreshold = (roomContainerWidthRef.current || 360) * 0.2; // 20% of screen width
+      const velocityThreshold = 0.22; // flick velocity
+
+      const currentIdx = currentRoomIdxRef.current;
+      let targetIdx = currentIdx;
+
+      if ((Math.abs(finalDx) > distanceThreshold || velocity > velocityThreshold) && Math.abs(finalDx) > 15) {
+        if (finalDx < 0 && currentIdx < roomTabs.length - 1) {
+          targetIdx = currentIdx + 1;
+        } else if (finalDx > 0 && currentIdx > 0) {
+          targetIdx = currentIdx - 1;
+        }
+      }
+
+      isRoomSwipeTransitioningRef.current = true;
+
+      if (roomSwipeTrackRef.current) {
+        roomSwipeTrackRef.current.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+        roomSwipeTrackRef.current.style.transform = `translate3d(-${targetIdx * (100 / roomTabs.length)}%, 0, 0)`;
+      }
+
+      isRoomDraggingRef.current = false;
+      roomTouchStartRef.current = null;
+      isRoomHorizontalLockRef.current = null;
+      roomDragXRef.current = 0;
+
+      if (targetIdx !== currentIdx) {
+        currentRoomIdxRef.current = targetIdx;
+        const targetTab = roomTabs[targetIdx];
+        setRoomTab(targetTab);
+        if (targetTab === 'chat') {
+          setUnreadCount(0);
+        }
+        hapticTick();
+
+        setTimeout(() => {
+          isRoomSwipeTransitioningRef.current = false;
+        }, 240);
+      } else {
+        setTimeout(() => {
+          isRoomSwipeTransitioningRef.current = false;
+        }, 240);
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      if (roomRafIdRef.current !== null) {
+        cancelAnimationFrame(roomRafIdRef.current);
+      }
+    };
+  }, [isRoomNonSwipable, roomTabs]);
+
   // Host Settings Form State
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -2152,10 +2385,7 @@ CREATE POLICY "Hosts can update their own study rooms"
         <div className="flex items-center shrink-0">
           <div className="flex bg-black/40 border border-white/10 p-0.5 sm:p-1 rounded-xl shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
             <button
-              onClick={() => {
-                hapticTick();
-                setRoomTab('home');
-              }}
+              onClick={() => handleSelectRoomTab('home')}
               className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
                 roomTab === 'home'
                   ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
@@ -2166,11 +2396,7 @@ CREATE POLICY "Hosts can update their own study rooms"
               <span>HOME</span>
             </button>
             <button
-              onClick={() => {
-                hapticTick();
-                setRoomTab('chat');
-                setUnreadCount(0);
-              }}
+              onClick={() => handleSelectRoomTab('chat')}
               className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
                 roomTab === 'chat'
                   ? 'bg-[var(--accent-soft)] border border-[var(--border)] text-[var(--accent)] shadow-sm'
@@ -2190,10 +2416,7 @@ CREATE POLICY "Hosts can update their own study rooms"
             </button>
             {isHost && (
               <button
-                onClick={() => {
-                  hapticTick();
-                  setRoomTab('settings');
-                }}
+                onClick={() => handleSelectRoomTab('settings')}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   roomTab === 'settings'
                     ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
@@ -2208,9 +2431,45 @@ CREATE POLICY "Hosts can update their own study rooms"
         </div>
       </header>
 
-      <div className={`flex-1 min-h-0 w-full overflow-x-hidden ${roomTab === 'chat' ? 'flex flex-col' : 'overflow-y-auto p-4 scrollbar-thin'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
-        {roomTab === 'home' && (
-          <div className="flex flex-col items-center w-full min-h-full pb-24 md:pb-20">
+      {/* Dynamic Sliding Tab Track (Swipeable HOME / CHAT / SETTINGS) */}
+      <div
+        ref={roomSwipeContainerRef}
+        className="flex-1 min-h-0 w-full overflow-hidden relative select-none touch-pan-y"
+        style={{
+          touchAction: 'pan-y pinch-zoom',
+          contain: 'layout size',
+        }}
+      >
+        <div
+          ref={roomSwipeTrackRef}
+          className="flex w-full h-full min-h-0 flex-1 will-change-transform"
+          style={{
+            width: `${roomTabs.length * 100}%`,
+            transform: `translate3d(-${activeRoomTabIdx * (100 / roomTabs.length)}%, 0, 0)`,
+            transition: 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
+        >
+          {roomTabs.map((tab) => {
+            const isActive = tab === roomTab;
+            return (
+              <div
+                key={tab}
+                className={`flex-shrink-0 flex flex-col h-full min-h-0 ${
+                  !isActive ? 'pointer-events-none' : ''
+                }`}
+                style={{
+                  width: `${100 / roomTabs.length}%`,
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                {tab === 'home' && (
+                  <div className="relative w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden">
+                    <div
+                      className="flex-1 min-h-0 w-full overflow-y-auto p-4 scrollbar-thin flex flex-col items-center pb-28 md:pb-24"
+                      style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
             <div className="flex flex-wrap gap-8 justify-center items-start mt-8 pb-4 w-full">
               {displayUsers.map((u, i) => {
               const isStudying = u.is_studying;
@@ -2333,12 +2592,85 @@ CREATE POLICY "Hosts can update their own study rooms"
                 Waiting for scholars to join...
               </div>
             )}
-            </div>
-          </div>
-        )}
+                      </div>
+                    </div>
 
-        {roomTab === 'chat' && (
-          <div className="w-full flex-1 min-h-0 flex flex-col h-full">
+                    {/* Floating Bottom Focus Timer Dock */}
+                    <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
+                      <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0c1017]/85 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.65)] transition-all">
+                        {/* Live Indicator & Timer Readout */}
+                        <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
+                          <span className="relative flex h-2 w-2">
+                            {isRunning ? (
+                              <>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                              </>
+                            ) : isPaused ? (
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                            ) : (
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600" />
+                            )}
+                          </span>
+                          <span className="font-mono font-bold text-xs sm:text-sm tracking-wider text-white">
+                            {formatSeconds(elapsedSeconds)}
+                          </span>
+                        </div>
+
+                        {/* Subject Indicator Badge */}
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/10 max-w-[100px] xs:max-w-[130px] shrink-0">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: activeSubjectColor }}
+                          />
+                          <span className="text-[10px] sm:text-[11px] font-medium text-slate-200 truncate">
+                            {activeSubjectName}
+                          </span>
+                        </div>
+
+                        {/* Translucent Icon-Only Control Buttons */}
+                        <div className="flex items-center gap-1.5 pl-0.5 border-l border-white/10">
+                          {/* START / RESUME */}
+                          <button
+                            type="button"
+                            onClick={handleStartOrResume}
+                            disabled={isRunning}
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                              isRunning
+                                ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
+                                : isPaused
+                                ? 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.3)] active:scale-95'
+                                : 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-400 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.25)] active:scale-95'
+                            }`}
+                            title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
+                            aria-label={isPaused ? 'Resume timer' : 'Start timer'}
+                          >
+                            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />
+                          </button>
+
+                          {/* PAUSE */}
+                          <button
+                            type="button"
+                            onClick={handlePauseTimer}
+                            disabled={!isRunning}
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                              isRunning
+                                ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(245,158,11,0.3)] active:scale-95'
+                                : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
+                            }`}
+                            title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
+                            aria-label="Pause timer"
+                          >
+                            <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {tab === 'chat' && (
+                  <div className="w-full flex-1 min-h-0 flex flex-col h-full overflow-hidden">
             {/* Messages Scroll Area */}
             <div ref={messagesEndRef} className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-4 scrollbar-thin">
               <div className="max-w-3xl w-full mx-auto space-y-4">
@@ -2539,8 +2871,9 @@ CREATE POLICY "Hosts can update their own study rooms"
         )}
 
 
-        {roomTab === 'settings' && (
-          <div className="max-w-2xl mx-auto w-full py-4 sm:py-6 space-y-6 animate-in fade-in duration-200 pb-24 md:pb-20">
+        {tab === 'settings' && isHost && (
+          <div className="w-full flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="max-w-2xl mx-auto w-full py-4 sm:py-6 space-y-6 animate-in fade-in duration-200 pb-28 md:pb-24">
             {/* Host Banner */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/10 via-white/[0.02] to-transparent border border-amber-500/20 p-5 sm:p-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -3163,82 +3496,13 @@ CREATE POLICY "Hosts can update their own study rooms"
               </div>
             </form>
           </div>
-        )}
-      </div>
-
-      {/* Floating Bottom Focus Timer Dock (Start & Pause) - Compact, Translucent & Bottom-Anchored */}
-      {roomTab === 'home' && (
-        <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0c1017]/85 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.65)] transition-all">
-            {/* Live Indicator & Timer Readout */}
-            <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
-              <span className="relative flex h-2 w-2">
-                {isRunning ? (
-                  <>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </>
-                ) : isPaused ? (
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                ) : (
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600" />
-                )}
-              </span>
-              <span className="font-mono font-bold text-xs sm:text-sm tracking-wider text-white">
-                {formatSeconds(elapsedSeconds)}
-              </span>
-            </div>
-
-            {/* Subject Indicator Badge - Prominently shown on both mobile and desktop */}
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/10 max-w-[100px] xs:max-w-[130px] shrink-0">
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: activeSubjectColor }}
-              />
-              <span className="text-[10px] sm:text-[11px] font-medium text-slate-200 truncate">
-                {activeSubjectName}
-              </span>
-            </div>
-
-            {/* Translucent Icon-Only Control Buttons (Sized for comfortable tapping without text clutter) */}
-            <div className="flex items-center gap-1.5 pl-0.5 border-l border-white/10">
-              {/* START / RESUME */}
-              <button
-                type="button"
-                onClick={handleStartOrResume}
-                disabled={isRunning}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isRunning
-                    ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
-                    : isPaused
-                    ? 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.3)] active:scale-95'
-                    : 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-400 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.25)] active:scale-95'
-                }`}
-                title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
-                aria-label={isPaused ? 'Resume timer' : 'Start timer'}
-              >
-                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />
-              </button>
-
-              {/* PAUSE */}
-              <button
-                type="button"
-                onClick={handlePauseTimer}
-                disabled={!isRunning}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isRunning
-                    ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(245,158,11,0.3)] active:scale-95'
-                    : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
-                }`}
-                title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
-                aria-label="Pause timer"
-              >
-                <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-              </button>
-            </div>
-          </div>
         </div>
       )}
+    </div>
+  );
+})}
+        </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {mounted && typeof document !== 'undefined' && showDeleteConfirm && createPortal(

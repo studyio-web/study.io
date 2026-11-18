@@ -9,6 +9,7 @@ const TABS: NavTabType[] = ['timer', 'tasks', 'analytics', 'leaderboard', 'rooms
 interface SwipeTabContainerProps {
   activeTab: NavTabType;
   onChangeTab: (tab: NavTabType) => void;
+  disabled?: boolean;
   children: {
     timer: React.ReactNode;
     tasks: React.ReactNode;
@@ -22,6 +23,7 @@ interface SwipeTabContainerProps {
 export function SwipeTabContainer({
   activeTab,
   onChangeTab,
+  disabled = false,
   children,
 }: SwipeTabContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,7 @@ export function SwipeTabContainer({
 
   // Fast native check for non-swipable elements without layout thrashing / getComputedStyle loops
   const isNonSwipable = useCallback((target: HTMLElement | null): boolean => {
+    if (disabled) return true;
     if (!target) return false;
     // If any modal, dialog, or overlay is currently active in the DOM, tab swipe is strictly disabled
     if (typeof document !== 'undefined' && document.querySelector('[role="dialog"], [aria-modal="true"], .fixed.inset-0.z-50, .fixed.inset-0.z-\\[60\\]')) {

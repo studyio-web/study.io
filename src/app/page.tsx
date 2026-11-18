@@ -466,7 +466,11 @@ export default function Home() {
 
         {/* Main Content Area with Mobile Swipe Navigation */}
         <main className="w-full flex flex-col items-center relative z-10 px-0 md:px-8 flex-1 min-h-0 overflow-hidden pt-0 pb-0">
-          <SwipeTabContainer activeTab={activeTab} onChangeTab={handleTabChange}>
+          <SwipeTabContainer
+            activeTab={activeTab}
+            onChangeTab={handleTabChange}
+            disabled={activeTab === 'rooms' && isInsideRoom}
+          >
             {{
               timer: (
                 <ErrorBoundary fallbackTitle="Focus Timer">
