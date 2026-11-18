@@ -73,9 +73,8 @@ class ShortsReelsBlockerService : AccessibilityService() {
                 handleViewScrolled(event, packageName)
             }
 
-            // Also check window state changes in case the user opens directly into Reels/Shorts
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+            // Check window state changes when navigating to a new activity or full-screen viewer
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 checkAndBlockIfInsidePlayer(packageName)
             }
         }
@@ -166,18 +165,19 @@ class ShortsReelsBlockerService : AccessibilityService() {
 
         if (packageName == PKG_INSTAGRAM) {
             // Instagram Reels tab or Reels button
-            if (desc.contains("Reel", ignoreCase = true) || text.contains("Reel", ignoreCase = true)) {
-                return true
-            }
-            if (viewId.contains("clips_tab", ignoreCase = true) || viewId.contains("reels_tab", ignoreCase = true)) {
+            if (desc.equals("Reels", ignoreCase = true) || text.equals("Reels", ignoreCase = true) ||
+                desc.equals("Reel", ignoreCase = true) || text.equals("Reel", ignoreCase = true) ||
+                desc.contains("Reels tab", ignoreCase = true) ||
+                viewId.contains("clips_tab", ignoreCase = true) ||
+                viewId.contains("reels_tab", ignoreCase = true)) {
                 return true
             }
         } else if (packageName == PKG_YOUTUBE) {
             // YouTube Shorts tab or Shorts shelf entry
-            if (desc.contains("Shorts", ignoreCase = true) || text.contains("Shorts", ignoreCase = true)) {
-                return true
-            }
-            if (viewId.contains("pivot_shorts", ignoreCase = true) || viewId.contains("shorts_container", ignoreCase = true)) {
+            if (desc.equals("Shorts", ignoreCase = true) || text.equals("Shorts", ignoreCase = true) ||
+                desc.contains("Shorts tab", ignoreCase = true) ||
+                viewId.contains("pivot_shorts", ignoreCase = true) ||
+                viewId.contains("shorts_container", ignoreCase = true)) {
                 return true
             }
         }
@@ -200,19 +200,21 @@ class ShortsReelsBlockerService : AccessibilityService() {
 
     /**
      * Evaluates whether the currently displayed screen in Instagram is the full-screen Reels viewer.
+     * Crucially differentiates between the Reels viewer and the Home feed / Stories viewer.
      */
     private fun isInsideInstagramReels(rootNode: AccessibilityNodeInfo): Boolean {
-        // High-confidence view IDs found in Instagram's Reels (Clips) UI
-        val instagramReelsIds = listOf(
-            "com.instagram.android:id/clips_video_container",
+        // 1. High-confidence view IDs exclusive to Instagram's Reels (Clips) viewer
+        val instagramClipsViewerIds = listOf(
             "com.instagram.android:id/clips_viewer_view_pager",
-            "com.instagram.android:id/reel_viewer_root",
+            "com.instagram.android:id/clips_video_container",
             "com.instagram.android:id/clips_swipe_refresh_container",
             "com.instagram.android:id/clips_item_container",
-            "com.instagram.android:id/clips_view_pager"
+            "com.instagram.android:id/clips_view_pager",
+            "com.instagram.android:id/clips_viewer_fragment_container",
+            "com.instagram.android:id/clips_viewer_root"
         )
 
-        for (id in instagramReelsIds) {
+        for (id in instagramClipsViewerIds) {
             val matchedNodes = rootNode.findAccessibilityNodeInfosByViewId(id)
             if (matchedNodes != null && matchedNodes.isNotEmpty()) {
                 matchedNodes.forEach { it.recycle() }
@@ -220,16 +222,39 @@ class ShortsReelsBlockerService : AccessibilityService() {
             }
         }
 
-        // Text & ContentDescription heuristic fallback for Reels full-screen player
+        // 2. Check if the Reels tab in the bottom bar is currently SELECTED (active).
+        // On the Home feed, the Reels tab is unselected (isSelected == false), so it will not match.
+        val clipsTabNodes = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_tab")
+        if (clipsTabNodes != null && clipsTabNodes.isNotEmpty()) {
+            val isSelected = clipsTabNodes.any { it.isSelected }
+            clipsTabNodes.forEach { it.recycle() }
+            if (isSelected) return true
+        }
+
         val textNodes = rootNode.findAccessibilityNodeInfosByText("Reels")
         if (textNodes != null && textNodes.isNotEmpty()) {
-            val isReelsViewer = textNodes.any { node ->
-                val desc = node.contentDescription?.toString() ?: ""
-                val txt = node.text?.toString() ?: ""
-                desc.contains("Reel", ignoreCase = true) || txt.equals("Reels", ignoreCase = true)
+            val isSelectedReelsTab = textNodes.any { node ->
+                node.isSelected && (
+                    node.contentDescription?.toString()?.contains("Reel", ignoreCase = true) == true ||
+                    node.text?.toString()?.equals("Reels", ignoreCase = true) == true
+                )
             }
             textNodes.forEach { it.recycle() }
-            if (isReelsViewer) return true
+            if (isSelectedReelsTab) return true
+        }
+
+        // 3. Action overlays unique to Reels (Audio pill, Remix button)
+        val reelsOverlayIds = listOf(
+            "com.instagram.android:id/clips_audio_pill",
+            "com.instagram.android:id/audio_attribution_label",
+            "com.instagram.android:id/clips_remix_button"
+        )
+        for (id in reelsOverlayIds) {
+            val matchedNodes = rootNode.findAccessibilityNodeInfosByViewId(id)
+            if (matchedNodes != null && matchedNodes.isNotEmpty()) {
+                matchedNodes.forEach { it.recycle() }
+                return true
+            }
         }
 
         return false
@@ -239,7 +264,7 @@ class ShortsReelsBlockerService : AccessibilityService() {
      * Evaluates whether the currently displayed screen in YouTube is the full-screen Shorts player.
      */
     private fun isInsideYouTubeShorts(rootNode: AccessibilityNodeInfo): Boolean {
-        // High-confidence view IDs found in YouTube's Shorts player UI
+        // 1. High-confidence view IDs found in YouTube's Shorts player UI
         val youtubeShortsIds = listOf(
             "com.google.android.youtube:id/shorts_container",
             "com.google.android.youtube:id/reel_recycler",
@@ -256,7 +281,15 @@ class ShortsReelsBlockerService : AccessibilityService() {
             }
         }
 
-        // Action buttons unique to the YouTube Shorts feed (Remix, Sound, Subscribe overlay)
+        // 2. Check if the Shorts pivot tab on YouTube's bottom bar is currently SELECTED
+        val pivotShortsNodes = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/pivot_shorts")
+        if (pivotShortsNodes != null && pivotShortsNodes.isNotEmpty()) {
+            val isSelected = pivotShortsNodes.any { it.isSelected }
+            pivotShortsNodes.forEach { it.recycle() }
+            if (isSelected) return true
+        }
+
+        // 3. Action buttons unique to the YouTube Shorts feed (Remix, Sound)
         val remixNodes = rootNode.findAccessibilityNodeInfosByText("Remix")
         if (remixNodes != null && remixNodes.isNotEmpty()) {
             remixNodes.forEach { it.recycle() }
