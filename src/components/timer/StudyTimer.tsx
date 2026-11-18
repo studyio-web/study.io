@@ -60,6 +60,7 @@ import {
   StrictModeAllowedAppsModal,
   StrictModePermissionModal,
   StrictModeConfigModal,
+  StrictCountdownWarningModal,
 } from './StrictModeModal';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
@@ -181,6 +182,8 @@ export function StudyTimer() {
   const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
   const [isStrictConfigOpen, setIsStrictConfigOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [isStrictWarningModalOpen, setIsStrictWarningModalOpen] = useState(false);
+  const pendingStartSubjectIdRef = useRef<string | null>(null);
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
 
@@ -570,6 +573,15 @@ export function StudyTimer() {
     }
     setSubjectWarning(false);
     setShowRecoveryBanner(false);
+
+    // Warning confirmation prompt before starting Countdown with Strict Mode / Ultra Strict Mode
+    if (isAndroid && (isStrictMode || isUltraStrict) && timerMode === 'countdown') {
+      pendingStartSubjectIdRef.current = activeSub.id;
+      hapticMedium();
+      setIsStrictWarningModalOpen(true);
+      return;
+    }
+
     hapticMedium();
     if (isAndroid) {
       StrictMode.syncStrictConfig({
@@ -579,7 +591,36 @@ export function StudyTimer() {
       }).catch(() => { });
     }
     startTimer(activeSub.id);
-  }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager, isAndroid, isStrictMode, allowedApps, isUltraStrict]);
+  }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager, isAndroid, isStrictMode, allowedApps, isUltraStrict, timerMode]);
+
+  const handleConfirmStrictCountdown = useCallback(async () => {
+    const subId = pendingStartSubjectIdRef.current || selectedSubject?.id;
+    setIsStrictWarningModalOpen(false);
+    if (!subId) return;
+
+    if (isAndroid) {
+      try {
+        const { granted } = await StrictMode.hasUsagePermission();
+        if (!granted) {
+          setIsPermissionModalOpen(true);
+          return;
+        }
+      } catch { }
+
+      StrictMode.syncStrictConfig({
+        enabled: isStrictMode,
+        allowedPackages: allowedApps,
+        isUltraStrict: isUltraStrict,
+      }).catch(() => { });
+    }
+    hapticMedium();
+    startTimer(subId);
+  }, [selectedSubject?.id, isAndroid, isStrictMode, allowedApps, isUltraStrict, startTimer]);
+
+  const handleCancelStrictCountdown = useCallback(() => {
+    setIsStrictWarningModalOpen(false);
+    pendingStartSubjectIdRef.current = null;
+  }, []);
 
   const handlePause = useCallback(() => {
     hapticMedium();
@@ -2157,6 +2198,19 @@ export function StudyTimer() {
           onRequestUsagePermission={handleRequestPermission}
           onRequestOverlayPermission={handleRequestOverlayPermission}
           isFocusing={isStudying}
+        />
+      )}
+
+      {/* Strict Mode Countdown Warning Confirmation Modal */}
+      {isAndroid && isStrictWarningModalOpen && (
+        <StrictCountdownWarningModal
+          isOpen={isStrictWarningModalOpen}
+          isUltraStrict={isUltraStrict}
+          countdownSeconds={countdownTarget}
+          subjectName={selectedSubject?.name}
+          allowedAppsCount={allowedApps.length}
+          onConfirm={handleConfirmStrictCountdown}
+          onCancel={handleCancelStrictCountdown}
         />
       )}
     </div>

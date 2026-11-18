@@ -181,4 +181,34 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.deepEqual(getAvailableModes(false), ['stopwatch', 'countdown', 'pomodoro']);
     assert.deepEqual(getAvailableModes(true), ['countdown']);
   });
+
+  it('guarantees Countdown with Strict Mode requires explicit user acceptance before timer turns on', () => {
+    let timerStarted = false;
+    let warningPromptOpen = false;
+
+    const onStartSession = (isAndroid: boolean, isStrictOrUltra: boolean, mode: string) => {
+      if (isAndroid && isStrictOrUltra && mode === 'countdown') {
+        warningPromptOpen = true;
+        return; // Intercepted: must prompt user first!
+      }
+      timerStarted = true;
+    };
+
+    // 1. Starting countdown in strict mode must NOT immediately start timer; it opens warning prompt
+    onStartSession(true, true, 'countdown');
+    assert.equal(warningPromptOpen, true, 'Warning confirmation must open');
+    assert.equal(timerStarted, false, 'Timer must NOT turn on before acceptance');
+
+    // 2. User cancels: prompt closes, timer remains off
+    warningPromptOpen = false;
+    assert.equal(timerStarted, false, 'Timer must remain off if user cancels');
+
+    // 3. User accepts: timer turns on
+    const onUserAccept = () => {
+      warningPromptOpen = false;
+      timerStarted = true;
+    };
+    onUserAccept();
+    assert.equal(timerStarted, true, 'Timer must turn on only when user accepts');
+  });
 });

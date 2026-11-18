@@ -335,6 +335,145 @@ export function StrictModePermissionModal({
 }
 
 /**
+ * Warning Confirmation Modal before starting a Countdown with Strict Mode / Ultra Strict Mode
+ */
+interface StrictCountdownWarningModalProps {
+  isOpen: boolean;
+  isUltraStrict: boolean;
+  countdownSeconds: number;
+  subjectName?: string;
+  allowedAppsCount: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export function StrictCountdownWarningModal({
+  isOpen,
+  isUltraStrict,
+  countdownSeconds,
+  subjectName,
+  allowedAppsCount,
+  onConfirm,
+  onCancel,
+}: StrictCountdownWarningModalProps) {
+  if (!isOpen) return null;
+
+  const formattedDuration = (() => {
+    const mins = Math.floor(countdownSeconds / 60);
+    const secs = countdownSeconds % 60;
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+    if (secs > 0 && mins > 0) return `${mins}m ${secs}s`;
+    if (mins > 0) return `${mins} min${mins === 1 ? '' : 's'}`;
+    return `${secs}s`;
+  })();
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={onCancel}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 shadow-2xl text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Tag */}
+        <div className="flex justify-center mb-4">
+          <span
+            className={`px-3 py-1 rounded-full text-[10px] font-hud font-bold tracking-widest uppercase border ${
+              isUltraStrict
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                : 'bg-white/10 border-white/15 text-white/80'
+            }`}
+          >
+            {isUltraStrict ? '⚡ Ultra Strict Lockdown' : '🛡️ Strict Mode Active'}
+          </span>
+        </div>
+
+        {/* Icon */}
+        <div
+          className={`w-14 h-14 rounded-3xl border flex items-center justify-center mx-auto mb-3.5 ${
+            isUltraStrict
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+              : 'bg-white/10 border-white/15 text-white'
+          }`}
+        >
+          <ShieldAlert className="w-7 h-7" />
+        </div>
+
+        {/* Heading */}
+        <h3 className="font-hud text-lg font-bold text-white tracking-wide">
+          {isUltraStrict ? 'Ultra Strict Lockdown' : 'Strict Mode Warning'}
+        </h3>
+
+        {/* Duration & Subject Summary Card */}
+        <div className="mt-3.5 mb-4 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-left px-4">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Countdown</p>
+            <p className="text-sm font-hud font-bold text-white mt-0.5">{formattedDuration}</p>
+          </div>
+          {subjectName && (
+            <div className="text-right">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Subject</p>
+              <p className="text-sm font-semibold text-white/90 truncate max-w-[120px] mt-0.5">{subjectName}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Notice text */}
+        <div className="text-xs text-white/70 leading-relaxed text-center px-1">
+          {isUltraStrict ? (
+            <p>
+              You <strong>cannot open any blocked apps</strong> and <strong>cannot stop or pause early</strong> until your countdown reaches <span className="font-mono font-semibold text-emerald-400">00:00:00</span>.
+            </p>
+          ) : (
+            <p>
+              You <strong>cannot open any blocked apps</strong> until your countdown timer ends.
+              {allowedAppsCount > 0 ? (
+                <span className="block mt-1 text-[11px] text-white/50">
+                  Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.
+                </span>
+              ) : (
+                <span className="block mt-1 text-[11px] text-white/50">
+                  All non-system apps will be locked.
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Buttons */}
+        <div className="mt-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('heavy');
+              onConfirm();
+            }}
+            className="w-full py-3.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white hover:bg-zinc-200 text-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Accept &amp; Start Timer</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              onCancel();
+            }}
+            className="w-full py-2.5 rounded-xl text-xs font-mono uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Blocked App Screen / Modal when non-allowed app is detected
  */
 interface BlockedAppModalProps {
