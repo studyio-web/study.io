@@ -67,6 +67,7 @@ import { useAtmosphere } from '../focus/useAtmosphere';
 import confetti from 'canvas-confetti';
 import { CountdownEditor } from './CountdownEditor';
 import { enterFullscreenSafely, exitFullscreenSafely } from './FocusModeModal';
+import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 import { notify } from '../../lib/notifications';
 import { getSupabase } from '../../lib/supabase';
 import { fetchAuthoritativeServerTime, saveValidatedSession } from '../../lib/serverTime';
@@ -1225,6 +1226,9 @@ export function StudyTimer() {
         localStorage.setItem('studyio_timer_countdown_completed', 'true');
       } catch { }
       pauseTimer();
+      if (isNativeAndroid()) {
+        TimerNotification.stop().catch(() => {});
+      }
       toast.success('Countdown completed! Click Save session to record your progress 🎉', { duration: 6000 });
       notify('countdown_completed', {
         body: 'Your timer is up! Click Save session to record your progress.',

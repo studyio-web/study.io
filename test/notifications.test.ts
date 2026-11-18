@@ -59,7 +59,7 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
     assert.equal(formatSecondsForNotification(18316), '5:05:16');
   });
 
-  it('maps Stopwatch state to count UP chronometer with Pause and Stop actions', () => {
+  it('maps Stopwatch state to count UP chronometer with Pause action (no Stop action)', () => {
     const now = 1700000000000;
     const elapsedSeconds = 45;
     const baseTime = now - elapsedSeconds * 1000;
@@ -71,14 +71,15 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
       usesChronometer: true,
       countDown: false,
       chronometerWhen: baseTime,
-      actions: ['Pause', 'Stop'],
+      actions: ['Pause'],
       title: 'Stopwatch · Math',
     };
 
     assert.equal(state.usesChronometer, true);
     assert.equal(state.countDown, false);
     assert.equal(state.chronometerWhen, now - 45000);
-    assert.deepEqual(state.actions, ['Pause', 'Stop']);
+    assert.deepEqual(state.actions, ['Pause']);
+    assert.ok(!state.actions.includes('Stop'), 'Stop button must be removed from notifications');
     assert.equal(state.title, 'Stopwatch · Math');
   });
 
@@ -96,14 +97,15 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
       usesChronometer: true,
       countDown: true,
       chronometerWhen: targetFinishMs,
-      actions: ['Pause', 'Stop'],
+      actions: ['Pause'],
       title: 'Countdown · History',
     };
 
     assert.equal(state.usesChronometer, true);
     assert.equal(state.countDown, true);
     assert.equal(state.chronometerWhen, now + 1200000);
-    assert.deepEqual(state.actions, ['Pause', 'Stop']);
+    assert.deepEqual(state.actions, ['Pause']);
+    assert.ok(!state.actions.includes('Stop'), 'Stop button must be removed from notifications');
   });
 
   it('maps Pomodoro focus and break states to correct titles and countdown mode', () => {
@@ -115,10 +117,11 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
       title: 'Pomodoro: Focus · Physics',
       usesChronometer: true,
       countDown: true,
-      actions: ['Pause', 'Stop'],
+      actions: ['Pause'],
     };
     assert.equal(focusState.title, 'Pomodoro: Focus · Physics');
     assert.equal(focusState.countDown, true);
+    assert.deepEqual(focusState.actions, ['Pause']);
 
     // Break phase
     const breakState = {
@@ -128,13 +131,14 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
       title: 'Pomodoro: Break',
       usesChronometer: true,
       countDown: true,
-      actions: ['Pause', 'Stop'],
+      actions: ['Pause'],
     };
     assert.equal(breakState.title, 'Pomodoro: Break');
     assert.equal(breakState.countDown, true);
+    assert.deepEqual(breakState.actions, ['Pause']);
   });
 
-  it('maps Paused timer state to frozen text, no chronometer, and Resume/Stop actions', () => {
+  it('maps Paused timer state to frozen text, no chronometer, and Resume action (no Stop)', () => {
     const elapsedSeconds = 872; // 14:32
     const timeText = formatSecondsForNotification(elapsedSeconds);
 
@@ -144,12 +148,13 @@ describe('Native Running-Timer State & Chronometer Mapping', () => {
       title: 'Stopwatch (Paused)',
       usesChronometer: false,
       contentText: `⏸ Paused · ${timeText}`,
-      actions: ['Resume', 'Stop'],
+      actions: ['Resume'],
     };
 
     assert.equal(pausedState.usesChronometer, false);
     assert.equal(pausedState.contentText, '⏸ Paused · 14:32');
-    assert.deepEqual(pausedState.actions, ['Resume', 'Stop']);
+    assert.deepEqual(pausedState.actions, ['Resume']);
+    assert.ok(!pausedState.actions.includes('Stop'), 'Stop button must be removed from notifications');
     assert.equal(pausedState.title, 'Stopwatch (Paused)');
   });
 

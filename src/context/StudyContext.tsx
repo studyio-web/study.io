@@ -2884,6 +2884,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const resumeTimer = useCallback(() => {
     if (!checkDebounce()) return;
 
+    if (timerMode === 'countdown' && countdownTarget > 0 && accumulatedSecondsRef.current >= countdownTarget) {
+      console.warn('[Timer] resumeTimer rejected: Countdown already completed');
+      return;
+    }
+
     const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
     startTimeRef.current = nowAnchor;
     setIsPaused(false);

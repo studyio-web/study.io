@@ -303,6 +303,12 @@ export function FocusModeModal() {
 
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
+        const isCountdownCompleted =
+          timerMode === 'countdown' &&
+          countdownTarget > 0 &&
+          elapsedSeconds >= countdownTarget;
+        if (isCountdownCompleted) return;
+
         hapticMedium();
         if (isStudying && !isPaused) {
           handlePause();
@@ -349,6 +355,11 @@ export function FocusModeModal() {
 
   if (!isFocusModeOpen) return null;
 
+  const isCountdownCompleted =
+    timerMode === 'countdown' &&
+    countdownTarget > 0 &&
+    elapsedSeconds >= countdownTarget;
+
   // Calculate display time based on mode
   let displayTime = formatSeconds(elapsedSeconds);
   if (timerMode === 'pomodoro') {
@@ -357,7 +368,7 @@ export function FocusModeModal() {
     displayTime = formatSeconds(remaining);
   } else if (timerMode === 'countdown') {
     const target = countdownTarget || 3600;
-    const remaining = Math.max(0, target - elapsedSeconds);
+    const remaining = isCountdownCompleted ? 0 : Math.max(0, target - elapsedSeconds);
     displayTime = formatSeconds(remaining);
   }
 
@@ -509,40 +520,42 @@ export function FocusModeModal() {
         }}
       >
         {/* Compact Timer Playback Controls (Start / Pause only) positioned right above scene pills */}
-        <div className="flex items-center justify-center">
-          {isStudying && !isPaused ? (
-            <button
-              type="button"
-              onClick={() => {
-                hapticMedium();
-                handlePause();
-              }}
-              className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 hover:border-white/40 text-white font-medium text-xs sm:text-[13px] backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="Pause timer (Space)"
-            >
-              <Pause className="w-3.5 h-3.5 fill-current" />
-              <span>Pause</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                hapticMedium();
-                enterFullscreenSafely();
-                if (isStudying) {
-                  handleResume();
-                } else {
-                  handleStart();
-                }
-              }}
-              className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-semibold text-xs sm:text-[13px] shadow-[0_4px_16px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title={isStudying ? "Resume timer (Space)" : "Start timer (Space)"}
-            >
-              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-              <span>Start</span>
-            </button>
-          )}
-        </div>
+        {!isCountdownCompleted && (
+          <div className="flex items-center justify-center">
+            {isStudying && !isPaused ? (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticMedium();
+                  handlePause();
+                }}
+                className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 hover:border-white/40 text-white font-medium text-xs sm:text-[13px] backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title="Pause timer (Space)"
+              >
+                <Pause className="w-3.5 h-3.5 fill-current" />
+                <span>Pause</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticMedium();
+                  enterFullscreenSafely();
+                  if (isStudying) {
+                    handleResume();
+                  } else {
+                    handleStart();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-semibold text-xs sm:text-[13px] shadow-[0_4px_16px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title={isStudying ? "Resume timer (Space)" : "Start timer (Space)"}
+              >
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                <span>Start</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Sleek Minimalist Focus Control Dock */}
         <div className="flex items-center gap-1.5 p-1 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">

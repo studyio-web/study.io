@@ -533,11 +533,23 @@ class TimerForegroundService : Service() {
         cancelScheduledFinishCheck()
         stopStrictMonitoring()
         savePersistedState()
+
+        if (mode == "countdown" && targetSeconds > 0 && baseElapsedSeconds >= targetSeconds) {
+            Log.d(TAG, "Countdown already completed on pause. Terminating running notification.")
+            handleStop()
+            return
+        }
+
         updateNotification()
         Log.d(TAG, "Timer paused at elapsed: $baseElapsedSeconds seconds")
     }
 
     private fun handleResume() {
+        if (mode == "countdown" && targetSeconds > 0 && baseElapsedSeconds >= targetSeconds) {
+            Log.w(TAG, "Resume rejected: Countdown already completed")
+            return
+        }
+
         val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
         if (!isRunning && prefs.getBoolean("is_running", false)) {
             mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
@@ -686,18 +698,16 @@ class TimerForegroundService : Service() {
             expandedView.setTextViewText(R.id.notif_exp_subject_text, subjectDisplay)
             expandedView.setTextViewText(R.id.notif_exp_subtext, "Tap Resume to continue focusing")
 
-            builder.addAction(
-                android.R.drawable.ic_media_play,
-                "Resume",
-                createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_RESUME, 101)
-            )
-            builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Stop",
-                createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_STOP, 102)
-            )
+            val isCountdownCompleted = (mode == "countdown" && targetSeconds > 0 && baseElapsedSeconds >= targetSeconds)
+            if (!isCountdownCompleted) {
+                builder.addAction(
+                    android.R.drawable.ic_media_play,
+                    "Resume",
+                    createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_RESUME, 101)
+                )
+            }
         } else {
-            // Running state: chronometer ON, Pause and Stop actions
+            // Running state: chronometer ON, Pause action (Stop removed from all notifications)
             builder.setUsesChronometer(true)
 
             // Calculate the exact virtual session origin timestamp where elapsed time was 0
@@ -753,20 +763,31 @@ class TimerForegroundService : Service() {
                 val remainingMs = ((targetSeconds * 1000L) - totalElapsedMs).coerceAtLeast(0L)
                 val targetFinishRealtime = SystemClock.elapsedRealtime() + remainingMs
 
-                // Collapsed Countdown Chronometer (26sp bold)
-                collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.VISIBLE)
-                collapsedView.setViewVisibility(R.id.notif_timer_static, View.GONE)
-                collapsedView.setChronometer(R.id.notif_timer_chronometer, targetFinishRealtime, "%s", true)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    collapsedView.setChronometerCountDown(R.id.notif_timer_chronometer, true)
-                }
+                if (remainingMs <= 0L) {
+                    // Prevent countdown Chronometer from running down into negative numbers
+                    collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.GONE)
+                    collapsedView.setViewVisibility(R.id.notif_timer_static, View.VISIBLE)
+                    collapsedView.setTextViewText(R.id.notif_timer_static, "00:00")
 
-                // Expanded Countdown Chronometer (34sp bold)
-                expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.VISIBLE)
-                expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.GONE)
-                expandedView.setChronometer(R.id.notif_exp_timer_chronometer, targetFinishRealtime, "%s", true)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    expandedView.setChronometerCountDown(R.id.notif_exp_timer_chronometer, true)
+                    expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.GONE)
+                    expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.VISIBLE)
+                    expandedView.setTextViewText(R.id.notif_exp_timer_static, "00:00")
+                } else {
+                    // Collapsed Countdown Chronometer (26sp bold)
+                    collapsedView.setViewVisibility(R.id.notif_timer_chronometer, View.VISIBLE)
+                    collapsedView.setViewVisibility(R.id.notif_timer_static, View.GONE)
+                    collapsedView.setChronometer(R.id.notif_timer_chronometer, targetFinishRealtime, "%s", true)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        collapsedView.setChronometerCountDown(R.id.notif_timer_chronometer, true)
+                    }
+
+                    // Expanded Countdown Chronometer (34sp bold)
+                    expandedView.setViewVisibility(R.id.notif_exp_timer_chronometer, View.VISIBLE)
+                    expandedView.setViewVisibility(R.id.notif_exp_timer_static, View.GONE)
+                    expandedView.setChronometer(R.id.notif_exp_timer_chronometer, targetFinishRealtime, "%s", true)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        expandedView.setChronometerCountDown(R.id.notif_exp_timer_chronometer, true)
+                    }
                 }
                 expandedView.setTextViewText(
                     R.id.notif_exp_subtext,
@@ -788,11 +809,6 @@ class TimerForegroundService : Service() {
                     android.R.drawable.ic_media_pause,
                     "Pause",
                     createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_PAUSE, 103)
-                )
-                builder.addAction(
-                    android.R.drawable.ic_menu_close_clear_cancel,
-                    "Stop",
-                    createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_STOP, 104)
                 )
             }
         }
@@ -882,6 +898,20 @@ class TimerForegroundService : Service() {
             startedAtMs = System.currentTimeMillis()
             updateNotification()
             scheduleFinishCheckIfNeeded()
+        } else if (mode == "countdown") {
+            Log.d(TAG, "Countdown completed: stopping ongoing foreground timer notification")
+            baseElapsedSeconds = targetSeconds
+            isPaused = true
+            isRunning = false
+            isServiceRunning = false
+            cancelScheduledFinishCheck()
+            releaseWakeLock()
+            stopStrictMonitoring()
+            clearPersistedState()
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            val notificationManager = NotificationManagerCompat.from(this)
+            notificationManager.cancel(NOTIFICATION_ID_RUNNING)
+            stopSelf()
         }
     }
 
