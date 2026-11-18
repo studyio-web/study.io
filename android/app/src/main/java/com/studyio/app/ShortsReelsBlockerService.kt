@@ -12,6 +12,13 @@ import android.view.accessibility.AccessibilityNodeInfo
  * Android Accessibility Service for study.io Digital Wellbeing.
  * Targets Instagram (com.instagram.android) and YouTube (com.google.android.youtube)
  * to block Reels and Shorts during active focus sessions.
+ *
+ * Requirements:
+ * 1. Never close Instagram on launch or during feed/DM browsing.
+ * 2. Allow watching single Reels sent in Direct Messages (DMs).
+ * 3. Block clicking the dedicated Reels and Shorts bottom navigation bar tabs.
+ * 4. Anti-Doomscrolling: If the user tries to scroll/swipe away from a single reel to the next reel,
+ *    trigger performGlobalAction(GLOBAL_ACTION_BACK) to return to DM chat.
  */
 class ShortsReelsBlockerService : AccessibilityService() {
 
@@ -24,8 +31,12 @@ class ShortsReelsBlockerService : AccessibilityService() {
         private const val PKG_YOUTUBE = "com.google.android.youtube"
 
         // Cooldown between back actions to prevent infinite/rapid consecutive back presses
-        private const val BACK_ACTION_COOLDOWN_MS = 800L
+        private const val BACK_ACTION_COOLDOWN_MS = 1000L
         private var lastBackActionTime = 0L
+
+        // Grace period after opening a reel viewer so initial layout/rendering does not trigger back
+        private const val REEL_OPEN_GRACE_PERIOD_MS = 1500L
+        private var lastReelViewerOpenTime = 0L
 
         @Volatile
         var isServiceRunning = false
@@ -63,19 +74,19 @@ class ShortsReelsBlockerService : AccessibilityService() {
         if (packageName != PKG_INSTAGRAM && packageName != PKG_YOUTUBE) return
 
         when (event.eventType) {
-            // Requirement 3: Block the Tabs (Detect click on Reels or Shorts tab/button)
+            // Block clicking dedicated Reels or Shorts bottom navigation bar tabs
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
                 handleViewClicked(event, packageName)
             }
 
-            // Requirement 4: Anti-Doomscrolling: Block scrolling away from a reel/short
+            // Anti-Doomscrolling: Block scrolling away from a single reel to the next video
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 handleViewScrolled(event, packageName)
             }
 
-            // Block direct navigation into the dedicated Reels/Shorts tab section
+            // Detect window transitions (entering reel viewer, or startup redirect)
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                checkAndBlockIfInReelsOrShortsTab(packageName)
+                handleWindowStateChanged(event, packageName)
             }
         }
     }
@@ -85,15 +96,31 @@ class ShortsReelsBlockerService : AccessibilityService() {
     }
 
     /**
-     * Requirement 3: Block the Tabs
-     * Detects if the user clicks the dedicated Reels or Shorts tab button on the main navigation bar.
-     * Clicks on shared reels inside Direct Message (DM) chat threads are explicitly permitted.
+     * Requirement 3: Block Bottom Navigation Bar Tabs
+     * Detects if the user taps the dedicated Reels or Shorts tab button in the bottom navigation bar.
+     * Clicks on media cards inside Direct Message (DM) chat threads are explicitly permitted.
      */
     private fun handleViewClicked(event: AccessibilityEvent, packageName: String) {
         val sourceNode = event.source ?: return
         try {
-            if (isReelsOrShortsClickTarget(sourceNode, packageName)) {
-                Log.i(TAG, "Blocked click on Reels/Shorts tab button in $packageName. Triggering BACK.")
+            if (isBottomReelsOrShortsTab(sourceNode, packageName)) {
+                Log.i(TAG, "Blocked click on Reels/Shorts bottom tab in $packageName. Triggering action.")
+                if (packageName == PKG_INSTAGRAM) {
+                    // Try redirecting directly to Home feed tab if possible, else trigger BACK
+                    val root = rootInActiveWindow
+                    if (root != null) {
+                        try {
+                            val feedTabNodes = root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/feed_tab")
+                            if (feedTabNodes.isNotEmpty()) {
+                                feedTabNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                feedTabNodes.forEach { it.recycle() }
+                                return
+                            }
+                        } finally {
+                            root.recycle()
+                        }
+                    }
+                }
                 triggerBackAction()
             }
         } catch (e: Exception) {
@@ -104,50 +131,107 @@ class ShortsReelsBlockerService : AccessibilityService() {
     }
 
     /**
-     * Requirement 4: Block the Scrolling (Anti-Doomscrolling)
-     * Listens for TYPE_VIEW_SCROLLED events. If the user is currently inside a Reels/Shorts
-     * video player view (e.g. watching a reel sent by a friend in DM) and attempts to swipe/scroll
-     * to the next video, triggers performGlobalAction(GLOBAL_ACTION_BACK) immediately.
+     * Requirement 4: Anti-Doomscrolling (Block scrolling away from single reel)
+     * When watching a reel sent in DMs, the user is permitted to watch and loop that reel.
+     * If the user swipes up/down to scroll to the NEXT reel, triggers GLOBAL_ACTION_BACK
+     * to return the user directly to the DM chat.
      */
     private fun handleViewScrolled(event: AccessibilityEvent, packageName: String) {
-        val rootNode = rootInActiveWindow ?: return
+        val now = SystemClock.uptimeMillis()
+
+        // 1. Enforce initial grace period so loading/settling does not trigger back
+        if (now - lastReelViewerOpenTime < REEL_OPEN_GRACE_PERIOD_MS) {
+            return
+        }
+
+        // 2. Cooldown check
+        if (now - lastBackActionTime < BACK_ACTION_COOLDOWN_MS) {
+            return
+        }
+
+        val source = event.source ?: return
         try {
-            val isInsidePlayer = when (packageName) {
-                PKG_INSTAGRAM -> isInsideInstagramReels(rootNode)
-                PKG_YOUTUBE -> isInsideYouTubeShorts(rootNode)
+            val sourceId = source.viewIdResourceName ?: ""
+            val sourceClass = source.className?.toString() ?: ""
+
+            val isPagerScrolled = when (packageName) {
+                PKG_INSTAGRAM -> isInstagramReelsPagerScrolled(source, sourceId, sourceClass)
+                PKG_YOUTUBE -> isYouTubeShortsPagerScrolled(source, sourceId, sourceClass)
                 else -> false
             }
 
-            if (isInsidePlayer) {
-                Log.i(TAG, "Anti-doomscrolling: Blocked scroll inside Reels/Shorts player in $packageName. Triggering BACK.")
+            if (isPagerScrolled) {
+                Log.i(TAG, "Anti-doomscrolling: User swiped away from single reel in $packageName. Returning to DM.")
                 triggerBackAction()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error evaluating scroll event", e)
         } finally {
-            rootNode.recycle()
+            source.recycle()
         }
     }
 
     /**
-     * Blocks access if the active window is the dedicated Reels tab or Shorts tab.
-     * Crucially allows standalone reels opened from Direct Messages (DMs) to play.
+     * Handles window transitions:
+     * - When entering the full-screen reel viewer (e.g. from DM), activate grace period.
+     * - If Instagram restores on startup with Reels tab selected, redirect to Home feed
+     *   instead of triggering BACK (which would exit Instagram).
      */
-    private fun checkAndBlockIfInReelsOrShortsTab(packageName: String) {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastBackActionTime < BACK_ACTION_COOLDOWN_MS) return
-
+    private fun handleWindowStateChanged(event: AccessibilityEvent, packageName: String) {
         val rootNode = rootInActiveWindow ?: return
         try {
-            val isInTabSection = when (packageName) {
-                PKG_INSTAGRAM -> isInstagramReelsTabActive(rootNode)
-                PKG_YOUTUBE -> isYouTubeShortsTabActive(rootNode)
-                else -> false
-            }
+            if (packageName == PKG_INSTAGRAM) {
+                // Check if user entered full-screen clips viewer (e.g. from DM)
+                val isViewer = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_root").isNotEmpty() ||
+                               rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_fragment_container").isNotEmpty() ||
+                               rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_video_container").isNotEmpty()
 
-            if (isInTabSection) {
-                Log.i(TAG, "Blocked access to Reels/Shorts tab section in $packageName. Triggering BACK.")
-                triggerBackAction()
+                val hasFeedTab = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/feed_tab").isNotEmpty()
+
+                if (isViewer && !hasFeedTab) {
+                    lastReelViewerOpenTime = SystemClock.uptimeMillis()
+                    Log.d(TAG, "Entered full-screen Instagram Reels viewer. Grace period active.")
+                    return
+                }
+
+                // If user lands on the Reels tab in bottom navigation bar on startup:
+                // Redirect to Home tab instead of pressing BACK (which would close Instagram)
+                val clipsTabNodes = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_tab")
+                if (clipsTabNodes.isNotEmpty()) {
+                    val isClipsSelected = clipsTabNodes.any { it.isSelected }
+                    clipsTabNodes.forEach { it.recycle() }
+
+                    if (isClipsSelected) {
+                        val feedTabNodes = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/feed_tab")
+                        if (feedTabNodes.isNotEmpty()) {
+                            Log.i(TAG, "Reels tab was selected on startup. Redirecting to Home feed.")
+                            feedTabNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            feedTabNodes.forEach { it.recycle() }
+                            return
+                        }
+                    }
+                }
+            } else if (packageName == PKG_YOUTUBE) {
+                val isShorts = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/shorts_container").isNotEmpty() ||
+                               rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/reel_player_view").isNotEmpty()
+                val hasPivotBar = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/pivot_bar").isNotEmpty()
+
+                if (isShorts && !hasPivotBar) {
+                    lastReelViewerOpenTime = SystemClock.uptimeMillis()
+                    Log.d(TAG, "Entered full-screen YouTube Shorts viewer. Grace period active.")
+                    return
+                }
+
+                val pivotShortsNodes = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/pivot_shorts")
+                if (pivotShortsNodes.isNotEmpty()) {
+                    val isShortsSelected = pivotShortsNodes.any { it.isSelected }
+                    pivotShortsNodes.forEach { it.recycle() }
+
+                    if (isShortsSelected) {
+                        Log.i(TAG, "Shorts tab selected. Triggering BACK.")
+                        triggerBackAction()
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error evaluating window state", e)
@@ -157,212 +241,181 @@ class ShortsReelsBlockerService : AccessibilityService() {
     }
 
     /**
-     * Checks if a node or any of its ancestors is part of Instagram's Direct Message (DM) chat interface.
-     * This ensures clicking reels sent by friends in DMs is never blocked.
+     * Determines whether the scrolled view is the vertical Reels ViewPager in full-screen mode.
+     * Critically ensures Home feed and DM chat scrolling are NEVER intercepted.
      */
-    private fun isInsideDirectMessageThread(node: AccessibilityNodeInfo): Boolean {
-        var current: AccessibilityNodeInfo? = node
-        var depth = 0
-        while (current != null && depth < 8) {
-            val viewId = current.viewIdResourceName ?: ""
-            if (viewId.contains("direct", ignoreCase = true) ||
-                viewId.contains("message", ignoreCase = true) ||
-                viewId.contains("thread", ignoreCase = true) ||
-                viewId.contains("chat", ignoreCase = true) ||
-                viewId.contains("inbox", ignoreCase = true)
-            ) {
-                if (current != node) {
-                    current.recycle()
-                }
-                return true
-            }
-            val parent = current.parent
-            if (current != node) {
-                current.recycle()
-            }
-            current = parent
-            depth++
+    private fun isInstagramReelsPagerScrolled(source: AccessibilityNodeInfo, sourceId: String, sourceClass: String): Boolean {
+        // High confidence: view ID specifically contains clips view pager
+        if (sourceId.contains("clips_viewer_view_pager", ignoreCase = true) ||
+            sourceId.contains("clips_view_pager", ignoreCase = true)
+        ) {
+            return true
         }
-        current?.let { if (it != node) it.recycle() }
+
+        // If it's a ViewPager or RecyclerView, verify it is inside the full-screen reel player
+        if (sourceClass.contains("ViewPager", ignoreCase = true) ||
+            sourceClass.contains("RecyclerView", ignoreCase = true)
+        ) {
+            val root = rootInActiveWindow ?: return false
+            try {
+                // Must have clips viewer element
+                val hasClipsViewer = root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_root").isNotEmpty() ||
+                                     root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_fragment_container").isNotEmpty() ||
+                                     root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_video_container").isNotEmpty()
+
+                // And MUST NOT be the main feed (feed_tab is only present when bottom bar is visible)
+                val hasFeedTab = root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/feed_tab").isNotEmpty()
+
+                // And MUST NOT be a DM conversation
+                val isDirectChat = root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/direct_thread_list").isNotEmpty() ||
+                                   root.findAccessibilityNodeInfosByViewId("com.instagram.android:id/row_thread_composer").isNotEmpty()
+
+                return hasClipsViewer && !hasFeedTab && !isDirectChat
+            } finally {
+                root.recycle()
+            }
+        }
+
         return false
     }
 
     /**
-     * Inspects a clicked node (and its direct children) for text, contentDescription,
-     * or resource view ID indicating Instagram Reels or YouTube Shorts tab buttons.
-     * Ignores clicks inside Direct Message (DM) chat threads so shared reels can be opened.
+     * Determines whether the scrolled view is the YouTube Shorts vertical pager.
      */
-    private fun isReelsOrShortsClickTarget(node: AccessibilityNodeInfo, packageName: String): Boolean {
-        // Allow clicks inside Direct Messages (DMs) so users can tap and watch friend-sent reels
-        if (packageName == PKG_INSTAGRAM && isInsideDirectMessageThread(node)) {
-            return false
+    private fun isYouTubeShortsPagerScrolled(source: AccessibilityNodeInfo, sourceId: String, sourceClass: String): Boolean {
+        if (sourceId.contains("shorts_container", ignoreCase = true) ||
+            sourceId.contains("reel_recycler", ignoreCase = true) ||
+            sourceId.contains("reel_player_page_view", ignoreCase = true)
+        ) {
+            return true
         }
 
-        val text = node.text?.toString() ?: ""
-        val desc = node.contentDescription?.toString() ?: ""
+        if (sourceClass.contains("ViewPager", ignoreCase = true) ||
+            sourceClass.contains("RecyclerView", ignoreCase = true)
+        ) {
+            val root = rootInActiveWindow ?: return false
+            try {
+                val hasShortsPlayer = root.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/reel_player_view").isNotEmpty() ||
+                                      root.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/shorts_container").isNotEmpty()
+                val hasPivotBar = root.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/pivot_bar").isNotEmpty()
+
+                return hasShortsPlayer && !hasPivotBar
+            } finally {
+                root.recycle()
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Inspects a clicked node to check if it is the dedicated Reels or Shorts tab
+     * in the bottom navigation bar.
+     * Accurately distinguishes between the bottom bar tab and messages/cards in DMs.
+     */
+    private fun isBottomReelsOrShortsTab(node: AccessibilityNodeInfo, packageName: String): Boolean {
         val viewId = node.viewIdResourceName ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        val text = node.text?.toString() ?: ""
 
         if (packageName == PKG_INSTAGRAM) {
-            // Instagram Reels tab or Reels button on the bottom navigation bar
-            if (viewId.contains("clips_tab", ignoreCase = true) ||
-                viewId.contains("reels_tab", ignoreCase = true) ||
-                desc.contains("Reels tab", ignoreCase = true) ||
-                desc.equals("Reels", ignoreCase = true) ||
-                text.equals("Reels", ignoreCase = true)
-            ) {
+            // Direct viewId match on Instagram's bottom tab
+            if (viewId.contains("clips_tab", ignoreCase = true) || viewId.contains("reels_tab", ignoreCase = true)) {
                 return true
             }
+
+            // Content description match ONLY if node is verified to be in the bottom navigation bar
+            if (desc.equals("Reels", ignoreCase = true) || desc.equals("Reels tab", ignoreCase = true) || text.equals("Reels", ignoreCase = true)) {
+                // Ignore chat messages and cards
+                if (viewId.contains("message", ignoreCase = true) ||
+                    viewId.contains("direct", ignoreCase = true) ||
+                    viewId.contains("chat", ignoreCase = true) ||
+                    viewId.contains("row", ignoreCase = true) ||
+                    viewId.contains("bubble", ignoreCase = true)
+                ) {
+                    return false
+                }
+
+                // Check parent for navigation bar structure or sibling tabs (Home, Search, Profile)
+                val parent = node.parent
+                if (parent != null) {
+                    try {
+                        val parentId = parent.viewIdResourceName ?: ""
+                        if (parentId.contains("tab", ignoreCase = true) ||
+                            parentId.contains("bar", ignoreCase = true) ||
+                            parentId.contains("nav", ignoreCase = true)
+                        ) {
+                            return true
+                        }
+                        for (i in 0 until parent.childCount) {
+                            val sib = parent.getChild(i) ?: continue
+                            try {
+                                val sId = sib.viewIdResourceName ?: ""
+                                val sDesc = sib.contentDescription?.toString() ?: ""
+                                if (sId.contains("feed_tab", ignoreCase = true) ||
+                                    sId.contains("search_tab", ignoreCase = true) ||
+                                    sId.contains("profile_tab", ignoreCase = true) ||
+                                    sDesc.contains("Home", ignoreCase = true) ||
+                                    sDesc.contains("Search", ignoreCase = true) ||
+                                    sDesc.contains("Profile", ignoreCase = true)
+                                ) {
+                                    return true
+                                }
+                            } finally {
+                                sib.recycle()
+                            }
+                        }
+                    } finally {
+                        parent.recycle()
+                    }
+                }
+            }
         } else if (packageName == PKG_YOUTUBE) {
-            // YouTube Shorts tab on the bottom navigation bar
-            if (viewId.contains("pivot_shorts", ignoreCase = true) ||
-                desc.contains("Shorts tab", ignoreCase = true) ||
-                desc.equals("Shorts", ignoreCase = true) ||
-                text.equals("Shorts", ignoreCase = true)
-            ) {
+            if (viewId.contains("pivot_shorts", ignoreCase = true)) {
                 return true
+            }
+            if (desc.equals("Shorts", ignoreCase = true) || desc.equals("Shorts tab", ignoreCase = true) || text.equals("Shorts", ignoreCase = true)) {
+                val parent = node.parent
+                if (parent != null) {
+                    try {
+                        val parentId = parent.viewIdResourceName ?: ""
+                        if (parentId.contains("pivot", ignoreCase = true) ||
+                            parentId.contains("bar", ignoreCase = true) ||
+                            parentId.contains("nav", ignoreCase = true)
+                        ) {
+                            return true
+                        }
+                        for (i in 0 until parent.childCount) {
+                            val sib = parent.getChild(i) ?: continue
+                            try {
+                                val sDesc = sib.contentDescription?.toString() ?: ""
+                                if (sDesc.contains("Home", ignoreCase = true) ||
+                                    sDesc.contains("Subscriptions", ignoreCase = true)
+                                ) {
+                                    return true
+                                }
+                            } finally {
+                                sib.recycle()
+                            }
+                        }
+                    } finally {
+                        parent.recycle()
+                    }
+                }
             }
         }
 
-        // Recursively inspect shallow child hierarchy (e.g. icon or badge inside tab bar item)
+        // Recursively inspect shallow direct children (e.g. icon or badge inside tab)
         val childCount = node.childCount
         for (i in 0 until childCount) {
             val child = node.getChild(i) ?: continue
             try {
-                if (isReelsOrShortsClickTarget(child, packageName)) {
+                if (isBottomReelsOrShortsTab(child, packageName)) {
                     return true
                 }
             } finally {
                 child.recycle()
             }
-        }
-
-        return false
-    }
-
-    /**
-     * Checks if the user is currently on the main Instagram Reels tab (the algorithmic doomscroll section).
-     * This is true only when the bottom navigation bar has the Reels tab selected.
-     */
-    private fun isInstagramReelsTabActive(rootNode: AccessibilityNodeInfo): Boolean {
-        val clipsTabNodes = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_tab")
-        if (clipsTabNodes != null && clipsTabNodes.isNotEmpty()) {
-            val isSelected = clipsTabNodes.any { it.isSelected }
-            clipsTabNodes.forEach { it.recycle() }
-            if (isSelected) return true
-        }
-
-        val textNodes = rootNode.findAccessibilityNodeInfosByText("Reels")
-        if (textNodes != null && textNodes.isNotEmpty()) {
-            val isSelectedReelsTab = textNodes.any { node ->
-                node.isSelected && (
-                    node.contentDescription?.toString()?.contains("Reel", ignoreCase = true) == true ||
-                    node.text?.toString()?.equals("Reels", ignoreCase = true) == true
-                )
-            }
-            textNodes.forEach { it.recycle() }
-            if (isSelectedReelsTab) return true
-        }
-
-        return false
-    }
-
-    /**
-     * Checks if the user is currently on the main YouTube Shorts tab in the bottom bar.
-     */
-    private fun isYouTubeShortsTabActive(rootNode: AccessibilityNodeInfo): Boolean {
-        val pivotShortsNodes = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/pivot_shorts")
-        if (pivotShortsNodes != null && pivotShortsNodes.isNotEmpty()) {
-            val isSelected = pivotShortsNodes.any { it.isSelected }
-            pivotShortsNodes.forEach { it.recycle() }
-            if (isSelected) return true
-        }
-
-        return false
-    }
-
-    /**
-     * Evaluates whether the currently displayed screen in Instagram is the full-screen Reels viewer.
-     * Matches both shared reels in DM and full-screen clips viewers for scroll interception.
-     */
-    private fun isInsideInstagramReels(rootNode: AccessibilityNodeInfo): Boolean {
-        // 1. High-confidence view IDs exclusive to Instagram's Reels (Clips) viewer
-        val instagramClipsViewerIds = listOf(
-            "com.instagram.android:id/clips_viewer_view_pager",
-            "com.instagram.android:id/clips_video_container",
-            "com.instagram.android:id/clips_swipe_refresh_container",
-            "com.instagram.android:id/clips_item_container",
-            "com.instagram.android:id/clips_view_pager",
-            "com.instagram.android:id/clips_viewer_fragment_container",
-            "com.instagram.android:id/clips_viewer_root"
-        )
-
-        for (id in instagramClipsViewerIds) {
-            val matchedNodes = rootNode.findAccessibilityNodeInfosByViewId(id)
-            if (matchedNodes != null && matchedNodes.isNotEmpty()) {
-                matchedNodes.forEach { it.recycle() }
-                return true
-            }
-        }
-
-        // 2. Action overlays unique to Reels (Audio pill, Remix button)
-        val reelsOverlayIds = listOf(
-            "com.instagram.android:id/clips_audio_pill",
-            "com.instagram.android:id/audio_attribution_label",
-            "com.instagram.android:id/clips_remix_button"
-        )
-        for (id in reelsOverlayIds) {
-            val matchedNodes = rootNode.findAccessibilityNodeInfosByViewId(id)
-            if (matchedNodes != null && matchedNodes.isNotEmpty()) {
-                matchedNodes.forEach { it.recycle() }
-                return true
-            }
-        }
-
-        // 3. Reels tab selected in bottom bar
-        if (isInstagramReelsTabActive(rootNode)) {
-            return true
-        }
-
-        return false
-    }
-
-    /**
-     * Evaluates whether the currently displayed screen in YouTube is the full-screen Shorts player.
-     */
-    private fun isInsideYouTubeShorts(rootNode: AccessibilityNodeInfo): Boolean {
-        // 1. High-confidence view IDs found in YouTube's Shorts player UI
-        val youtubeShortsIds = listOf(
-            "com.google.android.youtube:id/shorts_container",
-            "com.google.android.youtube:id/reel_recycler",
-            "com.google.android.youtube:id/reel_player_page_view",
-            "com.google.android.youtube:id/reel_player_view",
-            "com.google.android.youtube:id/shorts_shelf_view"
-        )
-
-        for (id in youtubeShortsIds) {
-            val matchedNodes = rootNode.findAccessibilityNodeInfosByViewId(id)
-            if (matchedNodes != null && matchedNodes.isNotEmpty()) {
-                matchedNodes.forEach { it.recycle() }
-                return true
-            }
-        }
-
-        // 2. Shorts tab selected in bottom bar
-        if (isYouTubeShortsTabActive(rootNode)) {
-            return true
-        }
-
-        // 3. Action buttons unique to the YouTube Shorts feed (Remix, Sound)
-        val remixNodes = rootNode.findAccessibilityNodeInfosByText("Remix")
-        if (remixNodes != null && remixNodes.isNotEmpty()) {
-            remixNodes.forEach { it.recycle() }
-            return true
-        }
-
-        val soundNodes = rootNode.findAccessibilityNodeInfosByText("Sound")
-        if (soundNodes != null && soundNodes.isNotEmpty()) {
-            soundNodes.forEach { it.recycle() }
-            return true
         }
 
         return false
