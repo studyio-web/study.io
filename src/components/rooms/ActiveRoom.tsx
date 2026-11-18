@@ -50,6 +50,7 @@ import { AvatarFlairRing, FlairCrown } from '../common/FlairBadge';
 import { ProAvatarRing } from '../ui/ProAvatarRing';
 import { ScholarProfileModal, ScholarModalData } from '../common/ScholarProfileModal';
 import { ClassicNudgeButton } from './ClassicNudgeButton';
+import { SwipeableChatMessage } from './SwipeableChatMessage';
 import { playClassicNudgeSound } from '../../lib/nudgeSound';
 import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticTick, isHapticsEnabled, setHapticsEnabled } from '@/lib/haptics';
@@ -3106,10 +3107,12 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 const { replyTo, text } = parseMessageContent(msg.content);
 
                                 return (
-                                  <div
+                                  <SwipeableChatMessage
                                     key={msg.id}
                                     id={`msg-${msg.id}`}
-                                    className={`relative group/msg flex items-center gap-1.5 transition-all duration-200 ${
+                                    isMe={isMe}
+                                    onReply={() => handleStartReply(msg, username)}
+                                    className={`group/msg flex items-center gap-1.5 transition-all duration-200 ${
                                       isMe ? 'flex-row-reverse' : 'flex-row'
                                     }`}
                                   >
@@ -3159,9 +3162,9 @@ CREATE POLICY "Hosts can update their own study rooms"
                                       </div>
                                     </div>
 
-                                    {/* Action Buttons: Reply & Mention */}
+                                    {/* Action Buttons: Desktop Hover Reply Button (Mobile uses Swipe to Reply like WhatsApp/Instagram) */}
                                     <div
-                                      className={`flex items-center gap-0.5 opacity-60 sm:opacity-0 sm:group-hover/msg:opacity-100 transition-opacity ${
+                                      className={`hidden sm:flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity ${
                                         isMe ? 'flex-row-reverse' : ''
                                       }`}
                                     >
@@ -3174,19 +3177,8 @@ CREATE POLICY "Hosts can update their own study rooms"
                                       >
                                         <Reply className="w-3.5 h-3.5" />
                                       </button>
-                                      {!isMe && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleMentionUser(username)}
-                                          className="p-1 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer"
-                                          title={`Mention @${username}`}
-                                          aria-label={`Mention @${username}`}
-                                        >
-                                          <AtSign className="w-3.5 h-3.5" />
-                                        </button>
-                                      )}
                                     </div>
-                                  </div>
+                                  </SwipeableChatMessage>
                                 );
                               })}
                             </div>
