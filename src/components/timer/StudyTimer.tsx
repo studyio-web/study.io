@@ -51,6 +51,8 @@ import {
   isStrictModeSupported,
   loadStrictModeEnabled,
   saveStrictModeEnabled,
+  loadUltraStrictEnabled,
+  saveUltraStrictEnabled,
   loadAllowedApps,
   saveAllowedApps,
 } from '../../lib/strictModePlugin';
@@ -174,6 +176,7 @@ export function StudyTimer() {
   // Strict Mode State & Background Enforcement (Strictly Native Android Only)
   const [isAndroid, setIsAndroid] = useState(false);
   const [isStrictMode, setIsStrictMode] = useState(false);
+  const [isUltraStrict, setIsUltraStrict] = useState(false);
   const [allowedApps, setAllowedApps] = useState<string[]>([]);
   const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
   const [isStrictConfigOpen, setIsStrictConfigOpen] = useState(false);
@@ -185,6 +188,8 @@ export function StudyTimer() {
   isStudyingRef.current = isStudying;
   const isStrictModeRef = useRef(isStrictMode);
   isStrictModeRef.current = isStrictMode;
+  const isUltraStrictRef = useRef(isUltraStrict);
+  isUltraStrictRef.current = isUltraStrict;
   const allowedAppsRef = useRef(allowedApps);
   allowedAppsRef.current = allowedApps;
 
@@ -193,6 +198,11 @@ export function StudyTimer() {
     setIsAndroid(supported);
     if (supported) {
       setIsStrictMode(loadStrictModeEnabled());
+      const ultra = loadUltraStrictEnabled();
+      setIsUltraStrict(ultra);
+      if (ultra) {
+        setTimerMode('countdown');
+      }
       setAllowedApps(loadAllowedApps());
     }
   }, []);
@@ -200,14 +210,15 @@ export function StudyTimer() {
   // Sync state to native SharedPreferences and live Foreground Service
   useEffect(() => {
     if (isAndroid) {
-      StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => {});
-      StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => {});
+      StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => { });
+      StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => { });
       StrictMode.syncStrictConfig({
         enabled: isStrictMode,
         allowedPackages: allowedApps,
-      }).catch(() => {});
+        isUltraStrict: isUltraStrict,
+      }).catch(() => { });
     }
-  }, [isAndroid, isStrictMode, allowedApps]);
+  }, [isAndroid, isStrictMode, allowedApps, isUltraStrict]);
 
   const handleToggleStrictMode = async () => {
     if (isStudying) {
@@ -217,6 +228,8 @@ export function StudyTimer() {
     if (isStrictMode) {
       setIsStrictMode(false);
       saveStrictModeEnabled(false);
+      setIsUltraStrict(false);
+      saveUltraStrictEnabled(false);
       triggerHaptic('light');
     } else {
       triggerHaptic('medium');
@@ -237,6 +250,38 @@ export function StudyTimer() {
       }
     }
   };
+
+  const handleToggleUltraStrict = async () => {
+    if (isStudying) {
+      toast('Ultra Strict Mode cannot be changed during active focus sessions', { icon: '🔒' });
+      return;
+    }
+    const nextUltra = !isUltraStrict;
+    setIsUltraStrict(nextUltra);
+    saveUltraStrictEnabled(nextUltra);
+    if (nextUltra) {
+      setIsStrictMode(true);
+      saveStrictModeEnabled(true);
+      setTimerMode('countdown');
+      try {
+        const { granted } = await StrictMode.hasUsagePermission();
+        if (!granted) {
+          setIsPermissionModalOpen(true);
+        }
+      } catch {}
+      toast.success('Ultra Strict enabled: Countdown mode only', { icon: '⚡' });
+    } else {
+      toast('Ultra Strict disabled');
+    }
+    triggerHaptic('medium');
+  };
+
+  // Enforce Countdown mode whenever Ultra Strict is enabled
+  useEffect(() => {
+    if (isUltraStrict && timerMode !== 'countdown') {
+      setTimerMode('countdown');
+    }
+  }, [isUltraStrict, timerMode, setTimerMode]);
 
   const handleRequestPermission = async () => {
     try {
@@ -273,7 +318,7 @@ export function StudyTimer() {
             setIsAllowedAppsModalOpen(true);
           }
         }
-      } catch {}
+      } catch { }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
@@ -295,14 +340,16 @@ export function StudyTimer() {
           fg.packageName !== 'com.studyio.app'
         ) {
           const allowed = allowedAppsRef.current;
-          if (!allowed.includes(fg.packageName)) {
+          const isBlocked = isUltraStrictRef.current || !allowed.includes(fg.packageName);
+          if (isBlocked) {
             // Blocked app violation detected while in background!
             triggerHaptic('heavy');
             // Trigger native full-screen BlockedAppActivity immediately!
             StrictMode.blockAppDirect({
               packageName: fg.packageName,
               name: fg.name || fg.packageName,
-            }).catch(() => {});
+              isUltraStrict: isUltraStrictRef.current,
+            }).catch(() => { });
           }
         }
       } catch (err) {
@@ -319,15 +366,15 @@ export function StudyTimer() {
       // When returning to Study.io (isActive === true), do NOT show any alert modal
     }).then((handle) => {
       appListenerHandle = handle;
-    }).catch(() => {});
+    }).catch(() => { });
 
     return () => {
-      appListenerHandle?.remove().catch(() => {});
+      appListenerHandle?.remove().catch(() => { });
     };
   }, [isAndroid]);
 
   const [showDropdown, setShowDropdown] = useState(false);
-  
+
   // Auto-open Focus Mode on mobile landscape rotation or native Android sensor rotation
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -347,7 +394,7 @@ export function StudyTimer() {
     // Add event listener
     if (mql.addEventListener) mql.addEventListener('change', handleOrientation);
     else mql.addListener(handleOrientation); // fallback for older Safari
-    
+
     return () => {
       window.removeEventListener('studyio:open-focus-mode', handleOpenFocus);
       if (mql.removeEventListener) mql.removeEventListener('change', handleOrientation);
@@ -432,7 +479,7 @@ export function StudyTimer() {
     if (typeof window !== 'undefined') {
       try {
         return localStorage.getItem('studyio_timer_countdown_completed') === 'true';
-      } catch {}
+      } catch { }
     }
     return false;
   });
@@ -447,10 +494,21 @@ export function StudyTimer() {
         if (savedTarget > 0 && savedSeconds >= Math.floor(savedTarget / 2)) {
           return true;
         }
-      } catch {}
+      } catch { }
     }
     return false;
   });
+
+  // Release Ultra Strict phone lockdown as soon as countdown completes
+  useEffect(() => {
+    if (isCountdownCompleted && isAndroid && isUltraStrict) {
+      StrictMode.syncStrictConfig({
+        enabled: isStrictMode,
+        allowedPackages: allowedApps,
+        isUltraStrict: false,
+      }).catch(() => { });
+    }
+  }, [isCountdownCompleted, isAndroid, isUltraStrict, isStrictMode, allowedApps]);
 
   // Safe handler to open Subject Manager / Add Subject
   const handleOpenSubjectManager = useCallback((e?: React.MouseEvent) => {
@@ -493,7 +551,7 @@ export function StudyTimer() {
     try {
       localStorage.removeItem('studyio_timer_countdown_completed');
       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-    } catch {}
+    } catch { }
     const activeSub =
       activeSubjectRef.current ||
       selectedSubject ||
@@ -513,8 +571,15 @@ export function StudyTimer() {
     setSubjectWarning(false);
     setShowRecoveryBanner(false);
     hapticMedium();
+    if (isAndroid) {
+      StrictMode.syncStrictConfig({
+        enabled: isStrictMode,
+        allowedPackages: allowedApps,
+        isUltraStrict: isUltraStrict,
+      }).catch(() => { });
+    }
     startTimer(activeSub.id);
-  }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager]);
+  }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager, isAndroid, isStrictMode, allowedApps, isUltraStrict]);
 
   const handlePause = useCallback(() => {
     hapticMedium();
@@ -534,7 +599,7 @@ export function StudyTimer() {
     try {
       localStorage.removeItem('studyio_timer_countdown_completed');
       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-    } catch {}
+    } catch { }
     resetTimer();
     clearPersistedTimer();
     setShowRecoveryBanner(false);
@@ -561,7 +626,7 @@ export function StudyTimer() {
       localStorage.removeItem('studyio_timer_start_time');
       localStorage.removeItem('studyio_timer_countdown_completed');
       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-    } catch {}
+    } catch { }
 
     // 1. Prevent race conditions: Capture exact real-time duration BEFORE mutating any state or resetting timer display
     const rawSeconds = isRunning && startTimeRef?.current
@@ -758,7 +823,7 @@ export function StudyTimer() {
                 isServerValidated = true;
                 insertedRecordId = directData.id;
               }
-            } catch {}
+            } catch { }
           }
         }
       }
@@ -792,7 +857,7 @@ export function StudyTimer() {
             localStorage.setItem(`study_io_sessions_${uid}`, JSON.stringify(updated));
             localStorage.setItem('studypulse_sessions', JSON.stringify(updated));
           }
-        } catch {}
+        } catch { }
       }
 
       // Immediately update local Daily Overview and Analytics stats state
@@ -822,7 +887,7 @@ export function StudyTimer() {
       let localStreakBonusDate: string | null = null;
       try {
         localStreakBonusDate = localStorage.getItem('studypulse_last_streak_bonus_date');
-      } catch {}
+      } catch { }
       const lastStreakBonusDate = user?.last_streak_bonus_date || user?.lastStreakBonusDate || localStreakBonusDate;
       const hasStreakOrGoal = (user?.streakDays || 0) > 0 || totalToday >= dailyGoalSeconds;
       const hasCompletedTask = Boolean(activeTaskId);
@@ -888,7 +953,7 @@ export function StudyTimer() {
         profileUpdates.lastStreakBonusDate = todayString;
         try {
           localStorage.setItem('studypulse_last_streak_bonus_date', todayString);
-        } catch {}
+        } catch { }
       }
 
       updateProfile(profileUpdates);
@@ -920,7 +985,7 @@ export function StudyTimer() {
       try {
         localStorage.removeItem('studyio_timer_countdown_completed');
         localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-      } catch {}
+      } catch { }
       setShowRecoveryBanner(false);
 
       // Explicitly ensure active_sessions is cleared from Supabase
@@ -1020,18 +1085,18 @@ export function StudyTimer() {
           const validatedMode = savedMode === 'pomodoro' || savedMode === 'stopwatch' || savedMode === 'countdown' ? savedMode : undefined;
 
           if (validatedMode === 'countdown') {
-             const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
-             if (savedTargetStr) {
-               const savedTarget = parseInt(savedTargetStr, 10);
-               if (!isNaN(savedTarget) && savedTarget > 0) {
-                 setCountdownTarget(savedTarget);
-               }
-             }
+            const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
+            if (savedTargetStr) {
+              const savedTarget = parseInt(savedTargetStr, 10);
+              if (!isNaN(savedTarget) && savedTarget > 0) {
+                setCountdownTarget(savedTarget);
+              }
+            }
           } else if (validatedMode === 'pomodoro') {
-             const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
-             if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
-                setPomodoroPhase(savedPhase);
-             }
+            const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
+            if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
+              setPomodoroPhase(savedPhase);
+            }
           }
 
           restoreTimerSession(savedSeconds, validatedMode, savedSubject);
@@ -1078,7 +1143,7 @@ export function StudyTimer() {
       setIsCountdownHalfwayNotified(false);
       try {
         localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-      } catch {}
+      } catch { }
     }
   }, [isStudying, elapsedSeconds, isCountdownHalfwayNotified]);
 
@@ -1093,7 +1158,7 @@ export function StudyTimer() {
       setIsCountdownHalfwayNotified(true);
       try {
         localStorage.setItem('studyio_timer_countdown_halfway_notified', 'true');
-      } catch {}
+      } catch { }
 
       const remainingSeconds = Math.max(0, countdownTarget - elapsedSeconds);
       const remainingText = formatSeconds(remainingSeconds);
@@ -1117,7 +1182,7 @@ export function StudyTimer() {
       hapticSuccess();
       try {
         localStorage.setItem('studyio_timer_countdown_completed', 'true');
-      } catch {}
+      } catch { }
       pauseTimer();
       toast.success('Countdown completed! Click Save session to record your progress 🎉', { duration: 6000 });
       notify('countdown_completed', {
@@ -1390,9 +1455,9 @@ export function StudyTimer() {
         >
           {/* 1. Mode selector */}
           <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
-            {(['stopwatch', 'countdown', 'pomodoro'] as TimerMode[]).map((mode) => {
+            {(isUltraStrict ? (['countdown'] as TimerMode[]) : (['stopwatch', 'countdown', 'pomodoro'] as TimerMode[])).map((mode) => {
               const isActive = timerMode === mode;
-              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? 'Countdown' : 'Pomodoro';
+              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? (isUltraStrict ? 'Countdown (Ultra)' : 'Countdown') : 'Pomodoro';
               return (
                 <button
                   key={mode}
@@ -1405,13 +1470,12 @@ export function StudyTimer() {
                         setIsCountdownHalfwayNotified(false);
                         try {
                           localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                        } catch {}
+                        } catch { }
                       }
                     }
                   }}
-                  className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-colors z-10 ${
-                    isActive ? 'text-[var(--text)]' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-                  } ${isStudying || isCountdownCompleted ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                  className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-colors z-10 ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                    } ${isStudying || isCountdownCompleted ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                 >
                   {isActive && (
                     <motion.div
@@ -1451,11 +1515,10 @@ export function StudyTimer() {
                   }
                 }}
                 disabled={isStudying || isRemoteTransitioning}
-                className={`relative inline-flex items-center justify-center min-w-[220px] sm:min-w-[260px] max-w-[340px] px-8 sm:px-10 py-2.5 sm:py-3 rounded-full border bg-[var(--surface)] hover:bg-[var(--surface-2)] active:scale-[0.98] transition-all text-sm font-semibold cursor-pointer shadow-card ${
-                  subjectWarning
-                    ? 'border-amber-500/60 ring-1 ring-amber-500/30'
-                    : 'border-[var(--border)] hover:border-[var(--border-strong)]'
-                } ${isStudying ? 'opacity-90 cursor-not-allowed' : ''}`}
+                className={`relative inline-flex items-center justify-center min-w-[220px] sm:min-w-[260px] max-w-[340px] px-8 sm:px-10 py-2.5 sm:py-3 rounded-full border bg-[var(--surface)] hover:bg-[var(--surface-2)] active:scale-[0.98] transition-all text-sm font-semibold cursor-pointer shadow-card ${subjectWarning
+                  ? 'border-amber-500/60 ring-1 ring-amber-500/30'
+                  : 'border-[var(--border)] hover:border-[var(--border-strong)]'
+                  } ${isStudying ? 'opacity-90 cursor-not-allowed' : ''}`}
               >
                 <div className="flex items-center justify-center gap-2.5 min-w-0 max-w-full">
                   <span
@@ -1464,8 +1527,8 @@ export function StudyTimer() {
                       backgroundColor: selectedSubject
                         ? (selectedSubject.color || '#10B981')
                         : activeSubjects.length === 0
-                        ? 'var(--accent)'
-                        : '#71717A',
+                          ? 'var(--accent)'
+                          : '#71717A',
                     }}
                   />
                   <span className={`truncate text-sm sm:text-[15px] ${selectedSubject ? 'text-[var(--text)] font-semibold' : 'text-[var(--text-dim)] font-medium'}`}>
@@ -1498,11 +1561,10 @@ export function StudyTimer() {
                             setShowDropdown(false);
                             setSubjectWarning(false);
                           }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer ${
-                            sub.id === selectedSubjectId
-                              ? 'bg-fg/[0.1] text-[var(--text)] font-medium'
-                              : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05]'
-                          }`}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer ${sub.id === selectedSubjectId
+                            ? 'bg-fg/[0.1] text-[var(--text)] font-medium'
+                            : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05]'
+                            }`}
                         >
                           <div className="flex items-center gap-2.5 truncate">
                             <span
@@ -1591,15 +1653,14 @@ export function StudyTimer() {
                     try {
                       localStorage.removeItem('studyio_timer_countdown_completed');
                       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                    } catch {}
+                    } catch { }
                     await handleStopAndSave(countdownTarget);
                   }}
                   disabled={isSaving || isRemoteTransitioning || !isOnline}
-                  className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${
-                    !isOnline
-                      ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
-                      : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
-                  }`}
+                  className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
+                    ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
+                    : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
+                    }`}
                   title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
                 >
                   {isSaving ? (
@@ -1627,7 +1688,7 @@ export function StudyTimer() {
                     try {
                       localStorage.removeItem('studyio_timer_countdown_completed');
                       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                    } catch {}
+                    } catch { }
                     handleReset();
                   }}
                   disabled={isSaving || isRemoteTransitioning}
@@ -1660,11 +1721,10 @@ export function StudyTimer() {
                   }
                 }}
                 disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 ${
-                  !isOnline
-                    ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
-                    : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm'
-                }`}
+                className={`flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 ${!isOnline
+                  ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
+                  : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm'
+                  }`}
                 title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
               >
                 {isSaving ? (
@@ -1787,6 +1847,14 @@ export function StudyTimer() {
                 </button>
               )}
             </div>
+          ) : isUltraStrict ? (
+            /* Ultra Strict Session Running: No Stop, Pause, or Reset buttons until countdown completes */
+            <div className="flex items-center justify-center w-[min(280px,85vw)] sm:w-[260px]">
+              <div className="w-full h-[52px] rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-hud text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 select-none shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <Lock className="w-4 h-4 shrink-0 text-emerald-400 animate-pulse" />
+                <span>Ultra Strict • Locked</span>
+              </div>
+            </div>
           ) : !isPaused ? (
             <div className="flex items-center gap-2.5 w-[min(280px,85vw)] sm:w-[260px] justify-center">
               <button
@@ -1802,11 +1870,10 @@ export function StudyTimer() {
                 type="button"
                 onClick={() => handleStopAndSave()}
                 disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${
-                  !isOnline
-                    ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
-                    : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
-                }`}
+                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
+                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
+                  : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
+                  }`}
                 title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
               >
                 {isSaving ? (
@@ -1842,11 +1909,10 @@ export function StudyTimer() {
                 type="button"
                 onClick={() => handleStopAndSave()}
                 disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${
-                  !isOnline
-                    ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
-                    : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
-                }`}
+                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
+                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
+                  : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
+                  }`}
                 title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
               >
                 {isSaving ? (
@@ -1877,155 +1943,161 @@ export function StudyTimer() {
               </button>
             </div>
           )}
-      </div>
-
-      {/* 5. Sleek Row of Auxiliary Control Buttons */}
-      <div className="flex items-center justify-center gap-2 mt-2 relative z-20 max-w-full px-2">
-        {/* Atmosphere Button */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setIsAmbientMenuOpen(!isAmbientMenuOpen)}
-            className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap"
-          >
-            {isAmbientLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)] shrink-0" />
-            ) : (
-              <Music className={`w-3.5 h-3.5 shrink-0 ${ambientSound !== 'none' ? 'text-[var(--accent,#E6C15A)]' : 'text-[var(--text-dim)]'}`} />
-            )}
-            <span className="truncate max-w-[85px]">
-              {ambientSound === 'none' ? 'Atmosphere' : ambientLabel}
-            </span>
-            {ambientSound !== 'none' && !isAmbientLoading && (
-              <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  isPaused ? 'bg-amber-400' : 'bg-[var(--accent,#E6C15A)] animate-pulse'
-                }`}
-              />
-            )}
-          </button>
-
-          {isAmbientMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsAmbientMenuOpen(false)} />
-              <div className="absolute bottom-full left-0 mb-2 z-50 bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] rounded-2xl p-2.5 shadow-card min-w-[220px] w-56 max-w-[calc(100vw-32px)] max-h-[340px] overflow-y-auto text-[var(--text)]">
-                <div className="flex flex-col gap-1">
-                  {[
-                    { id: 'none', label: 'Silent', icon: <span className="w-3.5 h-3.5 rounded-full bg-zinc-500 mx-0.5" /> },
-                    { id: 'rain', label: 'Gentle Rain', icon: <CloudRain className="w-4 h-4" /> },
-                    { id: 'campfire', label: 'Fireplace', icon: <Flame className="w-4 h-4" /> },
-                    { id: 'calmnoise', label: 'Calm Music', icon: <Music className="w-4 h-4" /> },
-                    { id: 'starlitpiano', label: 'Starlit Piano', icon: <Music className="w-4 h-4" /> },
-                    { id: 'zensanctuary', label: 'Zen Sanctuary', icon: <Music className="w-4 h-4" /> },
-                    { id: 'brownnoise', label: 'Brown Noise', icon: <Headphones className="w-4 h-4" /> },
-                    { id: 'pinknoise', label: 'Pink Noise', icon: <Radio className="w-4 h-4" /> },
-                    { id: 'whitenoise', label: 'White Noise', icon: <Radio className="w-4 h-4" /> },
-                  ].map((option) => {
-                    const isSelected = ambientSound === option.id;
-                    const isOptionLoading = isAmbientLoading && (ambientLoadingSound === option.id || (isSelected && !ambientLoadingSound));
-
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleAmbientChange(option.id as any);
-                        }}
-                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-fg/[0.1] text-[var(--text)] font-medium'
-                            : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {option.icon}
-                          <span>{option.label}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {isOptionLoading && (
-                            <div className="flex items-center gap-1 text-[11px] font-mono text-[var(--accent)]">
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span className="text-[10px]">Loading...</span>
-                            </div>
-                          )}
-                          {isSelected && !isOptionLoading && (
-                            <Check className="w-3.5 h-3.5 text-[var(--text)]" />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {ambientSound !== 'none' && (
-                  <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-3 px-2">
-                    <Volume2 className="w-3.5 h-3.5 text-[var(--text-dim)]" />
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={ambientVolume}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                      className="flex-1 accent-[var(--accent)] bg-fg/10 rounded-lg cursor-pointer h-1.5"
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </div>
 
-        {/* Focus Button - always visible in any mode */}
-        <button
-          type="button"
-          onClick={() => {
-            enterFullscreenSafely();
-            setIsFocusModeOpen(true);
-          }}
-          className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0"
-          title="Fullscreen Focus Mode"
-        >
-          <Maximize2 className="w-3.5 h-3.5 shrink-0" />
-          <span>Focus</span>
-        </button>
+        {/* 5. Sleek Row of Auxiliary Control Buttons */}
+        <div className="flex items-center justify-center gap-2 mt-2 relative z-20 max-w-full px-2">
+          {/* Atmosphere Button */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsAmbientMenuOpen(!isAmbientMenuOpen)}
+              className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap"
+            >
+              {isAmbientLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)] shrink-0" />
+              ) : (
+                <Music className={`w-3.5 h-3.5 shrink-0 ${ambientSound !== 'none' ? 'text-[var(--accent,#E6C15A)]' : 'text-[var(--text-dim)]'}`} />
+              )}
+              <span className="truncate max-w-[85px]">
+                {ambientSound === 'none' ? 'Atmosphere' : ambientLabel}
+              </span>
+              {ambientSound !== 'none' && !isAmbientLoading && (
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-[var(--accent,#E6C15A)] animate-pulse'
+                    }`}
+                />
+              )}
+            </button>
 
-        {/* Strict Mode Button (Strictly Native Android Only) */}
-        {isAndroid && (
+            {isAmbientMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsAmbientMenuOpen(false)} />
+                <div className="absolute bottom-full left-0 mb-2 z-50 bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] rounded-2xl p-2.5 shadow-card min-w-[220px] w-56 max-w-[calc(100vw-32px)] max-h-[340px] overflow-y-auto text-[var(--text)]">
+                  <div className="flex flex-col gap-1">
+                    {[
+                      { id: 'none', label: 'Silent', icon: <span className="w-3.5 h-3.5 rounded-full bg-zinc-500 mx-0.5" /> },
+                      { id: 'rain', label: 'Gentle Rain', icon: <CloudRain className="w-4 h-4" /> },
+                      { id: 'campfire', label: 'Fireplace', icon: <Flame className="w-4 h-4" /> },
+                      { id: 'calmnoise', label: 'Calm Music', icon: <Music className="w-4 h-4" /> },
+                      { id: 'starlitpiano', label: 'Starlit Piano', icon: <Music className="w-4 h-4" /> },
+                      { id: 'zensanctuary', label: 'Zen Sanctuary', icon: <Music className="w-4 h-4" /> },
+                      { id: 'brownnoise', label: 'Brown Noise', icon: <Headphones className="w-4 h-4" /> },
+                      { id: 'pinknoise', label: 'Pink Noise', icon: <Radio className="w-4 h-4" /> },
+                      { id: 'whitenoise', label: 'White Noise', icon: <Radio className="w-4 h-4" /> },
+                    ].map((option) => {
+                      const isSelected = ambientSound === option.id;
+                      const isOptionLoading = isAmbientLoading && (ambientLoadingSound === option.id || (isSelected && !ambientLoadingSound));
+
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAmbientChange(option.id as any);
+                          }}
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs transition-colors cursor-pointer ${isSelected
+                            ? 'bg-fg/[0.1] text-[var(--text)] font-medium'
+                            : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05]'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {option.icon}
+                            <span>{option.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isOptionLoading && (
+                              <div className="flex items-center gap-1 text-[11px] font-mono text-[var(--accent)]">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span className="text-[10px]">Loading...</span>
+                              </div>
+                            )}
+                            {isSelected && !isOptionLoading && (
+                              <Check className="w-3.5 h-3.5 text-[var(--text)]" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {ambientSound !== 'none' && (
+                    <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-3 px-2">
+                      <Volume2 className="w-3.5 h-3.5 text-[var(--text-dim)]" />
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={ambientVolume}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        className="flex-1 accent-[var(--accent)] bg-fg/10 rounded-lg cursor-pointer h-1.5"
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Focus Button - always visible in any mode */}
           <button
             type="button"
             onClick={() => {
-              triggerHaptic('light');
-              setIsStrictConfigOpen(true);
+              enterFullscreenSafely();
+              setIsFocusModeOpen(true);
             }}
-            className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
-              isStrictMode
+            className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full border border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)] text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0"
+            title="Fullscreen Focus Mode"
+          >
+            <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+            <span>Focus</span>
+          </button>
+
+          {/* Strict Mode Button (Strictly Native Android Only) */}
+          {isAndroid && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setIsStrictConfigOpen(true);
+              }}
+              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isStrictMode
                 ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
                 : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
-            }`}
-            title={isStudying && isStrictMode ? 'Strict Mode is active and locked during study' : 'Strict Mode App Blocker'}
-          >
-            <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
-            <span>Strict{isStrictMode ? ': ON' : ': OFF'}</span>
-            {isStrictMode && (
-              isStudying ? (
-                <Lock className="w-3 h-3 text-white/50 shrink-0" />
-              ) : (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              )
-            )}
-          </button>
-        )}
-      </div>
+                }`}
+              title={
+                isStudying && isStrictMode
+                  ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict Mode is active and locked during study')
+                  : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode App Blocker')
+              }
+            >
+              <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
+              <span>{isUltraStrict && isStrictMode ? 'Ultra: ON' : `Strict${isStrictMode ? ': ON' : ': OFF'}`}</span>
+              {isStrictMode && (
+                <span className="inline-flex items-center gap-1 ml-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                  {isStudying ? (
+                    <Lock className="w-3 h-3 text-white/50 shrink-0" />
+                  ) : !isUltraStrict && allowedApps.length > 0 ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-white/80 leading-none">
+                      {allowedApps.length}
+                    </span>
+                  ) : null}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
 
-      {/* 6. Today total one-liner */}
-      <div className="mt-1.5 sm:mt-2 text-xs font-mono text-[var(--text-faint)] select-none">
-        Today: {formatHoursAndMins(overviewTodaySeconds)}
+        {/* 6. Today total one-liner */}
+        <div className="mt-1.5 sm:mt-2 text-xs font-mono text-[var(--text-faint)] select-none">
+          Today: {formatHoursAndMins(overviewTodaySeconds)}
+        </div>
       </div>
-    </div>
 
       {/* Countdown Editor Modal */}
       {isEditingCountdown && (
@@ -2036,7 +2108,7 @@ export function StudyTimer() {
             setIsCountdownHalfwayNotified(false);
             try {
               localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-            } catch {}
+            } catch { }
             setIsEditingCountdown(false);
           }}
           onCancel={() => setIsEditingCountdown(false)}
@@ -2068,7 +2140,9 @@ export function StudyTimer() {
           isOpen={isStrictConfigOpen}
           onClose={() => setIsStrictConfigOpen(false)}
           isStrictMode={isStrictMode}
+          isUltraStrict={isUltraStrict}
           onToggleStrictMode={handleToggleStrictMode}
+          onToggleUltraStrict={handleToggleUltraStrict}
           allowedAppsCount={allowedApps.length}
           onOpenAllowedApps={() => {
             if (isStudying) {

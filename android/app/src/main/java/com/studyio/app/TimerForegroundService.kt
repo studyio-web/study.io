@@ -107,17 +107,18 @@ class TimerForegroundService : Service() {
             }
         }
 
-        fun updateStrictConfig(context: Context, enabled: Boolean, allowedPackages: Set<String>) {
+        fun updateStrictConfig(context: Context, enabled: Boolean, allowedPackages: Set<String>, isUltra: Boolean = false) {
             val inst = instance
             if (inst != null) {
                 inst.isStrictActive = enabled
+                inst.isUltraStrict = isUltra
                 inst.strictAllowedPackages = allowedPackages
                 if (enabled && inst.isRunning && !inst.isPaused) {
                     inst.startStrictMonitoring()
                 } else {
                     inst.stopStrictMonitoring()
                 }
-                Log.d(TAG, "updateStrictConfig live: enabled=$enabled, allowedCount=${allowedPackages.size}")
+                Log.d(TAG, "updateStrictConfig live: enabled=$enabled, ultra=$isUltra, allowedCount=${allowedPackages.size}")
             }
         }
 
@@ -159,6 +160,8 @@ class TimerForegroundService : Service() {
     @Volatile
     private var isStrictActive: Boolean = false
     @Volatile
+    private var isUltraStrict: Boolean = false
+    @Volatile
     private var strictAllowedPackages: Set<String> = emptySet()
     private val strictHandler = Handler(Looper.getMainLooper())
     private var isStrictMonitoringRunning = false
@@ -179,8 +182,9 @@ class TimerForegroundService : Service() {
         try {
             val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
             isStrictActive = strictPrefs.getBoolean("enabled", false)
+            isUltraStrict = strictPrefs.getBoolean("is_ultra", false)
             strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
-            Log.d(TAG, "Reloaded strict config: enabled=$isStrictActive, allowedCount=${strictAllowedPackages.size}")
+            Log.d(TAG, "Reloaded strict config: enabled=$isStrictActive, ultra=$isUltraStrict, allowedCount=${strictAllowedPackages.size}")
         } catch (e: Exception) {
             Log.w(TAG, "Failed reading studyio_strict_prefs", e)
         }
@@ -245,7 +249,13 @@ class TimerForegroundService : Service() {
         if (currentPkg == null) return
         if (currentPkg == packageName || isLauncherOrSystem(currentPkg)) return
 
-        if (!strictAllowedPackages.contains(currentPkg)) {
+        val isBlocked = if (isUltraStrict) {
+            true // Ultra Strict locks ALL apps without exception until countdown ends!
+        } else {
+            !strictAllowedPackages.contains(currentPkg)
+        }
+
+        if (isBlocked) {
             val now = System.currentTimeMillis()
             if (now - lastBlockedLaunchTime < 450) return
             lastBlockedLaunchTime = now
@@ -262,7 +272,7 @@ class TimerForegroundService : Service() {
                 currentPkg
             }
 
-            Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName)")
+            Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName), ultra=$isUltraStrict")
 
             val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -272,6 +282,7 @@ class TimerForegroundService : Service() {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, currentPkg)
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, appName)
+                putExtra(BlockedAppActivity.EXTRA_IS_ULTRA, isUltraStrict)
             }
 
             try {
@@ -399,6 +410,7 @@ class TimerForegroundService : Service() {
         try {
             val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
             isStrictActive = strictPrefs.getBoolean("enabled", false)
+            isUltraStrict = strictPrefs.getBoolean("is_ultra", false)
             strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
         } catch (e: Exception) {
             Log.w(TAG, "Failed reading studyio_strict_prefs on create", e)
@@ -467,7 +479,11 @@ class TimerForegroundService : Service() {
             }
 
             ACTION_PAUSE -> {
-                handlePause()
+                if (!isUltraStrict) {
+                    handlePause()
+                } else {
+                    Log.w(TAG, "Pause rejected: Ultra Strict Mode active")
+                }
             }
 
             ACTION_RESUME -> {
@@ -475,8 +491,12 @@ class TimerForegroundService : Service() {
             }
 
             ACTION_STOP -> {
-                handleStop()
-                return START_NOT_STICKY
+                if (!isUltraStrict) {
+                    handleStop()
+                    return START_NOT_STICKY
+                } else {
+                    Log.w(TAG, "Stop rejected: Ultra Strict Mode active until timer ends")
+                }
             }
         }
 
@@ -688,12 +708,17 @@ class TimerForegroundService : Service() {
             val sessionOriginMs = startedAtMs - (baseElapsedSeconds * 1000L)
             val deltaMs = if (startedAtMs > 0L) (System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L) else 0L
 
-            val statusTagText = when (mode) {
-                "pomodoro" -> if (phase == "work") "DEEP FOCUS" else "SHORT BREAK"
-                "countdown" -> "COUNTDOWN"
+            val statusTagText = when {
+                isUltraStrict -> "⚡ ULTRA STRICT"
+                mode == "pomodoro" -> if (phase == "work") "DEEP FOCUS" else "SHORT BREAK"
+                mode == "countdown" -> "COUNTDOWN"
                 else -> "FOCUSING"
             }
-            val statusTagColor = if (phase == "break") Color.parseColor("#38BDF8") else Color.parseColor("#10B981")
+            val statusTagColor = when {
+                isUltraStrict -> Color.parseColor("#10B981")
+                phase == "break" -> Color.parseColor("#38BDF8")
+                else -> Color.parseColor("#10B981")
+            }
 
             if (mode == "stopwatch") {
                 builder.setChronometerCountDown(false)
@@ -762,16 +787,18 @@ class TimerForegroundService : Service() {
             expandedView.setTextColor(R.id.notif_exp_status_tag, statusTagColor)
             expandedView.setTextViewText(R.id.notif_exp_subject_text, subjectDisplay)
 
-            builder.addAction(
-                android.R.drawable.ic_media_pause,
-                "Pause",
-                createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_PAUSE, 103)
-            )
-            builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Stop",
-                createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_STOP, 104)
-            )
+            if (!isUltraStrict) {
+                builder.addAction(
+                    android.R.drawable.ic_media_pause,
+                    "Pause",
+                    createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_PAUSE, 103)
+                )
+                builder.addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Stop",
+                    createActionPendingIntent(TimerNotificationReceiver.ACTION_TIMER_STOP, 104)
+                )
+            }
         }
 
         // Apply DecoratedCustomViewStyle for system-integrated aesthetic custom layout
@@ -838,8 +865,18 @@ class TimerForegroundService : Service() {
     }
 
     private fun onTimerTargetReached() {
-        Log.d(TAG, "Timer target reached: mode=$mode, phase=$phase")
-        postFinishAlertNotification()
+        Log.d(TAG, "Timer target reached: mode=$mode, phase=$phase, isUltra=$isUltraStrict")
+        val wasUltra = isUltraStrict
+        if (isUltraStrict) {
+            isUltraStrict = false
+            try {
+                val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+                strictPrefs.edit().putBoolean("is_ultra", false).apply()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed clearing is_ultra on target reached", e)
+            }
+        }
+        postFinishAlertNotification(wasUltra)
 
         if (mode == "pomodoro") {
             // Toggle phase
@@ -852,15 +889,17 @@ class TimerForegroundService : Service() {
         }
     }
 
-    private fun postFinishAlertNotification() {
-        val title = when (mode) {
-            "countdown" -> "Countdown Finished!"
-            "pomodoro" -> if (phase == "work") "Focus session complete!" else "Break time is over!"
+    private fun postFinishAlertNotification(wasUltra: Boolean = false) {
+        val title = when {
+            wasUltra -> "⚡ Ultra Strict Completed!"
+            mode == "countdown" -> "Countdown Finished!"
+            mode == "pomodoro" -> if (phase == "work") "Focus session complete!" else "Break time is over!"
             else -> "Study Goal Reached!"
         }
-        val body = when (mode) {
-            "countdown" -> "Great focus session! Take a moment to record your notes."
-            "pomodoro" -> if (phase == "work") "Time for a well-deserved break." else "Ready to jump back in?"
+        val body = when {
+            wasUltra -> "Lockdown lifted! Return to Study.io to save your session."
+            mode == "countdown" -> "Great focus session! Take a moment to record your notes."
+            mode == "pomodoro" -> if (phase == "work") "Time for a well-deserved break." else "Ready to jump back in?"
             else -> "Session complete."
         }
 

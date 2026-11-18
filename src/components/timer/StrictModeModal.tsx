@@ -413,8 +413,10 @@ interface StrictConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   isStrictMode: boolean;
+  isUltraStrict?: boolean;
   isFocusing: boolean;
   onToggleStrictMode: () => void;
+  onToggleUltraStrict?: () => void;
   allowedAppsCount: number;
   onOpenAllowedApps: () => void;
   hasUsagePermission: boolean;
@@ -427,8 +429,10 @@ export function StrictModeConfigModal({
   isOpen,
   onClose,
   isStrictMode,
+  isUltraStrict = false,
   isFocusing,
   onToggleStrictMode,
+  onToggleUltraStrict,
   allowedAppsCount,
   onOpenAllowedApps,
   hasUsagePermission,
@@ -473,9 +477,13 @@ export function StrictModeConfigModal({
                 <Lock className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-white">Strict Mode is Locked</p>
+                <p className="font-semibold text-white">
+                  {isUltraStrict ? '⚡ Ultra Strict Lockdown Active' : 'Strict Mode is Locked'}
+                </p>
                 <p className="text-[11px] text-white/50 mt-0.5">
-                  Locked during active focus sessions. Pause or stop your timer to modify allowed apps.
+                  {isUltraStrict
+                    ? 'All apps are locked. You cannot stop or exit until your countdown timer reaches 00:00:00.'
+                    : 'Locked during active focus sessions. Pause or stop your timer to modify allowed apps.'}
                 </p>
               </div>
             </div>
@@ -489,7 +497,7 @@ export function StrictModeConfigModal({
                 {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
               </div>
               <p className="text-[11px] text-white/50 mt-0.5">
-                Block all non-allowed apps when timer is active
+                Block non-allowed apps when timer is active
               </p>
             </div>
             <button
@@ -516,15 +524,60 @@ export function StrictModeConfigModal({
             </button>
           </div>
 
+          {/* Ultra Strict Mode Card */}
+          <div className={`p-4 rounded-2xl border transition-colors flex items-center justify-between gap-4 text-left ${
+            isUltraStrict
+              ? 'bg-emerald-500/[0.06] border-emerald-500/30'
+              : 'bg-white/[0.03] border-white/[0.06]'
+          }`}>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] font-hud font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                  isUltraStrict
+                    ? 'text-emerald-300 bg-emerald-500/20 border-emerald-500/40'
+                    : 'text-white/80 bg-white/10 border-white/15'
+                }`}>
+                  ⚡ Ultra Strict Mode
+                </span>
+                {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+              </div>
+              <p className="text-[11px] text-white/50 mt-1 leading-snug">
+                Countdown only. No stop/save button. All apps blocked until timer ends.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isFocusing}
+              onClick={() => {
+                if (isFocusing) return;
+                triggerHaptic('medium');
+                onToggleUltraStrict?.();
+              }}
+              className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isFocusing
+                  ? 'opacity-40 cursor-not-allowed bg-emerald-500/40'
+                  : isUltraStrict
+                  ? 'cursor-pointer bg-emerald-500'
+                  : 'cursor-pointer bg-white/20'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  isUltraStrict ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Allowed Apps Card */}
           <div
             onClick={() => {
-              if (isFocusing) return;
+              if (isFocusing || isUltraStrict) return;
               triggerHaptic('light');
               onOpenAllowedApps();
             }}
             className={`p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] transition-colors flex items-center justify-between gap-4 text-left ${
-              isFocusing
+              isFocusing || isUltraStrict
                 ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-white/[0.05] cursor-pointer'
             }`}
@@ -532,15 +585,21 @@ export function StrictModeConfigModal({
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold text-white">Allowed Apps</p>
-                {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+                {(isFocusing || isUltraStrict) && <Lock className="w-3.5 h-3.5 text-white/40" />}
               </div>
               <p className="text-[11px] text-white/50 mt-0.5">
-                {allowedAppsCount === 0
+                {isUltraStrict
+                  ? 'All apps are blocked in Ultra Strict mode'
+                  : allowedAppsCount === 0
                   ? 'No apps permitted (full lockdown)'
                   : `${allowedAppsCount} app${allowedAppsCount === 1 ? '' : 's'} permitted`}
               </p>
             </div>
-            {isFocusing ? (
+            {isUltraStrict ? (
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20 shrink-0 font-medium">
+                All Blocked
+              </span>
+            ) : isFocusing ? (
               <span className="text-xs font-mono text-white/40 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 shrink-0 flex items-center gap-1.5">
                 <Lock className="w-3 h-3" />
                 <span>Locked</span>

@@ -19,8 +19,16 @@ export interface StrictModePlugin {
   requestOverlayPermission(): Promise<void>;
   getInstalledApps(): Promise<{ apps: InstalledApp[] }>;
   getForegroundApp(): Promise<ForegroundAppInfo>;
-  syncStrictConfig(options: { enabled: boolean; allowedPackages: string[] }): Promise<void>;
-  blockAppDirect(options: { packageName: string; name: string }): Promise<void>;
+  syncStrictConfig(options: {
+    enabled: boolean;
+    allowedPackages: string[];
+    isUltraStrict?: boolean;
+  }): Promise<void>;
+  blockAppDirect(options: {
+    packageName: string;
+    name: string;
+    isUltraStrict?: boolean;
+  }): Promise<void>;
 }
 
 const NativeStrictMode = registerPlugin<StrictModePlugin>('StrictMode', {
@@ -52,6 +60,7 @@ export function isStrictModeSupported(): boolean {
 }
 
 const STRICT_MODE_STORAGE_KEY = 'studyio_strict_mode_enabled';
+const ULTRA_STRICT_STORAGE_KEY = 'studyio_ultra_strict_enabled';
 const ALLOWED_APPS_STORAGE_KEY = 'studyio_strict_mode_allowed_apps';
 
 export function loadStrictModeEnabled(): boolean {
@@ -67,6 +76,22 @@ export function saveStrictModeEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STRICT_MODE_STORAGE_KEY, enabled ? 'true' : 'false');
+  } catch {}
+}
+
+export function loadUltraStrictEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(ULTRA_STRICT_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function saveUltraStrictEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(ULTRA_STRICT_STORAGE_KEY, enabled ? 'true' : 'false');
   } catch {}
 }
 

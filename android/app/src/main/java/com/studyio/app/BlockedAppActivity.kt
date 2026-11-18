@@ -21,11 +21,14 @@ class BlockedAppActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_BLOCKED_PACKAGE = "blocked_package"
         const val EXTRA_BLOCKED_NAME = "blocked_name"
+        const val EXTRA_IS_ULTRA = "is_ultra"
         @Volatile
         var isVisible = false
     }
 
     private lateinit var subtitleView: TextView
+    private lateinit var descView: TextView
+    private lateinit var badgeView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +40,7 @@ class BlockedAppActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
+        val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
 
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -69,9 +73,9 @@ class BlockedAppActivity : AppCompatActivity() {
         }
 
         // Top Pill Badge
-        val badge = TextView(this).apply {
-            text = "STRICT MODE ACTIVE"
-            setTextColor(Color.parseColor("#E4E4E7"))
+        badgeView = TextView(this).apply {
+            text = if (isUltra) "⚡ ULTRA STRICT LOCKDOWN" else "STRICT MODE ACTIVE"
+            setTextColor(if (isUltra) Color.parseColor("#34D399") else Color.parseColor("#E4E4E7"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -79,9 +83,9 @@ class BlockedAppActivity : AppCompatActivity() {
             val bPadV = dpToPx(4)
             setPadding(bPadH, bPadV, bPadH, bPadV)
             val badgeBg = GradientDrawable().apply {
-                setColor(Color.parseColor("#27272A"))
+                setColor(if (isUltra) Color.parseColor("#064E3B") else Color.parseColor("#27272A"))
                 cornerRadius = dpToPx(16).toFloat()
-                setStroke(dpToPx(1), Color.parseColor("#3F3F46"))
+                setStroke(dpToPx(1), if (isUltra) Color.parseColor("#059669") else Color.parseColor("#3F3F46"))
             }
             background = badgeBg
             val lp = LinearLayout.LayoutParams(
@@ -92,7 +96,7 @@ class BlockedAppActivity : AppCompatActivity() {
             }
             layoutParams = lp
         }
-        card.addView(badge)
+        card.addView(badgeView)
 
         // Shield Icon
         val iconView = ImageView(this).apply {
@@ -138,8 +142,12 @@ class BlockedAppActivity : AppCompatActivity() {
         card.addView(subtitleView)
 
         // Description Body
-        val descView = TextView(this).apply {
-            text = "Strict Mode is keeping you focused. You cannot open this app during your study session."
+        descView = TextView(this).apply {
+            text = if (isUltra) {
+                "Ultra Strict Mode is active. All apps are locked until your countdown timer finishes."
+            } else {
+                "Strict Mode is keeping you focused. You cannot open this app during your study session."
+            }
             setTextColor(Color.parseColor("#A1A1AA"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
@@ -234,7 +242,17 @@ class BlockedAppActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
+        val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
         subtitleView.text = "$blockedName is blocked"
+        if (isUltra) {
+            badgeView.text = "⚡ ULTRA STRICT LOCKDOWN"
+            badgeView.setTextColor(Color.parseColor("#34D399"))
+            descView.text = "Ultra Strict Mode is active. All apps are locked until your countdown timer finishes."
+        } else {
+            badgeView.text = "STRICT MODE ACTIVE"
+            badgeView.setTextColor(Color.parseColor("#E4E4E7"))
+            descView.text = "Strict Mode is keeping you focused. You cannot open this app during your study session."
+        }
     }
 
     private fun goToHomeScreen() {

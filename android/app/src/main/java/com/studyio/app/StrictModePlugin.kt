@@ -153,6 +153,7 @@ class StrictModePlugin : Plugin() {
     fun syncStrictConfig(call: PluginCall) {
         try {
             val enabled = call.getBoolean("enabled", false) ?: false
+            val isUltra = call.getBoolean("isUltraStrict", false) ?: false
             val packagesArray = call.getArray("allowedPackages")
             val set = mutableSetOf<String>()
             if (packagesArray != null) {
@@ -167,10 +168,11 @@ class StrictModePlugin : Plugin() {
             val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
             prefs.edit()
                 .putBoolean("enabled", enabled)
+                .putBoolean("is_ultra", isUltra)
                 .putStringSet("allowed_packages", set)
                 .apply()
 
-            TimerForegroundService.updateStrictConfig(context, enabled, set)
+            TimerForegroundService.updateStrictConfig(context, enabled, set, isUltra)
             call.resolve()
         } catch (e: Exception) {
             Log.e(TAG, "Error syncing strict config", e)
@@ -186,6 +188,7 @@ class StrictModePlugin : Plugin() {
         try {
             val pkg = call.getString("packageName", "") ?: ""
             val name = call.getString("name", "This app") ?: "This app"
+            val isUltra = call.getBoolean("isUltraStrict", false) ?: false
             if (pkg.isNotEmpty()) {
                 val intent = Intent(context, BlockedAppActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -194,6 +197,7 @@ class StrictModePlugin : Plugin() {
                             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                     putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, pkg)
                     putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, name)
+                    putExtra(BlockedAppActivity.EXTRA_IS_ULTRA, isUltra)
                 }
                 context.startActivity(intent)
             }

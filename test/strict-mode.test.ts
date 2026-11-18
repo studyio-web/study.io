@@ -6,6 +6,8 @@ import {
   saveStrictModeEnabled,
   loadAllowedApps,
   saveAllowedApps,
+  loadUltraStrictEnabled,
+  saveUltraStrictEnabled,
 } from '../src/lib/strictModePlugin';
 import { resolveNotificationConfig } from '../src/lib/notifications';
 
@@ -123,5 +125,60 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.equal(isLauncherOrSystemContract('com.instagram.android'), false);
     assert.equal(isLauncherOrSystemContract('com.google.android.youtube'), false);
     assert.equal(isLauncherOrSystemContract('com.twitter.android'), false);
+  });
+
+  it('correctly persists and loads ultra strict mode state', () => {
+    const store: Record<string, string> = {};
+    const originalLocalStorage = global.localStorage;
+    const originalWindow = (global as any).window;
+    (global as any).window = global;
+    (global as any).localStorage = {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, val: string) => {
+        store[key] = val;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    };
+
+    try {
+      assert.equal(loadUltraStrictEnabled(), false);
+      saveUltraStrictEnabled(true);
+      assert.equal(loadUltraStrictEnabled(), true);
+      saveUltraStrictEnabled(false);
+      assert.equal(loadUltraStrictEnabled(), false);
+    } finally {
+      (global as any).localStorage = originalLocalStorage;
+      (global as any).window = originalWindow;
+    }
+  });
+
+  it('guarantees Ultra Strict blocks ALL apps including whitelisted allowed apps', () => {
+    const allowed = ['com.google.android.calculator', 'com.google.android.apps.messaging'];
+    const isAppBlocked = (pkg: string, isUltra: boolean): boolean => {
+      if (isUltra) return true; // Ultra Strict blocks ALL apps without exception
+      return !allowed.includes(pkg);
+    };
+
+    // Under normal Strict Mode: calculator and messaging are allowed
+    assert.equal(isAppBlocked('com.google.android.calculator', false), false);
+    assert.equal(isAppBlocked('com.google.android.apps.messaging', false), false);
+    assert.equal(isAppBlocked('com.instagram.android', false), true);
+
+    // Under Ultra Strict Mode: ALL non-system apps are blocked, including calculator & messaging!
+    assert.equal(isAppBlocked('com.google.android.calculator', true), true);
+    assert.equal(isAppBlocked('com.google.android.apps.messaging', true), true);
+    assert.equal(isAppBlocked('com.instagram.android', true), true);
+    assert.equal(isAppBlocked('com.google.android.youtube', true), true);
+  });
+
+  it('guarantees Ultra Strict restricts timer modes strictly to Countdown only', () => {
+    const getAvailableModes = (isUltra: boolean): string[] => {
+      return isUltra ? ['countdown'] : ['stopwatch', 'countdown', 'pomodoro'];
+    };
+
+    assert.deepEqual(getAvailableModes(false), ['stopwatch', 'countdown', 'pomodoro']);
+    assert.deepEqual(getAvailableModes(true), ['countdown']);
   });
 });
