@@ -249,11 +249,7 @@ class TimerForegroundService : Service() {
         if (currentPkg == null) return
         if (currentPkg == packageName || isLauncherOrSystem(currentPkg)) return
 
-        val isBlocked = if (isUltraStrict) {
-            true // Ultra Strict locks ALL apps without exception until countdown ends!
-        } else {
-            !strictAllowedPackages.contains(currentPkg)
-        }
+        val isBlocked = !strictAllowedPackages.contains(currentPkg)
 
         if (isBlocked) {
             val now = System.currentTimeMillis()

@@ -144,7 +144,7 @@ class BlockedAppActivity : AppCompatActivity() {
         // Description Body
         descView = TextView(this).apply {
             text = if (isUltra) {
-                "Ultra Strict Mode is active. All apps are locked until your countdown timer finishes."
+                "Ultra Strict Mode is active. This app is blocked until your countdown timer finishes."
             } else {
                 "Strict Mode is keeping you focused. You cannot open this app during your study session."
             }
@@ -247,7 +247,7 @@ class BlockedAppActivity : AppCompatActivity() {
         if (isUltra) {
             badgeView.text = "⚡ ULTRA STRICT LOCKDOWN"
             badgeView.setTextColor(Color.parseColor("#34D399"))
-            descView.text = "Ultra Strict Mode is active. All apps are locked until your countdown timer finishes."
+            descView.text = "Ultra Strict Mode is active. This app is blocked until your countdown timer finishes."
         } else {
             badgeView.text = "STRICT MODE ACTIVE"
             badgeView.setTextColor(Color.parseColor("#E4E4E7"))

@@ -343,7 +343,7 @@ export function StudyTimer() {
           fg.packageName !== 'com.studyio.app'
         ) {
           const allowed = allowedAppsRef.current;
-          const isBlocked = isUltraStrictRef.current || !allowed.includes(fg.packageName);
+          const isBlocked = !allowed.includes(fg.packageName);
           if (isBlocked) {
             // Blocked app violation detected while in background!
             triggerHaptic('heavy');
@@ -2123,7 +2123,7 @@ export function StudyTimer() {
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                   {isStudying ? (
                     <Lock className="w-3 h-3 text-white/50 shrink-0" />
-                  ) : !isUltraStrict && allowedApps.length > 0 ? (
+                  ) : allowedApps.length > 0 ? (
                     <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-white/80 leading-none">
                       {allowedApps.length}
                     </span>

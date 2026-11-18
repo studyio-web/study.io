@@ -154,23 +154,19 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     }
   });
 
-  it('guarantees Ultra Strict blocks ALL apps including whitelisted allowed apps', () => {
+  it('guarantees Ultra Strict permits whitelisted allowed apps and blocks non-allowed apps', () => {
     const allowed = ['com.google.android.calculator', 'com.google.android.apps.messaging'];
-    const isAppBlocked = (pkg: string, isUltra: boolean): boolean => {
-      if (isUltra) return true; // Ultra Strict blocks ALL apps without exception
+    const isAppBlocked = (pkg: string): boolean => {
       return !allowed.includes(pkg);
     };
 
-    // Under normal Strict Mode: calculator and messaging are allowed
-    assert.equal(isAppBlocked('com.google.android.calculator', false), false);
-    assert.equal(isAppBlocked('com.google.android.apps.messaging', false), false);
-    assert.equal(isAppBlocked('com.instagram.android', false), true);
+    // Under Ultra Strict Mode: whitelisted apps are allowed / unblocked
+    assert.equal(isAppBlocked('com.google.android.calculator'), false);
+    assert.equal(isAppBlocked('com.google.android.apps.messaging'), false);
 
-    // Under Ultra Strict Mode: ALL non-system apps are blocked, including calculator & messaging!
-    assert.equal(isAppBlocked('com.google.android.calculator', true), true);
-    assert.equal(isAppBlocked('com.google.android.apps.messaging', true), true);
-    assert.equal(isAppBlocked('com.instagram.android', true), true);
-    assert.equal(isAppBlocked('com.google.android.youtube', true), true);
+    // Non-allowed / distracting apps are strictly blocked
+    assert.equal(isAppBlocked('com.instagram.android'), true);
+    assert.equal(isAppBlocked('com.google.android.youtube'), true);
   });
 
   it('guarantees Ultra Strict restricts timer modes strictly to Countdown only', () => {
