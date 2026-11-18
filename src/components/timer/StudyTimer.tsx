@@ -1908,7 +1908,7 @@ export function StudyTimer() {
           {isAmbientMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setIsAmbientMenuOpen(false)} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] rounded-2xl p-2.5 shadow-card min-w-[220px] max-h-[340px] overflow-y-auto text-[var(--text)]">
+              <div className="absolute bottom-full left-0 mb-2 z-50 bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] rounded-2xl p-2.5 shadow-card min-w-[220px] w-56 max-w-[calc(100vw-32px)] max-h-[340px] overflow-y-auto text-[var(--text)]">
                 <div className="flex flex-col gap-1">
                   {[
                     { id: 'none', label: 'Silent', icon: <span className="w-3.5 h-3.5 rounded-full bg-zinc-500 mx-0.5" /> },
