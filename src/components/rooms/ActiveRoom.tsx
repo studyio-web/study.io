@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
@@ -341,8 +342,9 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
 
       const sender = payload.fromUsername || 'A scholar';
 
-      // Operating System / Browser Level Push Notification (only if app is hidden / in background)
-      if (typeof document !== 'undefined' && document.hidden) {
+      // Browser Level Notification: only for web browsers when tab/window is hidden.
+      // Native Android/iOS receives push notification directly via FCM system tray, so skip local duplicate.
+      if (!Capacitor.isNativePlatform() && typeof document !== 'undefined' && document.hidden) {
         triggerNudgePushNotification(sender);
       }
 
@@ -383,7 +385,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
     try {
       const supabase = getSupabase();
       if (supabase) {
-        // 1. Directly invoke Edge Function for guaranteed FCM push notification delivery
+        // Single authoritative outbound FCM push notification dispatch
         supabase.functions.invoke('send-notification', {
           body: {
             sender_id: user.id,
@@ -393,19 +395,9 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
             message: 'nudged you to focus!',
           },
         }).then(({ data, error }) => {
-          if (error) console.warn('[ActiveRoom] Direct send-notification error:', error);
-          else console.log('[ActiveRoom] Direct send-notification result:', data);
-        }).catch((err) => console.warn('[ActiveRoom] Direct send-notification error:', err));
-
-        // 2. Standard Supabase insert to trigger outbound FCM push notification Edge Function via DB trigger
-        const { error: insertError } = await supabase.from('nudges').insert({
-          sender_id: user.id,
-          receiver_id: targetUserId,
-          message: 'nudged you to focus!',
-        });
-        if (insertError) {
-          console.warn('[ActiveRoom] Error inserting into nudges table:', insertError);
-        }
+          if (error) console.warn('[ActiveRoom] Send-notification error:', error);
+          else console.log('[ActiveRoom] Send-notification result:', data);
+        }).catch((err) => console.warn('[ActiveRoom] Send-notification error:', err));
 
         if (roomId) {
           const hubChannel = supabase.channel(`room_members_hub_${roomId}`);

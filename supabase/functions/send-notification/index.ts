@@ -60,10 +60,13 @@ function getSupabaseClient() {
 // Memory cache to deduplicate rapidly repeating events (e.g. database trigger + client invoke)
 const recentEvents = new Map<string, number>();
 function isDuplicateEvent(type: string, senderId: string, targetId: string, message?: string): boolean {
-  const key = `${type}:${senderId}:${targetId}:${(message || '').slice(0, 30)}`;
+  // For nudges, deduplicate strictly across the sender and receiver pair within 10 seconds
+  const key = type === 'nudge'
+    ? `${type}:${senderId}:${targetId}`
+    : `${type}:${senderId}:${targetId}:${(message || '').slice(0, 30)}`;
   const now = Date.now();
   const lastTime = recentEvents.get(key);
-  if (lastTime && now - lastTime < 6000) {
+  if (lastTime && now - lastTime < 10000) {
     return true;
   }
   recentEvents.set(key, now);

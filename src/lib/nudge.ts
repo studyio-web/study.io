@@ -100,11 +100,23 @@ export async function requestNudgeNotificationPermission(): Promise<Notification
   return result === 'prompt' ? 'default' : (result as NotificationPermission);
 }
 
+let lastNotifiedNudgeTime = 0;
+let lastNotifiedSender = '';
+
 /**
  * Dispatches an operating system / browser level push notification when someone is nudged.
+ * Includes a 10-second deduplication guard to ensure only 1 notification is ever fired per nudge.
  */
 export async function triggerNudgePushNotification(senderUsername: string): Promise<void> {
   if (typeof window === 'undefined') return;
+
+  const now = Date.now();
+  if (senderUsername === lastNotifiedSender && now - lastNotifiedNudgeTime < 10000) {
+    console.log('[Nudge] Duplicate nudge notification suppressed for sender:', senderUsername);
+    return;
+  }
+  lastNotifiedNudgeTime = now;
+  lastNotifiedSender = senderUsername;
 
   await notify('focus_nudge', {
     title: 'Focus Nudge',
