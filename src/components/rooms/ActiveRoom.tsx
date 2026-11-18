@@ -3417,9 +3417,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                     id={`msg-${msg.id}`}
                                     isMe={isMe}
                                     onReply={() => handleStartReply(msg, username)}
-                                    className={`group/msg flex items-center gap-1.5 transition-all duration-200 ${
-                                      isMe ? 'flex-row-reverse' : 'flex-row'
-                                    }`}
+                                    className="group/msg"
                                   >
                                     <div
                                       className={`w-fit max-w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${

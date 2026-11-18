@@ -188,7 +188,9 @@ export const SwipeableChatMessage = React.memo(function SwipeableChatMessage({
       {/* Main Draggable Message Bubble */}
       <div
         ref={bubbleRef}
-        className="w-fit max-w-full will-change-transform relative z-10"
+        className={`w-fit max-w-full will-change-transform relative z-10 flex items-center gap-1.5 ${
+          isMe ? 'flex-row-reverse' : 'flex-row'
+        }`}
       >
         {children}
       </div>

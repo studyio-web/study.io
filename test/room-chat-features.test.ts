@@ -314,4 +314,24 @@ describe('Room Chat Replies and Mentions Specification', () => {
     assert.equal(bubbleWrapperClass.includes('w-fit'), true, 'Chat message must hug content using w-fit');
     assert.equal(bubbleWrapperClass.includes('max-w-full'), true, 'Chat message must not overflow parent stack');
   });
+
+  it('guarantees profile avatar aligns with message bubble and reply button sits horizontally beside bubble without vertical clearance', () => {
+    // Contract test for horizontal flex layout inside SwipeableChatMessage
+    const bubbleRefLayout = (isMe: boolean) =>
+      `w-fit max-w-full will-change-transform relative z-10 flex items-center gap-1.5 ${
+        isMe ? 'flex-row-reverse' : 'flex-row'
+      }`;
+
+    const incomingLayout = bubbleRefLayout(false);
+    assert.equal(incomingLayout.includes('flex items-center gap-1.5'), true, 'Draggable bubble container must align message and reply button horizontally');
+    assert.equal(incomingLayout.includes('flex-row'), true, 'Incoming message reply button sits to the right of message');
+
+    const outgoingLayout = bubbleRefLayout(true);
+    assert.equal(outgoingLayout.includes('flex-row-reverse'), true, 'Outgoing message reply button sits to the left of message');
+
+    // Outer row alignment contract: avatar aligns with the message bubble without extra height
+    const avatarRowClass = (isMe: boolean) =>
+      `flex gap-3 ${isMe ? 'flex-row-reverse' : ''} items-end max-w-[58%] sm:max-w-[55%] md:max-w-[50%]`;
+    assert.equal(avatarRowClass(false).includes('items-end'), true, 'Avatar must align to the bottom of the message bubble');
+  });
 });

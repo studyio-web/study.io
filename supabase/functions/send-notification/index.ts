@@ -240,6 +240,7 @@ Deno.serve(async (req: Request) => {
     }
     const targetRecipients: TargetRecipient[] = [];
     const seenTokens = new Set<string>();
+    const mutedUserIds = new Set<string>();
 
     if (receiver_id) {
       const { data: receiverProfile } = await supabase
@@ -264,7 +265,6 @@ Deno.serve(async (req: Request) => {
         .select("user_id, is_muted")
         .eq("room_id", room_id);
 
-      const mutedUserIds = new Set<string>();
       if (members) {
         for (const m of members) {
           if (m.is_muted) {
