@@ -708,7 +708,13 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 setIsPriorityDropdownOpen(prev => !prev);
                 setIsSubjectDropdownOpen(false);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg sm:rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-medium tracking-wider uppercase text-zinc-200 transition-all cursor-pointer select-none active:scale-95"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg sm:rounded-xl border text-xs font-medium tracking-wider uppercase transition-all cursor-pointer select-none active:scale-95 ${
+                taskPriority === 'high'
+                  ? 'bg-rose-500/10 hover:bg-rose-500/15 border-rose-500/30 text-rose-300'
+                  : taskPriority === 'medium'
+                  ? 'bg-orange-500/10 hover:bg-orange-500/15 border-orange-500/30 text-orange-300'
+                  : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-zinc-300'
+              }`}
               aria-haspopup="listbox"
               aria-expanded={isPriorityDropdownOpen}
               title="Select task priority"
@@ -717,18 +723,22 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 className={`w-3.5 h-3.5 shrink-0 transition-colors ${
                   taskPriority === 'high'
                     ? 'text-rose-400 fill-rose-400/20'
-                    : taskPriority === 'low'
-                    ? 'text-zinc-500'
-                    : 'text-zinc-300'
+                    : taskPriority === 'medium'
+                    ? 'text-orange-400 fill-orange-400/20'
+                    : 'text-zinc-500'
                 }`}
               />
               <span className="text-xs capitalize">
                 {taskPriority}
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-zinc-400 shrink-0 transition-transform duration-200 ${
-                  isPriorityDropdownOpen ? 'rotate-180' : ''
-                }`}
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${
+                  taskPriority === 'high'
+                    ? 'text-rose-400'
+                    : taskPriority === 'medium'
+                    ? 'text-orange-400'
+                    : 'text-zinc-400'
+                } ${isPriorityDropdownOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
@@ -766,7 +776,15 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                         }}
                         className={`w-full rounded-lg px-3 py-2 text-xs uppercase tracking-wider transition-colors flex items-center justify-between text-left cursor-pointer ${
                           isSelected
-                            ? 'bg-white/[0.1] text-white font-semibold'
+                            ? p === 'high'
+                              ? 'bg-rose-500/15 border border-rose-500/25 text-rose-200 font-semibold'
+                              : p === 'medium'
+                              ? 'bg-orange-500/15 border border-orange-500/25 text-orange-200 font-semibold'
+                              : 'bg-white/[0.1] text-white font-semibold'
+                            : p === 'high'
+                            ? 'text-rose-300 hover:text-white hover:bg-rose-500/10'
+                            : p === 'medium'
+                            ? 'text-orange-300 hover:text-white hover:bg-orange-500/10'
                             : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
                         }`}
                         role="option"
@@ -777,15 +795,17 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                             className={`w-3.5 h-3.5 ${
                               p === 'high'
                                 ? 'text-rose-400 fill-rose-400/20'
-                                : p === 'low'
-                                ? 'text-zinc-500'
-                                : 'text-zinc-300'
+                                : p === 'medium'
+                                ? 'text-orange-400 fill-orange-400/20'
+                                : 'text-zinc-500'
                             }`}
                           />
-                          <span className="capitalize">{p}</span>
+                          <span className={`capitalize ${p === 'medium' ? 'text-orange-300' : p === 'high' ? 'text-rose-300' : ''}`}>
+                            {p}
+                          </span>
                         </div>
                         {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-white shrink-0 ml-2" />
+                          <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${p === 'medium' ? 'text-orange-400' : p === 'high' ? 'text-rose-400' : 'text-white'}`} />
                         )}
                       </button>
                     );
