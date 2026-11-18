@@ -630,7 +630,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 relative flex flex-col min-h-[70vh] w-full">
+    <div className="space-y-4 sm:space-y-6 relative flex flex-col w-full">
       {/* HUD Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border)] relative z-10">
         <div>
@@ -973,7 +973,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       )}
 
       {/* Main Task List Container */}
-      <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-1 sm:pr-2 select-none relative z-10">
+      <div className="flex flex-col gap-4 pr-1 sm:pr-2 select-none relative z-10">
         {/* Empty States */}
         {displayActiveTodos.length === 0 && displayCompletedTodos.length === 0 && filter === 'all' && (
           <div className="m-auto flex flex-col items-center justify-center text-center py-12 opacity-60">
@@ -1221,6 +1221,9 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
           </div>
         )}
       </div>
+
+      {/* Bottom Floating Nav Clearance Spacer (Ensures the last task never hides behind the mobile bottom bar) */}
+      <div className="h-28 md:h-8 w-full shrink-0 pointer-events-none" aria-hidden="true" />
     </div>
   );
 }
