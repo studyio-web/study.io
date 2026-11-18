@@ -57,7 +57,6 @@ import {
 import {
   StrictModeAllowedAppsModal,
   StrictModePermissionModal,
-  StrictModeBlockedModal,
   StrictModeConfigModal,
 } from './StrictModeModal';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
@@ -181,7 +180,6 @@ export function StudyTimer() {
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
-  const [blockedAppInfo, setBlockedAppInfo] = useState<{ name: string; packageName: string } | null>(null);
 
   const isStudyingRef = useRef(isStudying);
   isStudyingRef.current = isStudying;
@@ -298,23 +296,13 @@ export function StudyTimer() {
         ) {
           const allowed = allowedAppsRef.current;
           if (!allowed.includes(fg.packageName)) {
-            // Blocked app violation detected!
+            // Blocked app violation detected while in background!
             triggerHaptic('heavy');
             // Trigger native full-screen BlockedAppActivity immediately!
             StrictMode.blockAppDirect({
               packageName: fg.packageName,
               name: fg.name || fg.packageName,
             }).catch(() => {});
-
-            notify('strict_mode_blocked', {
-              title: `🚫 Blocked by Study.io`,
-              body: `${fg.name || 'App'} is blocked during your focus session!`,
-            }).catch(() => {});
-
-            setBlockedAppInfo({
-              name: fg.name || fg.packageName,
-              packageName: fg.packageName,
-            });
           }
         }
       } catch (err) {
@@ -324,14 +312,11 @@ export function StudyTimer() {
 
     App.addListener('appStateChange', ({ isActive }) => {
       if (!isActive && isStudyingRef.current && isStrictModeRef.current) {
-        // App went to background: check after 400ms, 800ms & 1600ms
+        // App went to background: check after 400ms & 800ms
         setTimeout(checkForegroundViolation, 400);
         setTimeout(checkForegroundViolation, 800);
-        setTimeout(checkForegroundViolation, 1600);
-      } else if (isActive && isStudyingRef.current && isStrictModeRef.current) {
-        // Returned to foreground: verify what app was just open
-        checkForegroundViolation();
       }
+      // When returning to Study.io (isActive === true), do NOT show any alert modal
     }).then((handle) => {
       appListenerHandle = handle;
     }).catch(() => {});
@@ -2103,20 +2088,6 @@ export function StudyTimer() {
           onRequestUsagePermission={handleRequestPermission}
           onRequestOverlayPermission={handleRequestOverlayPermission}
           isFocusing={isStudying}
-        />
-      )}
-
-      {/* Strict Mode Blocked App Alert Modal */}
-      {isAndroid && blockedAppInfo && (
-        <StrictModeBlockedModal
-          isOpen={Boolean(blockedAppInfo)}
-          blockedAppName={blockedAppInfo.name}
-          blockedPackageName={blockedAppInfo.packageName}
-          onDismiss={() => setBlockedAppInfo(null)}
-          onOpenSettings={() => {
-            setBlockedAppInfo(null);
-            setIsAllowedAppsModalOpen(true);
-          }}
         />
       )}
     </div>
