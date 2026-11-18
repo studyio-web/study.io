@@ -3285,41 +3285,35 @@ CREATE POLICY "Hosts can update their own study rooms"
           <div className="w-full flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="max-w-2xl mx-auto w-full py-4 sm:py-6 space-y-6 animate-in fade-in duration-200 pb-28 md:pb-24">
             {/* Host Banner */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/10 via-white/[0.02] to-transparent border border-amber-500/20 p-5 sm:p-6 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-inner">
-                    <Crown className="w-6 h-6 text-amber-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-white tracking-wide">Room Host Controls</h2>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                        Host Only
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Configure room password security, member capacity, and study hall details.
-                    </p>
-                  </div>
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#0c1017]/95 border border-white/15 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.04] rounded-full blur-2xl pointer-events-none" />
+              <div className="relative z-10 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-base sm:text-lg font-hud font-extrabold uppercase tracking-wider text-white">
+                    Room Host Controls
+                  </h2>
+
+                  {roomInfo?.short_code && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCode(roomInfo.short_code!)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.15] border border-white/10 text-xs font-mono font-bold text-amber-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+                      title="Click to copy room code"
+                    >
+                      <Hash className="w-3.5 h-3.5 text-amber-400 opacity-80" />
+                      <span className="font-bold tracking-wider">{roomInfo.short_code}</span>
+                      {copiedCode ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 ml-0.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
 
-                {roomInfo?.short_code && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCode(roomInfo.short_code!)}
-                    className="inline-flex items-center gap-2 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm group"
-                    title="Click to copy room code"
-                  >
-                    <Hash className="w-3.5 h-3.5 text-amber-400 opacity-80" />
-                    <span className="font-bold tracking-wider">{roomInfo.short_code}</span>
-                    {copiedCode ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 ml-1" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 ml-1" />
-                    )}
-                  </button>
-                )}
+                <p className="text-xs sm:text-sm font-semibold text-neutral-300 leading-relaxed">
+                  Configure room password security, member capacity, and study hall details.
+                </p>
               </div>
             </div>
 
