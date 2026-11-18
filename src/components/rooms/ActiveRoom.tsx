@@ -2876,7 +2876,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           animation: classicNudgePulse 0.75s ease-in-out infinite;
         }
       `}</style>
-      <header className="shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-[var(--border)] bg-[#0c1017]/95 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px)+12px,32px)] sm:pt-2.5 z-30 transition-all">
+      <header className="shrink-0 flex items-center justify-between px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3.5 border-b border-[var(--border)] md:border-b-0 bg-[#0c1017]/95 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none pt-[max(env(safe-area-inset-top,0px)+12px,32px)] sm:pt-2.5 md:pt-4 z-30 transition-all">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
