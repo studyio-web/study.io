@@ -149,26 +149,19 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       async (notification: PushNotificationSchema) => {
         console.log('[Push] pushNotificationReceived:', notification);
 
-        // Deduplication: If the FCM message has a notification payload (title/body) or is a nudge/chat/mention/reply alert,
-        // Android / Capacitor presentationOptions already rendered it in the system tray.
-        // Never schedule a duplicate LocalNotification!
-        const hasSystemNotification = Boolean(notification.title || notification.body);
-        const notifType = notification.data?.type;
-        if (
-          hasSystemNotification ||
-          ['nudge', 'chat', 'mention', 'reply', 'room_mention', 'room_reply', 'room_chat'].includes(notifType)
-        ) {
-          console.log('[Push] System notification already rendered by OS/Capacitor presentationOptions. Skipping local duplicate.');
-          return;
-        }
-
+        // On Android, pushNotificationReceived fires ONLY when the app is active in the foreground.
+        // FCM does not post a heads-up notification in foreground automatically, so we display it
+        // using LocalNotifications.schedule so the user immediately sees the notification alert banner.
         try {
           const title =
+            notification.title ||
             notification.data?.title ||
             'study.io';
           const body =
+            notification.body ||
             notification.data?.body ||
             '';
+          const notifType = notification.data?.type;
           const channelId =
             notification.data?.channelId ||
             (notifType === 'mention' || notifType === 'room_mention'
@@ -177,12 +170,10 @@ export async function initPushNotifications(userId?: string): Promise<void> {
               ? 'social_replies'
               : notifType === 'nudge'
               ? 'social_nudges'
-              : notifType === 'chat' || notifType === 'room_chat'
-              ? 'social_chat'
-              : 'reminders');
+              : 'social_chat');
           const iconColor =
             notifType === 'mention' || notifType === 'room_mention'
-              ? '#F59E0B'
+              ? '#FF8A00'
               : notifType === 'reply' || notifType === 'room_reply'
               ? '#3B82F6'
               : '#10B981';

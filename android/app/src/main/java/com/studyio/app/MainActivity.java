@@ -34,20 +34,53 @@ public class MainActivity extends BridgeActivity {
         // Lock default app orientation strictly to portrait on launch
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
-        // Ensure social_nudges notification channel exists natively for FCM background delivery
+        // Ensure social notification channels exist natively for FCM background delivery
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = getSystemService(NotificationManager.class);
             if (notificationManager != null) {
-                NotificationChannel channel = new NotificationChannel(
+                NotificationChannel nudgesChannel = new NotificationChannel(
                     "social_nudges",
                     "Study Room Nudges",
                     NotificationManager.IMPORTANCE_HIGH
                 );
-                channel.setDescription("Alerts when other scholars nudge you in active study rooms");
-                channel.enableVibration(true);
-                channel.enableLights(true);
-                channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-                notificationManager.createNotificationChannel(channel);
+                nudgesChannel.setDescription("Alerts when other scholars nudge you in active study rooms");
+                nudgesChannel.enableVibration(true);
+                nudgesChannel.enableLights(true);
+                nudgesChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(nudgesChannel);
+
+                NotificationChannel repliesChannel = new NotificationChannel(
+                    "social_replies",
+                    "Room Replies",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                repliesChannel.setDescription("Alerts when scholars reply directly to your messages in study rooms");
+                repliesChannel.enableVibration(true);
+                repliesChannel.enableLights(true);
+                repliesChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(repliesChannel);
+
+                NotificationChannel mentionsChannel = new NotificationChannel(
+                    "social_mentions",
+                    "Room Mentions",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                mentionsChannel.setDescription("Alerts when scholars mention you in study rooms");
+                mentionsChannel.enableVibration(true);
+                mentionsChannel.enableLights(true);
+                mentionsChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(mentionsChannel);
+
+                NotificationChannel chatChannel = new NotificationChannel(
+                    "social_chat",
+                    "Room Chat Messages",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                chatChannel.setDescription("Alerts for study room chat discussion");
+                chatChannel.enableVibration(true);
+                chatChannel.enableLights(true);
+                chatChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(chatChannel);
             }
         }
 

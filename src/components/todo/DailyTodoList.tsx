@@ -716,7 +716,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 taskPriority === 'high'
                   ? 'bg-rose-500/10 hover:bg-rose-500/15 border-rose-500/30 text-rose-300'
                   : taskPriority === 'medium'
-                  ? 'bg-amber-500/15 hover:bg-amber-500/20 border-amber-400/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                  ? 'bg-[#FF8A00]/15 hover:bg-[#FF8A00]/20 border-[#FF8A00]/40 text-[#FFB054] shadow-[0_0_12px_rgba(255,138,0,0.25)]'
                   : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-zinc-300'
               }`}
               aria-haspopup="listbox"
@@ -728,7 +728,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                   taskPriority === 'high'
                     ? 'text-rose-400 fill-rose-400/20'
                     : taskPriority === 'medium'
-                    ? 'text-amber-400 fill-amber-400/20'
+                    ? 'text-[#FF8A00] fill-[#FF8A00]/25'
                     : 'text-zinc-500'
                 }`}
               />
@@ -740,7 +740,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                   taskPriority === 'high'
                     ? 'text-rose-400'
                     : taskPriority === 'medium'
-                    ? 'text-amber-400'
+                    ? 'text-[#FF9E2C]'
                     : 'text-zinc-400'
                 } ${isPriorityDropdownOpen ? 'rotate-180' : ''}`}
               />
@@ -783,12 +783,12 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                             ? p === 'high'
                               ? 'bg-rose-500/15 border border-rose-500/25 text-rose-200 font-semibold'
                               : p === 'medium'
-                              ? 'bg-amber-500/20 border border-amber-400/35 text-amber-200 font-semibold'
+                              ? 'bg-[#FF8A00]/20 border border-[#FF8A00]/40 text-[#FFC480] font-semibold'
                               : 'bg-white/[0.1] text-white font-semibold'
                             : p === 'high'
                             ? 'text-rose-300 hover:text-white hover:bg-rose-500/10'
                             : p === 'medium'
-                            ? 'text-amber-300 hover:text-white hover:bg-amber-500/10'
+                            ? 'text-[#FFB054] hover:text-white hover:bg-[#FF8A00]/15'
                             : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
                         }`}
                         role="option"
@@ -800,16 +800,16 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                               p === 'high'
                                 ? 'text-rose-400 fill-rose-400/20'
                                 : p === 'medium'
-                                ? 'text-amber-400 fill-amber-400/20'
+                                ? 'text-[#FF8A00] fill-[#FF8A00]/25'
                                 : 'text-zinc-500'
                             }`}
                           />
-                          <span className={`capitalize ${p === 'medium' ? 'text-amber-300' : p === 'high' ? 'text-rose-300' : ''}`}>
+                          <span className={`capitalize ${p === 'medium' ? 'text-[#FFB054]' : p === 'high' ? 'text-rose-300' : ''}`}>
                             {p}
                           </span>
                         </div>
                         {isSelected && (
-                          <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${p === 'medium' ? 'text-amber-400' : p === 'high' ? 'text-rose-400' : 'text-white'}`} />
+                          <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${p === 'medium' ? 'text-[#FF8A00]' : p === 'high' ? 'text-rose-400' : 'text-white'}`} />
                         )}
                       </button>
                     );
@@ -1051,7 +1051,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 {item.priority === 'high' ? (
                   <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
                 ) : item.priority === 'medium' ? (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                  <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-[#FF8A00] shadow-[0_0_8px_rgba(255,138,0,0.6)]" />
                 ) : null}
 
                 {/* Grip Drag Handle */}
@@ -1127,8 +1127,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                         <Flag className="w-2.5 h-2.5 fill-rose-400/20" /> HIGH PRIORITY
                       </span>
                     ) : item.priority === 'medium' ? (
-                      <span className="text-[9px] font-black text-amber-400 font-hud-mono tracking-wider uppercase flex items-center gap-1">
-                        <Flag className="w-2.5 h-2.5 fill-amber-400/20" /> MEDIUM
+                      <span className="text-[9px] font-black text-[#FF9E2C] font-hud-mono tracking-wider uppercase flex items-center gap-1">
+                        <Flag className="w-2.5 h-2.5 text-[#FF8A00] fill-[#FF8A00]/25" /> MEDIUM
                       </span>
                     ) : null}
                   </div>

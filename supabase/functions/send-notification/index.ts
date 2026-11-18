@@ -60,19 +60,22 @@ function getSupabaseClient() {
 // Memory cache to deduplicate rapidly repeating events (e.g. database trigger + client invoke)
 const recentEvents = new Map<string, number>();
 function isDuplicateEvent(type: string, senderId: string, targetId: string, message?: string): boolean {
-  // For nudges, deduplicate strictly across the sender and receiver pair within 10 seconds
+  // Shared key across 'chat'/'reply'/'mention' for the same sender, room, and message text
   const key = type === 'nudge'
-    ? `${type}:${senderId}:${targetId}`
-    : `${type}:${senderId}:${targetId}:${(message || '').slice(0, 30)}`;
+    ? `nudge:${senderId}:${targetId}`
+    : `room_msg:${senderId}:${targetId}:${(message || '').slice(0, 50)}`;
   const now = Date.now();
   const lastTime = recentEvents.get(key);
-  if (lastTime && now - lastTime < 10000) {
+  // Short 2500ms deduplication window to absorb simultaneous DB trigger + client invoke
+  // without dropping real consecutive chat messages
+  const windowMs = type === 'nudge' ? 3000 : 2500;
+  if (lastTime && now - lastTime < windowMs) {
     return true;
   }
   recentEvents.set(key, now);
   if (recentEvents.size > 300) {
     for (const [k, t] of recentEvents.entries()) {
-      if (now - t > 30000) recentEvents.delete(k);
+      if (now - t > 15000) recentEvents.delete(k);
     }
   }
   return false;
@@ -357,18 +360,19 @@ Deno.serve(async (req: Request) => {
       resolvedRoomName = "Study Room";
     }
 
-    // Build notifications: Highlight mentions and replies with dedicated channels & titles; standard chat for others
+    // Build notifications: Highlight mentions and replies ONLY for the targeted recipient; standard chat for others
     const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => {
-      let recipientType = type || "chat";
+      let recipientType = "chat";
       let recipientTitle = resolvedRoomName;
       let recipientBody = `${cleanUsername}: "${cleanMsg}"`;
-      let recipientChannel = "social_chat";
+      // Use "social_nudges" as the base channel since it is guaranteed to exist natively with IMPORTANCE_HIGH on all installed APKs
+      let recipientChannel = "social_nudges";
       let notificationColor = "#10B981";
 
-      if (recipientType === "nudge") {
+      if (type === "nudge") {
+        recipientType = "nudge";
         recipientTitle = "New Nudge!";
         recipientBody = `@${cleanUsername} nudged you to focus!`;
-        recipientChannel = "social_nudges";
         notificationColor = "#10B981";
       } else {
         const recipientUsernameLower = recipient.username ? recipient.username.toLowerCase() : "";
@@ -381,26 +385,23 @@ Deno.serve(async (req: Request) => {
           recipientUsernameLower && mentionsSet.has(recipientUsernameLower)
         );
 
-        if (isRepliedTo || recipientType === "reply") {
-          // Highlighted Reply Notification!
+        if (isRepliedTo) {
+          // Highlighted Reply Notification ONLY for the user who received the reply!
           recipientType = "reply";
           recipientTitle = `↩️ ${cleanUsername} replied to you in ${resolvedRoomName}`;
           recipientBody = cleanMsg ? `"${cleanMsg}"` : 'Replied to your message';
-          recipientChannel = "social_replies";
           notificationColor = "#3B82F6";
-        } else if (isMentioned || recipientType === "mention") {
-          // Highlighted Mention Notification!
+        } else if (isMentioned) {
+          // Highlighted Mention Notification ONLY for the user who was mentioned!
           recipientType = "mention";
           recipientTitle = `💬 @${cleanUsername} mentioned you in ${resolvedRoomName}`;
           recipientBody = cleanMsg ? `"${cleanMsg}"` : 'Mentioned you in chat';
-          recipientChannel = "social_mentions";
-          notificationColor = "#F59E0B";
+          notificationColor = "#FF8A00";
         } else {
-          // Standard Room Chat Notification
+          // Normal room chat notification for everyone else
           recipientType = "chat";
           recipientTitle = resolvedRoomName;
           recipientBody = `${cleanUsername}: "${cleanMsg}"`;
-          recipientChannel = "social_chat";
           notificationColor = "#10B981";
         }
       }
