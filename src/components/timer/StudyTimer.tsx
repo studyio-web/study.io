@@ -62,6 +62,11 @@ import {
   StrictModeConfigModal,
   StrictCountdownWarningModal,
 } from './StrictModeModal';
+import {
+  AccessibilityBlocker,
+  loadBlockShortsReelsEnabled,
+  saveBlockShortsReelsEnabled,
+} from '../../lib/accessibility-blocker';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
 import confetti from 'canvas-confetti';
@@ -179,6 +184,7 @@ export function StudyTimer() {
   const [isAndroid, setIsAndroid] = useState(false);
   const [isStrictMode, setIsStrictMode] = useState(false);
   const [isUltraStrict, setIsUltraStrict] = useState(false);
+  const [isBlockShortsReels, setIsBlockShortsReels] = useState(false);
   const [allowedApps, setAllowedApps] = useState<string[]>([]);
   const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
   const [isStrictConfigOpen, setIsStrictConfigOpen] = useState(false);
@@ -187,6 +193,7 @@ export function StudyTimer() {
   const pendingStartSubjectIdRef = useRef<string | null>(null);
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
+  const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState(false);
 
   const isStudyingRef = useRef(isStudying);
   isStudyingRef.current = isStudying;
@@ -194,6 +201,8 @@ export function StudyTimer() {
   isStrictModeRef.current = isStrictMode;
   const isUltraStrictRef = useRef(isUltraStrict);
   isUltraStrictRef.current = isUltraStrict;
+  const isBlockShortsReelsRef = useRef(isBlockShortsReels);
+  isBlockShortsReelsRef.current = isBlockShortsReels;
   const allowedAppsRef = useRef(allowedApps);
   allowedAppsRef.current = allowedApps;
 
@@ -208,6 +217,7 @@ export function StudyTimer() {
         setTimerMode('countdown');
       }
       setAllowedApps(loadAllowedApps());
+      setIsBlockShortsReels(loadBlockShortsReelsEnabled());
     }
   }, []);
 
@@ -216,6 +226,7 @@ export function StudyTimer() {
     if (isAndroid) {
       StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => { });
       StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => { });
+      AccessibilityBlocker.isServiceEnabled().then((enabled) => setHasAccessibilityPerm(enabled)).catch(() => { });
       StrictMode.syncStrictConfig({
         enabled: isStrictMode,
         allowedPackages: allowedApps,
@@ -352,6 +363,42 @@ export function StudyTimer() {
     }
   };
 
+  const handleToggleBlockShortsReels = async () => {
+    if (isStudying) {
+      toast('Reels & Shorts Blocker cannot be changed during active focus sessions', { icon: '🔒' });
+      return;
+    }
+    const nextVal = !isBlockShortsReels;
+    setIsBlockShortsReels(nextVal);
+    saveBlockShortsReelsEnabled(nextVal);
+    triggerHaptic('medium');
+
+    if (nextVal) {
+      try {
+        const enabled = await AccessibilityBlocker.isServiceEnabled();
+        setHasAccessibilityPerm(enabled);
+        if (!enabled) {
+          toast('Please enable Study.io Accessibility Service in Android Settings', { icon: '⚙️' });
+          await AccessibilityBlocker.openSettings();
+        } else {
+          toast.success('Reels & Shorts Blocker enabled', { icon: '🛡️' });
+        }
+      } catch {
+        toast('Accessibility Service check failed', { icon: '⚠️' });
+      }
+    } else {
+      toast('Reels & Shorts Blocker disabled');
+    }
+  };
+
+  const handleRequestAccessibilityPermission = async () => {
+    try {
+      await AccessibilityBlocker.openSettings();
+    } catch (e) {
+      console.warn('[AccessibilityBlocker] openSettings failed:', e);
+    }
+  };
+
   // Re-verify permission on window focus if permission modal was waiting
   useEffect(() => {
     if (!isAndroid) return;
@@ -361,6 +408,8 @@ export function StudyTimer() {
         setHasUsagePerm(usageGranted);
         const { granted: overlayGranted } = await StrictMode.hasOverlayPermission();
         setHasOverlayPerm(overlayGranted);
+        const accessibilityEnabled = await AccessibilityBlocker.isServiceEnabled();
+        setHasAccessibilityPerm(accessibilityEnabled);
 
         if (!isStrictModeRef.current && usageGranted && isPermissionModalOpen) {
           setIsPermissionModalOpen(false);
@@ -375,6 +424,16 @@ export function StudyTimer() {
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [isAndroid, isPermissionModalOpen]);
+
+  // Enable / disable Accessibility Reels & Shorts Blocker based on active study session
+  useEffect(() => {
+    if (!isAndroid) return;
+    if (isStudying && isBlockShortsReels) {
+      AccessibilityBlocker.enable().catch(() => {});
+    } else {
+      AccessibilityBlocker.disable().catch(() => {});
+    }
+  }, [isStudying, isBlockShortsReels, isAndroid]);
 
   // Background app monitoring via Capacitor App listener
   useEffect(() => {
@@ -2160,24 +2219,32 @@ export function StudyTimer() {
                 triggerHaptic('light');
                 setIsStrictConfigOpen(true);
               }}
-              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isStrictMode
+              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isStrictMode || isBlockShortsReels
                 ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
                 : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
                 }`}
               title={
-                isStudying && isStrictMode
-                  ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict Mode is active and locked during study')
-                  : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode App Blocker')
+                isStudying && (isStrictMode || isBlockShortsReels)
+                  ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict / Blocker is active and locked during study')
+                  : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode & Reels Blocker')
               }
             >
-              <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
-              <span>{isUltraStrict && isStrictMode ? 'Ultra: ON' : `Strict${isStrictMode ? ': ON' : ': OFF'}`}</span>
-              {isStrictMode && (
+              <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode || isBlockShortsReels ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
+              <span>
+                {isUltraStrict && isStrictMode
+                  ? 'Ultra: ON'
+                  : isStrictMode
+                  ? 'Strict: ON'
+                  : isBlockShortsReels
+                  ? 'Reels: Block'
+                  : 'Strict: OFF'}
+              </span>
+              {(isStrictMode || isBlockShortsReels) && (
                 <span className="inline-flex items-center gap-1 ml-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                   {isStudying ? (
                     <Lock className="w-3 h-3 text-white/50 shrink-0" />
-                  ) : allowedApps.length > 0 ? (
+                  ) : isStrictMode && allowedApps.length > 0 ? (
                     <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-mono text-white/80 leading-none">
                       {allowedApps.length}
                     </span>
@@ -2236,8 +2303,10 @@ export function StudyTimer() {
           onClose={() => setIsStrictConfigOpen(false)}
           isStrictMode={isStrictMode}
           isUltraStrict={isUltraStrict}
+          isBlockShortsReels={isBlockShortsReels}
           onToggleStrictMode={handleToggleStrictMode}
           onToggleUltraStrict={handleToggleUltraStrict}
+          onToggleBlockShortsReels={handleToggleBlockShortsReels}
           allowedAppsCount={allowedApps.length}
           onOpenAllowedApps={() => {
             if (isStudying) {
@@ -2249,8 +2318,10 @@ export function StudyTimer() {
           }}
           hasUsagePermission={hasUsagePerm}
           hasOverlayPermission={hasOverlayPerm}
+          hasAccessibilityPermission={hasAccessibilityPerm}
           onRequestUsagePermission={handleRequestPermission}
           onRequestOverlayPermission={handleRequestOverlayPermission}
+          onRequestAccessibilityPermission={handleRequestAccessibilityPermission}
           isFocusing={isStudying}
         />
       )}

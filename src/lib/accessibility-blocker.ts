@@ -134,3 +134,22 @@ export const AccessibilityBlocker = {
     }
   },
 };
+
+export const STORAGE_KEY_SHORTS_REELS_BLOCK = 'studyio_block_shorts_reels';
+
+export function loadBlockShortsReelsEnabled(): boolean {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(STORAGE_KEY_SHORTS_REELS_BLOCK) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function saveBlockShortsReelsEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_SHORTS_REELS_BLOCK, enabled ? 'true' : 'false');
+  } catch {}
+}
+
