@@ -41,6 +41,79 @@ describe('Room Chat Replies and Mentions Specification', () => {
     assert.equal(parsed.text, 'Countdown mode with 25 minutes!');
   });
 
+  it('correctly encodes and extracts userId in reply payload', () => {
+    const originalWithUserId = {
+      messageId: 'msg-uuid-202',
+      userId: 'user-uuid-999',
+      username: 'wren',
+      snippet: 'Great job!',
+    };
+    const replyText = 'Thanks!';
+
+    const payload = formatReplyPayload(originalWithUserId, replyText);
+    const parsed = parseMessageContent(payload);
+
+    assert.notEqual(parsed.replyTo, null);
+    assert.equal(parsed.replyTo?.id, 'msg-uuid-202');
+    assert.equal(parsed.replyTo?.userId, 'user-uuid-999');
+    assert.equal(parsed.replyTo?.username, 'wren');
+    assert.equal(parsed.replyTo?.snippet, 'Great job!');
+    assert.equal(parsed.text, 'Thanks!');
+  });
+
+  it('accurately distinguishes notification types: reply, mention, and standard chat', () => {
+    const currentUserId = 'user-me-123';
+    const currentUsername = 'trial';
+
+    const evaluateNotificationType = (rawMsg: {
+      user_id: string;
+      content: string;
+    }): 'self' | 'reply' | 'mention' | 'chat' => {
+      if (rawMsg.user_id === currentUserId) return 'self';
+      const parsed = parseMessageContent(rawMsg.content);
+      const isReply = Boolean(
+        parsed.replyTo && (
+          (parsed.replyTo.userId && parsed.replyTo.userId === currentUserId) ||
+          (parsed.replyTo.username && parsed.replyTo.username.toLowerCase() === currentUsername.toLowerCase())
+        )
+      );
+      if (isReply) return 'reply';
+
+      const mentions = extractMentions(parsed.text);
+      if (mentions.includes(currentUsername.toLowerCase())) return 'mention';
+
+      return 'chat';
+    };
+
+    // 1. Self message
+    assert.equal(
+      evaluateNotificationType({ user_id: 'user-me-123', content: 'Hello everyone' }),
+      'self'
+    );
+
+    // 2. Direct reply to current user
+    const replyPayload = formatReplyPayload(
+      { messageId: 'm1', userId: 'user-me-123', username: 'trial', snippet: 'Question' },
+      'Here is the answer'
+    );
+    assert.equal(
+      evaluateNotificationType({ user_id: 'other-user', content: replyPayload }),
+      'reply'
+    );
+
+    // 3. Mention of current user
+    assert.equal(
+      evaluateNotificationType({ user_id: 'other-user', content: 'Hey @trial check this!' }),
+      'mention'
+    );
+
+    // 4. Standard room chat
+    assert.equal(
+      evaluateNotificationType({ user_id: 'other-user', content: 'Good morning scholars!' }),
+      'chat'
+    );
+  });
+
   it('gracefully handles malformed or truncated reply payloads without throwing', () => {
     const brokenPayload = '[REPLY:{"id":"broken';
     const parsed = parseMessageContent(brokenPayload);

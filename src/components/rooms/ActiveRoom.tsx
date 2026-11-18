@@ -72,12 +72,14 @@ import {
 } from '../../app/actions/rooms';
 import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
+import { notify } from '../../lib/notifications';
 
 export interface ParsedMessage {
   replyTo: {
     id: string;
     username: string;
     snippet: string;
+    userId?: string;
   } | null;
   text: string;
 }
@@ -95,6 +97,7 @@ export function parseMessageContent(rawContent: string): ParsedMessage {
           id: parsed.id || '',
           username: parsed.username || 'Scholar',
           snippet: parsed.snippet || '',
+          userId: parsed.userId || undefined,
         },
         text: bodyText,
       };
@@ -106,13 +109,14 @@ export function parseMessageContent(rawContent: string): ParsedMessage {
 }
 
 export function formatReplyPayload(
-  replyingTo: { messageId: string; username: string; snippet: string },
+  replyingTo: { messageId: string; username: string; snippet: string; userId?: string },
   text: string
 ): string {
   const replyMeta = {
     id: replyingTo.messageId,
     username: replyingTo.username,
     snippet: replyingTo.snippet.slice(0, 100),
+    ...(replyingTo.userId ? { userId: replyingTo.userId } : {}),
   };
   return `[REPLY:${JSON.stringify(replyMeta)}]\n${text.trim()}`;
 }
@@ -931,6 +935,7 @@ CREATE POLICY "Hosts can update their own study rooms"
   // Reply and Mention states
   const [replyingTo, setReplyingTo] = useState<{
     messageId: string;
+    userId?: string;
     username: string;
     snippet: string;
   } | null>(null);
@@ -1619,9 +1624,92 @@ CREATE POLICY "Hosts can update their own study rooms"
           }
           setMessages((prev) => {
             if (prev.find((m) => m.id === rawMsg.id)) return prev;
-            
-            if (roomTabRef.current !== 'chat' && rawMsg.user_id !== user?.id) {
-              setUnreadCount((c) => c + 1);
+
+            if (rawMsg.user_id !== user?.id) {
+              const parsed = parseMessageContent(rawMsg.content);
+              const myCurUsername =
+                profileRef.current?.username ||
+                user?.username ||
+                user?.displayName ||
+                '';
+              const myCurUsernameLower = myCurUsername.toLowerCase();
+
+              const isReplyToMe = Boolean(
+                parsed.replyTo && (
+                  (parsed.replyTo.userId && parsed.replyTo.userId === user?.id) ||
+                  (parsed.replyTo.username && myCurUsernameLower && parsed.replyTo.username.toLowerCase() === myCurUsernameLower)
+                )
+              );
+              const isMentionToMe = Boolean(
+                myCurUsernameLower &&
+                extractMentions(parsed.text).some((m) => m === myCurUsernameLower)
+              );
+              const senderDisplayName = p?.username || p?.name || 'A scholar';
+
+              if (roomTabRef.current !== 'chat') {
+                setUnreadCount((c) => c + 1);
+
+                if (isReplyToMe) {
+                  hapticTick();
+                  toast(
+                    (t) => (
+                      <div
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setRoomTab('chat');
+                          toast.dismiss(t.id);
+                        }}
+                      >
+                        <span className="text-blue-400 font-bold">↩️ {senderDisplayName} replied:</span>
+                        <span className="truncate max-w-[200px] text-neutral-200">
+                          &quot;{parsed.text.trim().slice(0, 45)}&quot;
+                        </span>
+                      </div>
+                    ),
+                    { duration: 4000, id: `reply-${rawMsg.id}` }
+                  );
+                } else if (isMentionToMe) {
+                  hapticTick();
+                  toast(
+                    (t) => (
+                      <div
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setRoomTab('chat');
+                          toast.dismiss(t.id);
+                        }}
+                      >
+                        <span className="text-amber-400 font-bold">💬 @{senderDisplayName} mentioned you:</span>
+                        <span className="truncate max-w-[200px] text-neutral-200">
+                          &quot;{parsed.text.trim().slice(0, 45)}&quot;
+                        </span>
+                      </div>
+                    ),
+                    { duration: 4000, id: `mention-${rawMsg.id}` }
+                  );
+                }
+              }
+
+              // Background local notification if page/app is hidden
+              if (typeof document !== 'undefined' && document.hidden) {
+                if (isReplyToMe) {
+                  notify('room_reply', {
+                    senderName: senderDisplayName,
+                    roomName: roomName || 'Study Room',
+                    body: `"${parsed.text.trim().slice(0, 80)}"`,
+                    tab: 'rooms',
+                    extra: { roomId, snippet: parsed.text.trim().slice(0, 80) },
+                  });
+                } else if (isMentionToMe) {
+                  notify('room_mention', {
+                    senderName: senderDisplayName,
+                    roomName: roomName || 'Study Room',
+                    body: `"${parsed.text.trim().slice(0, 80)}"`,
+                    tab: 'rooms',
+                    extra: { roomId, snippet: parsed.text.trim().slice(0, 80) },
+                  });
+                }
+              }
             }
 
             return [...prev, rawMsg];
@@ -2059,6 +2147,8 @@ CREATE POLICY "Hosts can update their own study rooms"
         avatar_url: normalizedMsg.profiles.avatar_url,
       }]);
 
+      const replyMeta = replyingTo;
+
       setNewMessage('');
       setReplyingTo(null);
       setMentionQuery(null);
@@ -2068,8 +2158,11 @@ CREATE POLICY "Hosts can update their own study rooms"
       }
       setMessages((prev) => [...prev, normalizedMsg]);
 
-      // Detect mentions for notification
+      // Detect mentions and reply context for notification
       const mentions = extractMentions(newMessage);
+      const replyUserId = replyMeta?.userId;
+      const replyUsername = replyMeta?.username;
+      const notifType = replyMeta ? 'reply' : mentions.length > 0 ? 'mention' : 'chat';
 
       // Outbound FCM push notification for room members in background
       supabase.functions.invoke('send-notification', {
@@ -2078,9 +2171,11 @@ CREATE POLICY "Hosts can update their own study rooms"
           room_name: roomName || roomInfo?.name,
           sender_id: user.id,
           sender_username: myUsername,
-          type: 'chat',
+          type: notifType,
           message: data.content,
           mentions,
+          reply_to_user_id: replyUserId,
+          reply_to_username: replyUsername,
         },
       }).catch((err) => console.warn('[ActiveRoom] Room chat push notification error:', err));
 
@@ -2372,6 +2467,7 @@ CREATE POLICY "Hosts can update their own study rooms"
     const { text } = parseMessageContent(msg.content);
     setReplyingTo({
       messageId: msg.id,
+      userId: msg.user_id,
       username: senderUsername,
       snippet: text.trim().slice(0, 100),
     });

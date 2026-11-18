@@ -47,6 +47,42 @@ describe('Android Notification Abstraction & Parity Specification', () => {
     assert.match(nudge.title, /Alex/);
     assert.match(nudge.body, /Study Hall/);
   });
+
+  it('correctly routes room mentions to social_mentions channel with high priority', () => {
+    const mention = resolveNotificationConfig('room_mention', {
+      senderName: 'Amos',
+      roomName: 'Focus Alpha',
+      extra: { snippet: 'Are you here @trial?' },
+    });
+    assert.equal(mention.channelId, 'social_mentions');
+    assert.equal(mention.tab, 'rooms');
+    assert.match(mention.title, /Amos.*mentioned you/i);
+    assert.match(mention.body, /Focus Alpha/);
+  });
+
+  it('correctly routes room replies to social_replies channel with high priority', () => {
+    const reply = resolveNotificationConfig('room_reply', {
+      senderName: 'Wren',
+      roomName: 'Focus Alpha',
+      extra: { snippet: 'Yes, starting now!' },
+    });
+    assert.equal(reply.channelId, 'social_replies');
+    assert.equal(reply.tab, 'rooms');
+    assert.match(reply.title, /Wren.*replied to you/i);
+    assert.match(reply.body, /Focus Alpha/);
+  });
+
+  it('correctly routes standard room chat to social_chat channel', () => {
+    const chat = resolveNotificationConfig('room_chat', {
+      senderName: 'Aljin',
+      roomName: 'Focus Alpha',
+      extra: { snippet: 'Hello scholars!' },
+    });
+    assert.equal(chat.channelId, 'social_chat');
+    assert.equal(chat.tab, 'rooms');
+    assert.equal(chat.title, 'Focus Alpha');
+    assert.match(chat.body, /Aljin.*Hello scholars!/);
+  });
 });
 
 describe('Native Running-Timer State & Chronometer Mapping', () => {

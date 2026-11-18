@@ -12,6 +12,12 @@ export type NotificationType =
   | 'hydration_reminder'
   | 'idle_check'
   | 'focus_nudge'
+  | 'room_mention'
+  | 'room_reply'
+  | 'room_chat'
+  | 'mention'
+  | 'reply'
+  | 'chat'
   | 'daily_goal_reached'
   | 'strict_mode_blocked'
   | 'custom';
@@ -19,10 +25,12 @@ export type NotificationType =
 export interface NotificationPayload {
   title?: string;
   body?: string;
+  senderName?: string;
+  roomName?: string;
   id?: number;
   url?: string;
-  tab?: 'timer' | 'tasks' | 'analytics' | 'rooms' | 'leaderboard' | 'timetable';
-  channelId?: 'timer_running' | 'timer_alerts' | 'reminders' | 'social_nudges';
+  tab?: 'timer' | 'tasks' | 'analytics' | 'rooms' | 'leaderboard' | 'timetable' | 'stats';
+  channelId?: 'timer_running' | 'timer_alerts' | 'reminders' | 'social_nudges' | 'social_mentions' | 'social_replies' | 'social_chat';
   silent?: boolean;
   scheduleAt?: Date;
   extra?: Record<string, any>;
@@ -65,6 +73,33 @@ export const CHANNELS: Channel[] = [
     visibility: 1,
     vibration: true,
     lights: true,
+  },
+  {
+    id: 'social_mentions',
+    name: 'Room Mentions',
+    description: 'Alerts when scholars mention you (@username) in study rooms',
+    importance: 4, // IMPORTANCE_HIGH (heads-up banner with sound & vibration)
+    visibility: 1,
+    vibration: true,
+    lights: true,
+  },
+  {
+    id: 'social_replies',
+    name: 'Room Replies',
+    description: 'Alerts when scholars reply directly to your messages in study rooms',
+    importance: 4, // IMPORTANCE_HIGH (heads-up banner with sound & vibration)
+    visibility: 1,
+    vibration: true,
+    lights: true,
+  },
+  {
+    id: 'social_chat',
+    name: 'Room Chat Messages',
+    description: 'Alerts for room discussion messages',
+    importance: 3, // IMPORTANCE_DEFAULT
+    visibility: 1,
+    vibration: false,
+    lights: false,
   },
 ];
 
@@ -226,6 +261,36 @@ export function resolveNotificationConfig(
       tab = 'rooms';
       break;
 
+    case 'room_mention':
+    case 'mention':
+      title = payload.title || (payload.senderName ? `💬 @${payload.senderName} mentioned you` : 'You were mentioned!');
+      body = payload.body || (payload.roomName
+        ? `In "${payload.roomName}": "${payload.extra?.snippet || ''}"`
+        : 'A scholar mentioned you in room chat.');
+      channelId = 'social_mentions';
+      tab = 'rooms';
+      break;
+
+    case 'room_reply':
+    case 'reply':
+      title = payload.title || (payload.senderName ? `↩️ ${payload.senderName} replied to you` : 'New reply to your message!');
+      body = payload.body || (payload.roomName
+        ? `In "${payload.roomName}": "${payload.extra?.snippet || ''}"`
+        : 'A scholar replied to your message in room chat.');
+      channelId = 'social_replies';
+      tab = 'rooms';
+      break;
+
+    case 'room_chat':
+    case 'chat':
+      title = payload.title || (payload.roomName ? payload.roomName : 'Room Chat');
+      body = payload.body || (payload.senderName
+        ? `${payload.senderName}: "${payload.extra?.snippet || ''}"`
+        : 'New message in study room');
+      channelId = 'social_chat';
+      tab = 'rooms';
+      break;
+
     case 'daily_goal_reached':
     case 'goal_reached':
       title = payload.title || 'Daily Goal Reached! 🔥';
@@ -286,6 +351,13 @@ export async function notify(
       await initNotificationChannels();
       const notifId = getNotificationId(type, payload.id);
 
+      const iconColor =
+        (type === 'room_mention' || type === 'mention')
+          ? '#F59E0B'
+          : (type === 'room_reply' || type === 'reply')
+          ? '#3B82F6'
+          : '#10B981';
+
       await LocalNotifications.schedule({
         notifications: [
           {
@@ -294,7 +366,7 @@ export async function notify(
             id: notifId,
             channelId,
             smallIcon: 'ic_stat_studyio',
-            iconColor: '#10B981',
+            iconColor,
             ongoing: channelId === 'timer_running' || payload.extra?.ongoing === true,
             autoCancel: channelId !== 'timer_running' && !payload.extra?.ongoing,
             schedule: payload.scheduleAt ? { at: payload.scheduleAt } : undefined,

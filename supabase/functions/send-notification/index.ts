@@ -85,8 +85,11 @@ interface NotificationPayload {
   receiver_id?: string;
   room_id?: string;
   room_name?: string;
-  type?: "chat" | "nudge" | string;
+  type?: "chat" | "nudge" | "mention" | "reply" | string;
   message?: string;
+  mentions?: string[];
+  reply_to_user_id?: string;
+  reply_to_username?: string;
   // Database Webhook support:
   table?: string;
   record?: Record<string, any>;
@@ -116,6 +119,9 @@ Deno.serve(async (req: Request) => {
     let room_name = body.room_name;
     let type = body.type;
     let message = body.message;
+    let mentions = body.mentions;
+    let reply_to_user_id = body.reply_to_user_id;
+    let reply_to_username = body.reply_to_username;
 
     if (body.record) {
       const rec = body.record;
@@ -124,6 +130,8 @@ Deno.serve(async (req: Request) => {
       room_id = room_id || rec.room_id;
       room_name = room_name || rec.room_name || rec.room_title;
       message = message || rec.message || rec.content;
+      if (rec.reply_to_user_id) reply_to_user_id = reply_to_user_id || rec.reply_to_user_id;
+      if (rec.reply_to_username) reply_to_username = reply_to_username || rec.reply_to_username;
 
       if (!type) {
         if (body.table === "nudges" || rec.target_user_id) {
@@ -184,6 +192,7 @@ Deno.serve(async (req: Request) => {
     interface TargetRecipient {
       userId: string;
       fcmToken: string;
+      username?: string;
     }
     const targetRecipients: TargetRecipient[] = [];
     const seenTokens = new Set<string>();
@@ -191,7 +200,7 @@ Deno.serve(async (req: Request) => {
     if (receiver_id) {
       const { data: receiverProfile } = await supabase
         .from("profiles")
-        .select("id, fcm_token")
+        .select("id, fcm_token, username")
         .eq("id", receiver_id)
         .maybeSingle();
 
@@ -200,6 +209,7 @@ Deno.serve(async (req: Request) => {
         targetRecipients.push({
           userId: receiverProfile.id,
           fcmToken: receiverProfile.fcm_token,
+          username: receiverProfile.username || undefined,
         });
       }
     } else if (room_id) {
@@ -236,7 +246,7 @@ Deno.serve(async (req: Request) => {
         const userIds = Array.from(memberUserIds);
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, fcm_token")
+          .select("id, fcm_token, username")
           .in("id", userIds)
           .not("fcm_token", "is", null);
 
@@ -247,6 +257,7 @@ Deno.serve(async (req: Request) => {
               targetRecipients.push({
                 userId: p.id,
                 fcmToken: p.fcm_token,
+                username: p.username || undefined,
               });
             }
           }
@@ -281,40 +292,102 @@ Deno.serve(async (req: Request) => {
       resolvedRoomName = "Study Room";
     }
 
-    const cleanMsg = (message || "").trim().replace(/^"(.*)"$/, "$1");
-    const title = type === "nudge" ? "New Nudge!" : resolvedRoomName;
-    const bodyText =
-      type === "nudge"
-        ? `@${cleanUsername} nudged you to focus!`
-        : `${cleanUsername}: "${cleanMsg}"`;
+    // Parse message for potential reply metadata or mentions if not explicitly supplied
+    let replyUserId = reply_to_user_id;
+    let replyUsername = reply_to_username ? reply_to_username.replace(/^@/, '') : undefined;
+    let cleanMsg = (message || "").trim();
 
-    const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => ({
-      token: recipient.fcmToken,
-      notification: {
-        title,
-        body: bodyText,
-      },
-      data: {
-        type: String(type || "notification"),
-        room_id: String(room_id || ""),
-        sender_id: String(sender_id || ""),
-        tab: "rooms",
-        title: title,
-        body: bodyText,
-        icon: "ic_stat_studyio",
-      },
-      android: {
-        priority: 'high',
+    if (cleanMsg.startsWith('[REPLY:') && cleanMsg.includes(']\n')) {
+      try {
+        const endMetaIdx = cleanMsg.indexOf(']\n');
+        const meta = JSON.parse(cleanMsg.slice(7, endMetaIdx));
+        if (!replyUserId && meta.userId) replyUserId = meta.userId;
+        if (!replyUsername && meta.username) replyUsername = String(meta.username).replace(/^@/, '');
+        cleanMsg = cleanMsg.slice(endMetaIdx + 2).trim();
+      } catch {}
+    }
+    cleanMsg = cleanMsg.replace(/^"(.*)"$/, "$1");
+
+    // Extract mentions from text and combine with body.mentions
+    const extractedMentions = (cleanMsg.match(/@[a-zA-Z0-9_\-\.]+/g) || []).map((m) =>
+      m.slice(1).toLowerCase()
+    );
+    const mentionsSet = new Set<string>([
+      ...(mentions || []).map((m) => m.replace(/^@/, "").toLowerCase()),
+      ...extractedMentions,
+    ]);
+
+    const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => {
+      let recipientType = type || "chat";
+      let recipientTitle = resolvedRoomName;
+      let recipientBody = `${cleanUsername}: "${cleanMsg}"`;
+      let recipientChannel = "social_chat";
+      let notificationColor = "#10B981";
+
+      if (recipientType === "nudge") {
+        recipientTitle = "New Nudge!";
+        recipientBody = `@${cleanUsername} nudged you to focus!`;
+        recipientChannel = "social_nudges";
+        notificationColor = "#10B981";
+      } else {
+        const recipientUsernameLower = recipient.username ? recipient.username.toLowerCase() : "";
+        const isRepliedTo =
+          (replyUserId && recipient.userId === replyUserId) ||
+          (replyUsername && recipientUsernameLower && recipientUsernameLower === replyUsername.toLowerCase());
+
+        const isMentioned =
+          Boolean(recipientUsernameLower && mentionsSet.has(recipientUsernameLower));
+
+        if (isRepliedTo || recipientType === "reply") {
+          recipientType = "reply";
+          recipientTitle = `↩️ ${cleanUsername} replied to you in ${resolvedRoomName}`;
+          recipientBody = `"${cleanMsg}"`;
+          recipientChannel = "social_replies";
+          notificationColor = "#3B82F6";
+        } else if (isMentioned || recipientType === "mention") {
+          recipientType = "mention";
+          recipientTitle = `💬 @${cleanUsername} mentioned you in ${resolvedRoomName}`;
+          recipientBody = `"${cleanMsg}"`;
+          recipientChannel = "social_mentions";
+          notificationColor = "#F59E0B";
+        } else {
+          recipientType = "chat";
+          recipientTitle = resolvedRoomName;
+          recipientBody = `${cleanUsername}: "${cleanMsg}"`;
+          recipientChannel = "social_chat";
+          notificationColor = "#10B981";
+        }
+      }
+
+      return {
+        token: recipient.fcmToken,
         notification: {
-          channelId: 'social_nudges',
-          icon: 'ic_stat_studyio',
-          color: '#10B981',
-          sound: 'default',
-          defaultSound: true,
-          defaultVibrateTimings: true,
+          title: recipientTitle,
+          body: recipientBody,
         },
-      },
-    }));
+        data: {
+          type: String(recipientType),
+          room_id: String(room_id || ""),
+          sender_id: String(sender_id || ""),
+          tab: "rooms",
+          title: recipientTitle,
+          body: recipientBody,
+          channelId: recipientChannel,
+          icon: "ic_stat_studyio",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: recipientChannel,
+            icon: "ic_stat_studyio",
+            color: notificationColor,
+            sound: "default",
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
+        },
+      };
+    });
 
     console.log(`[send-notification] Sending ${fcmMessages.length} FCM message(s) for type=${type}:`, {
       title,

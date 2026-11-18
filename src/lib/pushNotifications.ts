@@ -52,6 +52,33 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       vibration: true,
       lights: true,
     });
+    await PushNotifications.createChannel({
+      id: 'social_mentions',
+      name: 'Room Mentions',
+      description: 'Alerts when scholars mention you (@username) in study rooms',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+    });
+    await PushNotifications.createChannel({
+      id: 'social_replies',
+      name: 'Room Replies',
+      description: 'Alerts when scholars reply directly to your messages in study rooms',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+    });
+    await PushNotifications.createChannel({
+      id: 'social_chat',
+      name: 'Room Chat Messages',
+      description: 'Alerts for room discussion messages',
+      importance: 3,
+      visibility: 1,
+      vibration: false,
+      lights: false,
+    });
   } catch {}
 
   // If listeners are already attached, trigger register() again if needed and exit
@@ -122,11 +149,15 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       async (notification: PushNotificationSchema) => {
         console.log('[Push] pushNotificationReceived:', notification);
 
-        // Deduplication: If the FCM message has a notification payload (title/body) or is a nudge/chat alert,
+        // Deduplication: If the FCM message has a notification payload (title/body) or is a nudge/chat/mention/reply alert,
         // Android / Capacitor presentationOptions already rendered it in the system tray.
         // Never schedule a duplicate LocalNotification!
         const hasSystemNotification = Boolean(notification.title || notification.body);
-        if (hasSystemNotification || notification.data?.type === 'nudge' || notification.data?.type === 'chat') {
+        const notifType = notification.data?.type;
+        if (
+          hasSystemNotification ||
+          ['nudge', 'chat', 'mention', 'reply', 'room_mention', 'room_reply', 'room_chat'].includes(notifType)
+        ) {
           console.log('[Push] System notification already rendered by OS/Capacitor presentationOptions. Skipping local duplicate.');
           return;
         }
@@ -140,9 +171,21 @@ export async function initPushNotifications(userId?: string): Promise<void> {
             '';
           const channelId =
             notification.data?.channelId ||
-            (notification.data?.type === 'nudge' || notification.data?.type === 'chat'
+            (notifType === 'mention' || notifType === 'room_mention'
+              ? 'social_mentions'
+              : notifType === 'reply' || notifType === 'room_reply'
+              ? 'social_replies'
+              : notifType === 'nudge'
               ? 'social_nudges'
+              : notifType === 'chat' || notifType === 'room_chat'
+              ? 'social_chat'
               : 'reminders');
+          const iconColor =
+            notifType === 'mention' || notifType === 'room_mention'
+              ? '#F59E0B'
+              : notifType === 'reply' || notifType === 'room_reply'
+              ? '#3B82F6'
+              : '#10B981';
 
           await LocalNotifications.schedule({
             notifications: [
@@ -152,7 +195,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
                 id: Math.floor(Date.now() % 100000) + 1000,
                 channelId,
                 smallIcon: 'ic_stat_studyio',
-                iconColor: '#10B981',
+                iconColor,
                 sound: 'default',
                 extra: {
                   ...notification.data,
@@ -181,7 +224,9 @@ export async function initPushNotifications(userId?: string): Promise<void> {
         }
         const targetTab =
           data?.tab ||
-          (data?.type === 'nudge' || data?.type === 'chat' ? 'rooms' : 'timer');
+          (['nudge', 'chat', 'mention', 'reply', 'room_mention', 'room_reply', 'room_chat'].includes(data?.type)
+            ? 'rooms'
+            : 'timer');
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
