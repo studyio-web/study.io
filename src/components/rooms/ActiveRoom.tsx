@@ -38,6 +38,9 @@ import {
   Loader2,
   Zap,
   Vibrate,
+  AtSign,
+  CornerUpLeft,
+  Reply,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../common/UserAvatar';
@@ -67,6 +70,80 @@ import {
 } from '../../app/actions/rooms';
 import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
+
+export interface ParsedMessage {
+  replyTo: {
+    id: string;
+    username: string;
+    snippet: string;
+  } | null;
+  text: string;
+}
+
+export function parseMessageContent(rawContent: string): ParsedMessage {
+  if (!rawContent) return { replyTo: null, text: '' };
+  if (rawContent.startsWith('[REPLY:') && rawContent.includes(']\n')) {
+    try {
+      const endMetaIdx = rawContent.indexOf(']\n');
+      const metaJson = rawContent.slice(7, endMetaIdx);
+      const parsed = JSON.parse(metaJson);
+      const bodyText = rawContent.slice(endMetaIdx + 2);
+      return {
+        replyTo: {
+          id: parsed.id || '',
+          username: parsed.username || 'Scholar',
+          snippet: parsed.snippet || '',
+        },
+        text: bodyText,
+      };
+    } catch {
+      return { replyTo: null, text: rawContent };
+    }
+  }
+  return { replyTo: null, text: rawContent };
+}
+
+export function formatReplyPayload(
+  replyingTo: { messageId: string; username: string; snippet: string },
+  text: string
+): string {
+  const replyMeta = {
+    id: replyingTo.messageId,
+    username: replyingTo.username,
+    snippet: replyingTo.snippet.slice(0, 100),
+  };
+  return `[REPLY:${JSON.stringify(replyMeta)}]\n${text.trim()}`;
+}
+
+export function extractMentions(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/@[a-zA-Z0-9_\-\.]+/g) || [];
+  return Array.from(new Set(matches.map((m) => m.slice(1).toLowerCase())));
+}
+
+export function renderFormattedMessage(text: string, currentUsername?: string) {
+  if (!text) return null;
+  const parts = text.split(/(@[a-zA-Z0-9_\-\.]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@')) {
+      const mentionName = part.slice(1);
+      const isMe = currentUsername && mentionName.toLowerCase() === currentUsername.toLowerCase();
+      return (
+        <span
+          key={i}
+          className={`px-1.5 py-0.2 mx-0.5 rounded font-hud text-[11px] font-bold tracking-tight inline-block transition-all ${
+            isMe
+              ? 'bg-amber-400/25 text-amber-300 border border-amber-400/40 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
+              : 'bg-white/[0.08] text-amber-300 border border-white/10'
+          }`}
+        >
+          {part}
+        </span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 interface ActiveRoomProps {
   roomId: string;
@@ -802,6 +879,16 @@ CREATE POLICY "Hosts can update their own study rooms"
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // Reply and Mention states
+  const [replyingTo, setReplyingTo] = useState<{
+    messageId: string;
+    username: string;
+    snippet: string;
+  } | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionAtIdx, setMentionAtIdx] = useState<number | null>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const isTimerRunning = isRunning;
 
@@ -1838,12 +1925,17 @@ CREATE POLICY "Hosts can update their own study rooms"
     const myUsername = profile?.username || user.username || user.displayName || 'Scholar';
     const myAvatar = profile?.avatar_url || user.avatarUrl;
 
+    let contentToSend = newMessage.trim();
+    if (replyingTo) {
+      contentToSend = formatReplyPayload(replyingTo, contentToSend);
+    }
+
     const { data, error } = await supabase
       .from('room_messages')
       .insert({
         room_id: roomId,
         user_id: user.id,
-        content: newMessage.trim(),
+        content: contentToSend,
       })
       .select(`
         id, content, created_at, user_id,
@@ -1873,7 +1965,13 @@ CREATE POLICY "Hosts can update their own study rooms"
       }]);
 
       setNewMessage('');
+      setReplyingTo(null);
+      setMentionQuery(null);
+      setMentionAtIdx(null);
       setMessages((prev) => [...prev, normalizedMsg]);
+
+      // Detect mentions for notification
+      const mentions = extractMentions(newMessage);
 
       // Outbound FCM push notification for room members in background
       supabase.functions.invoke('send-notification', {
@@ -1884,6 +1982,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           sender_username: myUsername,
           type: 'chat',
           message: data.content,
+          mentions,
         },
       }).catch((err) => console.warn('[ActiveRoom] Room chat push notification error:', err));
 
@@ -2109,6 +2208,111 @@ CREATE POLICY "Hosts can update their own study rooms"
     getTodayTotalSeconds,
     roomInfo?.host_id,
   ]);
+
+  // Mention suggestion autocomplete list
+  const filteredMentionUsers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    return displayUsers
+      .filter((u) => u.username && u.username.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [displayUsers, mentionQuery]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNewMessage(val);
+    const cursorPos = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const lastAtIdx = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIdx !== -1) {
+      const charBeforeAt = lastAtIdx > 0 ? textBeforeCursor[lastAtIdx - 1] : ' ';
+      if (/\s/.test(charBeforeAt) || lastAtIdx === 0) {
+        const query = textBeforeCursor.slice(lastAtIdx + 1);
+        if (!/\s/.test(query)) {
+          setMentionQuery(query);
+          setMentionAtIdx(lastAtIdx);
+          return;
+        }
+      }
+    }
+    setMentionQuery(null);
+    setMentionAtIdx(null);
+  };
+
+  const handleSelectMention = (userToMention: { username: string }) => {
+    if (mentionAtIdx === null) return;
+    const before = newMessage.slice(0, mentionAtIdx);
+    const cursorPos = chatInputRef.current?.selectionStart ?? newMessage.length;
+    const after = newMessage.slice(cursorPos);
+    const inserted = `@${userToMention.username} `;
+    const updated = `${before}${inserted}${after}`;
+    setNewMessage(updated);
+    setMentionQuery(null);
+    setMentionAtIdx(null);
+    hapticTick();
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+      const newPos = before.length + inserted.length;
+      chatInputRef.current?.setSelectionRange(newPos, newPos);
+    }, 50);
+  };
+
+  const handleMentionUser = (targetUsername: string) => {
+    hapticTick();
+    setNewMessage((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} @${targetUsername} ` : `@${targetUsername} `;
+    });
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleStartReply = (msg: any, senderUsername: string) => {
+    hapticTick();
+    const { text } = parseMessageContent(msg.content);
+    setReplyingTo({
+      messageId: msg.id,
+      username: senderUsername,
+      snippet: text.trim().slice(0, 100),
+    });
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 50);
+  };
+
+  const scrollToMessage = (targetMsgId: string) => {
+    if (!targetMsgId) return;
+    const el = document.getElementById(`msg-${targetMsgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-amber-400', 'bg-amber-500/20');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-500/20');
+      }, 1500);
+    } else {
+      toast('Referenced message is not in loaded history', {
+        icon: 'ℹ️',
+      });
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      if (mentionQuery !== null) {
+        setMentionQuery(null);
+        setMentionAtIdx(null);
+        e.preventDefault();
+      } else if (replyingTo) {
+        setReplyingTo(null);
+        e.preventDefault();
+      }
+    } else if (e.key === 'Tab' && mentionQuery !== null && filteredMentionUsers.length > 0) {
+      e.preventDefault();
+      handleSelectMention(filteredMentionUsers[0]);
+    }
+  };
 
   // Batch-fetch flair for visible room members and chat participants (stabilized key to avoid 1-second refetch loops)
   const memberIdsKey = useMemo(() => {
@@ -2765,7 +2969,13 @@ CREATE POLICY "Hosts can update their own study rooms"
                           {/* Meta header: name, host badge, focusing status, timestamp, ban action */}
                           <div className={`flex items-center gap-2 mb-1.5 ${isMe ? 'mr-1 flex-row-reverse' : 'ml-1'}`}>
                             <div className="inline-flex items-center gap-1 min-w-0">
-                              <span className={`text-xs font-hud font-bold tracking-tight ${isMe ? 'text-amber-400' : 'text-slate-200'}`}>
+                              <span
+                                onClick={() => !isMe && handleMentionUser(username)}
+                                className={`text-xs font-hud font-bold tracking-tight cursor-pointer transition-colors ${
+                                  isMe ? 'text-amber-400' : 'text-slate-200 hover:text-amber-400 hover:underline'
+                                }`}
+                                title={!isMe ? `Click to mention @${username}` : undefined}
+                              >
                                 {isMe ? `${username} (YOU)` : username}
                               </span>
                               {(isMe ? isPremium : Boolean(flairMap[firstMsg.user_id])) && (
@@ -2818,20 +3028,89 @@ CREATE POLICY "Hosts can update their own study rooms"
                               {group.map((msg: any, idx: number) => {
                                 const isFirst = idx === 0;
                                 const isLast = idx === group.length - 1;
+                                const { replyTo, text } = parseMessageContent(msg.content);
+
                                 return (
                                   <div
                                     key={msg.id}
-                                    className={`px-4 py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${
-                                      isMe
-                                        ? 'bg-gradient-to-br from-amber-500/25 via-amber-500/15 to-amber-600/10 border border-amber-500/35 text-amber-50 shadow-[0_2px_12px_rgba(245,158,11,0.1)]'
-                                        : 'bg-white/[0.05] border border-white/[0.1] text-slate-100 shadow-md hover:border-white/20'
-                                    } ${
-                                      isMe
-                                        ? `rounded-2xl ${isFirst ? 'rounded-tr-md' : 'rounded-tr-md'} ${isLast ? 'rounded-br-2xl' : 'rounded-br-md'}`
-                                        : `rounded-2xl ${isFirst ? 'rounded-tl-md' : 'rounded-tl-md'} ${isLast ? 'rounded-bl-2xl' : 'rounded-bl-md'}`
+                                    id={`msg-${msg.id}`}
+                                    className={`relative group/msg flex items-center gap-1.5 transition-all duration-200 ${
+                                      isMe ? 'flex-row-reverse' : 'flex-row'
                                     }`}
                                   >
-                                    {msg.content}
+                                    <div
+                                      className={`px-4 py-2.5 text-sm leading-relaxed transition-all break-words chat-message chat-bubble selectable-text ${
+                                        isMe
+                                          ? 'bg-gradient-to-br from-amber-500/25 via-amber-500/15 to-amber-600/10 border border-amber-500/35 text-amber-50 shadow-[0_2px_12px_rgba(245,158,11,0.1)]'
+                                          : 'bg-white/[0.05] border border-white/[0.1] text-slate-100 shadow-md hover:border-white/20'
+                                      } ${
+                                        isMe
+                                          ? `rounded-2xl ${isFirst ? 'rounded-tr-md' : 'rounded-tr-md'} ${isLast ? 'rounded-br-2xl' : 'rounded-br-md'}`
+                                          : `rounded-2xl ${isFirst ? 'rounded-tl-md' : 'rounded-tl-md'} ${isLast ? 'rounded-bl-2xl' : 'rounded-bl-md'}`
+                                      }`}
+                                    >
+                                      {/* Quoted Reply Preview */}
+                                      {replyTo && (
+                                        <div
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            scrollToMessage(replyTo.id);
+                                          }}
+                                          role="button"
+                                          tabIndex={0}
+                                          className={`mb-2 px-2.5 py-1.5 rounded-xl text-xs border-l-2 flex flex-col gap-0.5 cursor-pointer transition-all select-none ${
+                                            isMe
+                                              ? 'bg-amber-500/15 border-amber-400 hover:bg-amber-500/25 text-amber-200'
+                                              : 'bg-white/[0.06] border-emerald-400 hover:bg-white/[0.1] text-slate-300'
+                                          }`}
+                                          title="Click to jump to original message"
+                                        >
+                                          <div className="flex items-center gap-1 font-hud font-bold text-[10px] uppercase tracking-wider text-amber-400">
+                                            <CornerUpLeft className="w-3 h-3 text-amber-400" />
+                                            <span>@{replyTo.username}</span>
+                                          </div>
+                                          <p className="text-[11px] text-neutral-300/80 line-clamp-2 italic truncate">
+                                            {replyTo.snippet}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {/* Message Body with Mentions */}
+                                      <div className="leading-relaxed">
+                                        {renderFormattedMessage(
+                                          text,
+                                          profile?.username || user?.displayName || user?.username
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Action Buttons: Reply & Mention */}
+                                    <div
+                                      className={`flex items-center gap-0.5 opacity-60 sm:opacity-0 sm:group-hover/msg:opacity-100 transition-opacity ${
+                                        isMe ? 'flex-row-reverse' : ''
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartReply(msg, username)}
+                                        className="p-1 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer"
+                                        title="Reply to message"
+                                        aria-label="Reply to message"
+                                      >
+                                        <Reply className="w-3.5 h-3.5" />
+                                      </button>
+                                      {!isMe && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMentionUser(username)}
+                                          className="p-1 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer"
+                                          title={`Mention @${username}`}
+                                          aria-label={`Mention @${username}`}
+                                        >
+                                          <AtSign className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -2846,13 +3125,77 @@ CREATE POLICY "Hosts can update their own study rooms"
 
             {/* Input Form Dock positioned neatly at bottom above safe area / keyboard */}
             <form onSubmit={handleSendMessage} className="px-3 pt-2 pb-[max(env(safe-area-inset-bottom,0px),12px)] md:pb-4 md:pt-4 md:px-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shrink-0 z-20">
-              <div className="max-w-3xl w-full mx-auto">
+              <div className="max-w-3xl w-full mx-auto relative">
+                {/* Replying Preview Bar */}
+                {replyingTo && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-2 rounded-xl bg-white/[0.05] border border-amber-500/30 backdrop-blur-md shadow-md animate-in fade-in slide-in-from-bottom-1 duration-150">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-5 h-5 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        <Reply className="w-3 h-3 text-amber-400" />
+                      </div>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[11px] font-hud font-bold text-amber-400 uppercase tracking-wider shrink-0">
+                          Replying to @{replyingTo.username}:
+                        </span>
+                        <span className="text-xs text-neutral-300 truncate max-w-[200px] xs:max-w-[280px] sm:max-w-[400px]">
+                          {replyingTo.snippet}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+                      title="Cancel reply"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Mention Suggestion Autocomplete Popup */}
+                {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+                  <div className="absolute bottom-full mb-2 left-0 right-0 max-w-sm bg-[#0c1017]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-1.5 shadow-2xl z-30 max-h-48 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="px-2 py-1 text-[10px] font-hud font-bold text-neutral-400 uppercase tracking-wider border-b border-white/5 mb-1 flex items-center justify-between">
+                      <span>Mention Scholar</span>
+                      <span className="text-[9px] font-mono text-neutral-500">@{mentionQuery}</span>
+                    </div>
+                    {filteredMentionUsers.map((u) => (
+                      <button
+                        key={u.user_id}
+                        type="button"
+                        onClick={() => handleSelectMention(u)}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors text-left cursor-pointer"
+                      >
+                        <UserAvatar src={u.avatar_url} name={u.username} size={24} className="shrink-0" />
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-xs font-hud font-bold text-white truncate">
+                            @{u.username}
+                          </span>
+                          {u.is_host && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-400 font-semibold uppercase">
+                              Host
+                            </span>
+                          )}
+                          {u.is_studying && (
+                            <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                              <Flame className="w-2.5 h-2.5 fill-current" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="w-full bg-[var(--surface-2)] border border-[var(--border)] focus-within:border-[var(--accent)]/60 focus-within:ring-2 focus-within:ring-[var(--accent)]/20 rounded-2xl p-1.5 pl-4 flex items-center gap-2 transition-all shadow-inner">
                   <input
+                    ref={chatInputRef}
                     type="text"
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Transmit message to room..."
+                    onChange={handleInputChange}
+                    onKeyDown={handleInputKeyDown}
+                    placeholder="Transmit message to room... (use @ to mention)"
                     className="w-full bg-transparent text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none font-sans"
                   />
                   <button
