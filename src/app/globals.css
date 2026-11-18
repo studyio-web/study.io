@@ -756,6 +756,21 @@ body {
   border-radius: 9999px;
 }
 
+/* Utilities to completely hide scrollbars across all browsers */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
 /* Glow effects driven by Tier Theme */
 .glow-tier {
   box-shadow: 0 0 24px -2px var(--tier-glow);

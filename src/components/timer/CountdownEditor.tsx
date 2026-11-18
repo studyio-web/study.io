@@ -199,7 +199,7 @@ function WheelColumn({
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="relative z-10 w-full h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar select-none"
+          className="relative z-10 w-full h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar select-none [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
           style={{
             scrollSnapType: 'y mandatory',
             WebkitOverflowScrolling: 'touch',
