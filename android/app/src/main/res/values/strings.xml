@@ -4,4 +4,6 @@
     <string name="title_activity_main">study.io</string>
     <string name="package_name">com.studyio.app</string>
     <string name="custom_url_scheme">com.studyio.app</string>
+    <string name="accessibility_service_label">study.io Focus Blocker</string>
+    <string name="accessibility_service_description">Blocks Instagram Reels and YouTube Shorts during active study sessions to help you maintain deep focus.</string>
 </resources>
