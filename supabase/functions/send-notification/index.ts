@@ -297,16 +297,20 @@ Deno.serve(async (req: Request) => {
     let replyUsername = reply_to_username ? reply_to_username.replace(/^@/, '') : undefined;
     let cleanMsg = (message || "").trim();
 
-    if (cleanMsg.startsWith('[REPLY:') && cleanMsg.includes(']\n')) {
+    // Match [REPLY:{"id":...,"username":...,"userId":...}] with flexible whitespace/newlines
+    const replyRegex = /^\[REPLY:(\{.*?\})\]\s*/s;
+    const replyMatch = cleanMsg.match(replyRegex);
+    if (replyMatch) {
       try {
-        const endMetaIdx = cleanMsg.indexOf(']\n');
-        const meta = JSON.parse(cleanMsg.slice(7, endMetaIdx));
+        const meta = JSON.parse(replyMatch[1]);
         if (!replyUserId && meta.userId) replyUserId = meta.userId;
         if (!replyUsername && meta.username) replyUsername = String(meta.username).replace(/^@/, '');
-        cleanMsg = cleanMsg.slice(endMetaIdx + 2).trim();
-      } catch {}
+        cleanMsg = cleanMsg.replace(replyRegex, '').trim();
+      } catch (err) {
+        console.warn('[send-notification] Failed to parse reply JSON:', err);
+      }
     }
-    cleanMsg = cleanMsg.replace(/^"(.*)"$/, "$1");
+    cleanMsg = cleanMsg.replace(/^"(.*)"$/, "$1").trim();
 
     // Extract mentions from text and combine with body.mentions
     const extractedMentions = (cleanMsg.match(/@[a-zA-Z0-9_\-\.]+/g) || []).map((m) =>
@@ -317,77 +321,103 @@ Deno.serve(async (req: Request) => {
       ...extractedMentions,
     ]);
 
-    const fcmMessages: admin.messaging.Message[] = targetRecipients.map((recipient) => {
-      let recipientType = type || "chat";
-      let recipientTitle = resolvedRoomName;
-      let recipientBody = `${cleanUsername}: "${cleanMsg}"`;
-      let recipientChannel = "social_chat";
-      let notificationColor = "#10B981";
+    // Build highlighted notification items ONLY for users who are mentioned or replied to (or nudged)
+    const notificationItems: Array<{
+      recipient: TargetRecipient;
+      type: "reply" | "mention" | "nudge";
+      title: string;
+      body: string;
+      channelId: string;
+      color: string;
+    }> = [];
 
-      if (recipientType === "nudge") {
-        recipientTitle = "New Nudge!";
-        recipientBody = `@${cleanUsername} nudged you to focus!`;
-        recipientChannel = "social_nudges";
-        notificationColor = "#10B981";
-      } else {
-        const recipientUsernameLower = recipient.username ? recipient.username.toLowerCase() : "";
-        const isRepliedTo =
-          (replyUserId && recipient.userId === replyUserId) ||
-          (replyUsername && recipientUsernameLower && recipientUsernameLower === replyUsername.toLowerCase());
-
-        const isMentioned =
-          Boolean(recipientUsernameLower && mentionsSet.has(recipientUsernameLower));
-
-        if (isRepliedTo || recipientType === "reply") {
-          recipientType = "reply";
-          recipientTitle = `↩️ ${cleanUsername} replied to you in ${resolvedRoomName}`;
-          recipientBody = `"${cleanMsg}"`;
-          recipientChannel = "social_replies";
-          notificationColor = "#3B82F6";
-        } else if (isMentioned || recipientType === "mention") {
-          recipientType = "mention";
-          recipientTitle = `💬 @${cleanUsername} mentioned you in ${resolvedRoomName}`;
-          recipientBody = `"${cleanMsg}"`;
-          recipientChannel = "social_mentions";
-          notificationColor = "#F59E0B";
-        } else {
-          recipientType = "chat";
-          recipientTitle = resolvedRoomName;
-          recipientBody = `${cleanUsername}: "${cleanMsg}"`;
-          recipientChannel = "social_chat";
-          notificationColor = "#10B981";
-        }
+    for (const recipient of targetRecipients) {
+      if (type === "nudge") {
+        notificationItems.push({
+          recipient,
+          type: "nudge",
+          title: "New Nudge!",
+          body: `@${cleanUsername} nudged you to focus!`,
+          channelId: "social_nudges",
+          color: "#10B981",
+        });
+        continue;
       }
 
-      return {
-        token: recipient.fcmToken,
+      // Check if this recipient was replied to
+      const recipientUsernameLower = recipient.username ? recipient.username.toLowerCase() : "";
+      const isRepliedTo = Boolean(
+        (replyUserId && recipient.userId === replyUserId) ||
+        (replyUsername && recipientUsernameLower && recipientUsernameLower === replyUsername.toLowerCase())
+      );
+
+      // Check if this recipient was mentioned
+      const isMentioned = Boolean(
+        recipientUsernameLower && mentionsSet.has(recipientUsernameLower)
+      );
+
+      if (isRepliedTo) {
+        notificationItems.push({
+          recipient,
+          type: "reply",
+          title: `↩️ ${cleanUsername} replied to you in ${resolvedRoomName}`,
+          body: cleanMsg ? `"${cleanMsg}"` : 'Replied to your message',
+          channelId: "social_replies",
+          color: "#3B82F6",
+        });
+      } else if (isMentioned) {
+        notificationItems.push({
+          recipient,
+          type: "mention",
+          title: `💬 @${cleanUsername} mentioned you in ${resolvedRoomName}`,
+          body: cleanMsg ? `"${cleanMsg}"` : 'Mentioned you in chat',
+          channelId: "social_mentions",
+          color: "#F59E0B",
+        });
+      }
+      // If not replied to and not mentioned, do NOT notify (prevents room chitchat spam)
+    }
+
+    if (notificationItems.length === 0) {
+      console.log(`[send-notification] No recipients mentioned or replied to for room=${room_id}. Skipping FCM push.`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          delivered: false,
+          reason: "No recipients mentioned or replied to",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const fcmMessages: admin.messaging.Message[] = notificationItems.map((item) => ({
+      token: item.recipient.fcmToken,
+      notification: {
+        title: item.title,
+        body: item.body,
+      },
+      data: {
+        type: String(item.type),
+        room_id: String(room_id || ""),
+        sender_id: String(sender_id || ""),
+        tab: "rooms",
+        title: item.title,
+        body: item.body,
+        channelId: item.channelId,
+        icon: "ic_stat_studyio",
+      },
+      android: {
+        priority: "high",
         notification: {
-          title: recipientTitle,
-          body: recipientBody,
-        },
-        data: {
-          type: String(recipientType),
-          room_id: String(room_id || ""),
-          sender_id: String(sender_id || ""),
-          tab: "rooms",
-          title: recipientTitle,
-          body: recipientBody,
-          channelId: recipientChannel,
+          channelId: item.channelId,
           icon: "ic_stat_studyio",
+          color: item.color,
+          sound: "default",
+          defaultSound: true,
+          defaultVibrateTimings: true,
         },
-        android: {
-          priority: "high",
-          notification: {
-            channelId: recipientChannel,
-            icon: "ic_stat_studyio",
-            color: notificationColor,
-            sound: "default",
-            defaultSound: true,
-            defaultVibrateTimings: true,
-          },
-        },
-      };
-    });
+      },
+    }));
 
     console.log(`[send-notification] Sending ${fcmMessages.length} FCM message(s) for type=${type}:`, {
       title,
