@@ -349,11 +349,16 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
       return true;
     }
     const nonSwipable = target.closest(
-      'input, textarea, select, [data-no-room-swipe="true"], .overflow-x-auto, .overflow-x-scroll'
+      'button, [data-no-room-swipe="true"], input, textarea, select, .overflow-x-auto, .overflow-x-scroll'
     );
     if (nonSwipable) {
       if (nonSwipable.getAttribute('data-no-room-swipe') === 'true') return true;
-      if (nonSwipable.tagName === 'INPUT' || nonSwipable.tagName === 'TEXTAREA' || nonSwipable.tagName === 'SELECT') {
+      if (
+        nonSwipable.tagName === 'BUTTON' ||
+        nonSwipable.tagName === 'INPUT' ||
+        nonSwipable.tagName === 'TEXTAREA' ||
+        nonSwipable.tagName === 'SELECT'
+      ) {
         return true;
       }
       if (nonSwipable.scrollWidth > nonSwipable.clientWidth) {
@@ -2606,18 +2611,24 @@ CREATE POLICY "Hosts can update their own study rooms"
           animation: classicNudgePulse 0.75s ease-in-out infinite;
         }
       `}</style>
-      <header className="shrink-0 flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-transparent pt-[max(env(safe-area-inset-top,0px),10px)] sm:pt-2.5">
+      <header className="shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.08] bg-[#0c1017]/95 backdrop-blur-xl pt-[max(env(safe-area-inset-top,0px)+14px,36px)] sm:pt-2.5 z-30 transition-all">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
-            onClick={onBack}
-            className="px-2 sm:px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-slate-300 hover:text-white font-hud font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 cursor-pointer shrink-0"
+            type="button"
+            onClick={() => {
+              hapticTick();
+              onBack();
+            }}
+            className="min-w-[40px] min-h-[40px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.15] border border-white/10 hover:border-white/20 text-slate-300 hover:text-white font-hud font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer shrink-0 touch-manipulation shadow-sm"
+            aria-label="Leave study room"
+            title="Leave study room"
           >
-            <ChevronLeft className="w-4 h-4 text-slate-400" />
+            <ChevronLeft className="w-4.5 h-4.5 text-slate-300" strokeWidth={2.5} />
             <span className="hidden sm:inline">LEAVE</span>
           </button>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <h1 className="text-xs sm:text-base font-hud font-bold text-white tracking-wide uppercase truncate max-w-[90px] xs:max-w-[130px] sm:max-w-[260px]">
+              <h1 className="text-xs sm:text-base font-hud font-bold text-white tracking-wide uppercase truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[240px]">
                 {roomName}
               </h1>
               <span className="text-[10px] font-hud-mono text-neutral-400 bg-white/[0.04] border border-white/10 px-2 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1.5 shrink-0">
@@ -2634,27 +2645,29 @@ CREATE POLICY "Hosts can update their own study rooms"
         </div>
 
         <div className="flex items-center shrink-0">
-          <div className="flex bg-black/40 border border-white/10 p-0.5 sm:p-1 rounded-xl shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
+          <div className="flex bg-black/50 border border-white/15 p-1 rounded-2xl shadow-inner backdrop-blur-md gap-1">
             <button
+              type="button"
               onClick={() => handleSelectRoomTab('home')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none active:scale-95 ${
                 roomTab === 'home'
-                  ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+                  ? 'bg-white/[0.14] border border-white/25 text-white shadow-sm'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
               }`}
             >
-              <Home className="w-3.5 h-3.5" />
+              <Home className="w-4 h-4 shrink-0" />
               <span>HOME</span>
             </button>
             <button
+              type="button"
               onClick={() => handleSelectRoomTab('chat')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
+              className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none relative active:scale-95 ${
                 roomTab === 'chat'
                   ? 'bg-[var(--accent-soft)] border border-[var(--border)] text-[var(--accent)] shadow-sm'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
               }`}
             >
-              <MessageCircle className="w-3.5 h-3.5" />
+              <MessageCircle className="w-4 h-4 shrink-0" />
               <span>CHAT</span>
               {unreadCount > 0 && (
                 <span
@@ -2667,14 +2680,15 @@ CREATE POLICY "Hosts can update their own study rooms"
             </button>
             {isHost && (
               <button
+                type="button"
                 onClick={() => handleSelectRoomTab('settings')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-hud font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-xs font-hud font-bold uppercase tracking-wider transition-all min-h-[38px] cursor-pointer touch-manipulation select-none active:scale-95 ${
                   roomTab === 'settings'
-                    ? 'bg-white/[0.1] border border-white/20 text-white shadow-sm'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+                    ? 'bg-white/[0.14] border border-white/25 text-white shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/[0.05]'
                 }`}
               >
-                <Settings className="w-3.5 h-3.5" />
+                <Settings className="w-4 h-4 shrink-0" />
                 <span>SETTINGS</span>
               </button>
             )}
@@ -2847,20 +2861,23 @@ CREATE POLICY "Hosts can update their own study rooms"
                     </div>
 
                     {/* Floating Bottom Focus Timer Dock */}
-                    <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
-                      <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#0c1017]/85 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.65)] transition-all">
+                    <div
+                      data-no-room-swipe="true"
+                      className="absolute bottom-[max(calc(env(safe-area-inset-bottom,0px)+22px),28px)] sm:bottom-7 md:bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-200"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#0c1017]/95 backdrop-blur-2xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.85)] transition-all">
                         {/* Live Indicator & Timer Readout */}
-                        <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
-                          <span className="relative flex h-2 w-2">
+                        <div className="flex items-center gap-2 pr-2.5 border-r border-white/15">
+                          <span className="relative flex h-2.5 w-2.5">
                             {isRunning ? (
                               <>
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                               </>
                             ) : isPaused ? (
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
                             ) : (
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-600" />
                             )}
                           </span>
                           <span className="font-mono font-bold text-xs sm:text-sm tracking-wider text-white">
@@ -2869,34 +2886,34 @@ CREATE POLICY "Hosts can update their own study rooms"
                         </div>
 
                         {/* Subject Indicator Badge */}
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/10 max-w-[100px] xs:max-w-[130px] shrink-0">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 max-w-[100px] xs:max-w-[130px] shrink-0">
                           <span
-                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: activeSubjectColor }}
                           />
-                          <span className="text-[10px] sm:text-[11px] font-medium text-slate-200 truncate">
+                          <span className="text-[11px] sm:text-xs font-medium text-slate-200 truncate">
                             {activeSubjectName}
                           </span>
                         </div>
 
                         {/* Translucent Icon-Only Control Buttons */}
-                        <div className="flex items-center gap-1.5 pl-0.5 border-l border-white/10">
+                        <div className="flex items-center gap-2 pl-1 border-l border-white/15">
                           {/* START / RESUME */}
                           <button
                             type="button"
                             onClick={handleStartOrResume}
                             disabled={isRunning}
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
                               isRunning
                                 ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
                                 : isPaused
-                                ? 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.3)] active:scale-95'
-                                : 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-400 border border-emerald-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.25)] active:scale-95'
+                                ? 'bg-emerald-500/30 hover:bg-emerald-500/40 active:bg-emerald-500/50 text-emerald-300 border border-emerald-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(16,185,129,0.35)]'
+                                : 'bg-emerald-500/30 hover:bg-emerald-500/40 active:bg-emerald-500/50 text-emerald-300 border border-emerald-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(16,185,129,0.35)]'
                             }`}
                             title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
                             aria-label={isPaused ? 'Resume timer' : 'Start timer'}
                           >
-                            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />
+                            <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current ml-0.5" />
                           </button>
 
                           {/* PAUSE */}
@@ -2904,15 +2921,15 @@ CREATE POLICY "Hosts can update their own study rooms"
                             type="button"
                             onClick={handlePauseTimer}
                             disabled={!isRunning}
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
                               isRunning
-                                ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 backdrop-blur-sm shadow-[0_0_10px_rgba(245,158,11,0.3)] active:scale-95'
+                                ? 'bg-amber-500/30 hover:bg-amber-500/40 active:bg-amber-500/50 text-amber-300 border border-amber-400/50 backdrop-blur-sm shadow-[0_0_14px_rgba(245,158,11,0.35)]'
                                 : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
                             }`}
                             title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
                             aria-label="Pause timer"
                           >
-                            <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
+                            <Pause className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current" />
                           </button>
                         </div>
                       </div>
