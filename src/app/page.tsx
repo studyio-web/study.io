@@ -98,6 +98,9 @@ export default function Home() {
 
   useEffect(() => {
     setIsMounted(true);
+    try {
+      (window as any).AndroidFullscreenBridge?.onPageLoaded?.();
+    } catch {}
   }, []);
   const [isNativeApp, setIsNativeApp] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -379,20 +382,13 @@ export default function Home() {
     hasInitialBootCompletedRef.current = true;
   }
 
-  // During SSR or initial mount before hydration, display smooth dark telemetry screen
+  // During SSR or initial mount before hydration, display centered app logo
   // This guarantees zero 200ms flash of IntroductionAndLogin during cold launch
   if (!isMounted) {
     return (
-      <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center text-slate-100 relative">
-        <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
-        <div className="fixed inset-0 pointer-events-none bg-hud-grid opacity-[0.03] z-0" />
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-4 animate-pulse">
-            <Logo className="w-14 h-14" />
-          </div>
-          <div className="text-sm font-hud font-bold text-slate-400 tracking-widest uppercase">
-            INITIALIZING STUDY.IO TELEMETRY...
-          </div>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
+        <div className="flex flex-col items-center justify-center animate-pulse">
+          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
         </div>
       </div>
     );
@@ -401,16 +397,9 @@ export default function Home() {
   // Loading state while verifying stored session (skip when cached state exists)
   if (isLoading && !hasCachedUser && !hasInitialBootCompletedRef.current) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center text-slate-100 relative">
-        <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
-        <div className="fixed inset-0 pointer-events-none bg-hud-grid opacity-[0.03] z-0" />
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-4 animate-pulse">
-            <Logo className="w-14 h-14" />
-          </div>
-          <div className="text-sm font-hud font-bold text-slate-400 tracking-widest uppercase">
-            INITIALIZING STUDY.IO TELEMETRY...
-          </div>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
+        <div className="flex flex-col items-center justify-center animate-pulse">
+          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
         </div>
       </div>
     );

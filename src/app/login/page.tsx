@@ -29,11 +29,10 @@ export default function LoginPage() {
 
   if (!isMounted || isLoading || hasCachedUser) {
     return (
-      <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center text-slate-100">
-        <div className="mb-4 animate-pulse">
-          <Logo className="w-14 h-14" />
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
+        <div className="flex flex-col items-center justify-center animate-pulse">
+          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
         </div>
-        <div className="text-sm font-hud font-bold text-slate-400 tracking-widest uppercase">Loading study.io...</div>
       </div>
     );
   }

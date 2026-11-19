@@ -25,16 +25,12 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, isLoading, hasCachedUser, router]);
 
-  // Prevent premature bounce: show branded loading screen while session is being verified/restored ONLY IF NO CACHE
+  // Prevent premature bounce: show centered app logo while session is being verified/restored ONLY IF NO CACHE
   if (isLoading && !hasCachedUser) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center text-slate-100 relative">
-        <div className="fixed inset-0 pointer-events-none bg-dot-grid z-0" />
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-4 animate-pulse">
-            <Logo className="w-14 h-14" />
-          </div>
-          <div className="text-sm font-bold text-slate-400 tracking-wide">Loading study.io...</div>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
+        <div className="flex flex-col items-center justify-center animate-pulse">
+          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
         </div>
       </div>
     );

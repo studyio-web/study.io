@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -23,9 +24,17 @@ public class MainActivity extends BridgeActivity {
     private boolean isImmersiveFullscreen = false;
     private boolean hasManuallyExitedFullscreen = false;
     private OrientationEventListener orientationEventListener;
+    private volatile boolean isWebLoaded = false;
+    private long appLaunchTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        appLaunchTime = System.currentTimeMillis();
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+        splashScreen.setKeepOnScreenCondition(() -> {
+            return !isWebLoaded && (System.currentTimeMillis() - appLaunchTime < 2500);
+        });
+
         registerPlugin(TimerNotificationPlugin.class);
         registerPlugin(StrictModePlugin.class);
         registerPlugin(AccessibilityBlockerPlugin.class);
@@ -144,6 +153,11 @@ public class MainActivity extends BridgeActivity {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
+                }
+
+                @JavascriptInterface
+                public void onPageLoaded() {
+                    isWebLoaded = true;
                 }
             }, "AndroidFullscreenBridge");
 
