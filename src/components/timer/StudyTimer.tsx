@@ -639,11 +639,6 @@ export function StudyTimer() {
       setIsAlarmRinging(false);
       setAlarmModalData(null);
       refetchSessions();
-      toast('Session saved on another device ✅', {
-        id: 'remote-session-saved',
-        duration: 4000,
-        icon: '✅',
-      });
     };
 
     window.addEventListener('studyio_remote_session_saved', handleRemoteSessionSaved);

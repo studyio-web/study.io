@@ -1893,6 +1893,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       ) {
         return;
       }
+      const wasActive = isStudyingRef.current || isRemoteSessionRef.current;
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -1915,8 +1916,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       // Stop any ringing alarm on this device
       soundFx.stopTimerAlarm();
 
-      // Dismiss countdown completion flags and notify peer components
-      if (typeof window !== 'undefined') {
+      // Dismiss countdown completion flags and notify peer components only if a session was active or explicit session save action
+      if (typeof window !== 'undefined' && (wasActive || remoteSession?.action === 'session_saved')) {
         try {
           localStorage.removeItem('studyio_timer_countdown_completed');
           localStorage.removeItem('studyio_timer_countdown_halfway_notified');
