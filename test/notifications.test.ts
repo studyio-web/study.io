@@ -37,6 +37,14 @@ describe('Android Notification Abstraction & Parity Specification', () => {
     assert.equal(streak.tab, 'stats');
   });
 
+  it('correctly routes timer_remote_started alert to timer_alerts channel with timer tab', () => {
+    const remoteAlert = resolveNotificationConfig('timer_remote_started', {});
+    assert.equal(remoteAlert.channelId, 'timer_alerts');
+    assert.equal(remoteAlert.tab, 'timer');
+    assert.match(remoteAlert.title, /another device/i);
+    assert.match(remoteAlert.body, /another device and is syncing/i);
+  });
+
   it('correctly routes social focus nudges to social_nudges channel with rooms tab', () => {
     const nudge = resolveNotificationConfig('focus_nudge', {
       senderName: 'Alex',

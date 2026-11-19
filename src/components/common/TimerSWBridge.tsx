@@ -44,6 +44,7 @@ export function TimerSWBridge() {
     pauseTimer,
     resumeTimer,
     stopTimer,
+    isRemoteSession,
   } = useStudy();
 
   // Handle SW → page messages (Pause / Resume buttons in notification) on Web
@@ -153,7 +154,7 @@ export function TimerSWBridge() {
           startTime: startTimeRef?.current ?? Date.now(),
           elapsedSeconds,
           targetSeconds: target,
-          subject: subjectName,
+          subject: subjectName ? (isRemoteSession ? `${subjectName} (Remote)` : subjectName) : (isRemoteSession ? 'Remote Focus' : ''),
         }).catch((err) =>
           console.warn('[Native Timer Bridge] start failed:', err)
         );
@@ -221,7 +222,7 @@ export function TimerSWBridge() {
           mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
           phase: pomodoroPhase,
           targetSeconds: target,
-          subject: subjectName,
+          subject: subjectName ? (isRemoteSession ? `${subjectName} (Remote)` : subjectName) : (isRemoteSession ? 'Remote Focus' : ''),
         }).catch((err) =>
           console.warn('[Native Timer Bridge] update phase failed:', err)
         );

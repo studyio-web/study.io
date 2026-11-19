@@ -20,6 +20,7 @@ export type NotificationType =
   | 'chat'
   | 'daily_goal_reached'
   | 'strict_mode_blocked'
+  | 'timer_remote_started'
   | 'custom';
 
 export interface NotificationPayload {
@@ -310,6 +311,13 @@ export function resolveNotificationConfig(
     case 'strict_mode_blocked':
       title = payload.title || 'App Blocked by Strict Mode 🚫';
       body = payload.body || 'Return to Study.io to protect your focus streak!';
+      channelId = 'timer_alerts';
+      tab = 'timer';
+      break;
+
+    case 'timer_remote_started':
+      title = payload.title || 'Timer turned on in another device 🔄';
+      body = payload.body || 'Your focus timer was turned on on another device and is syncing live.';
       channelId = 'timer_alerts';
       tab = 'timer';
       break;

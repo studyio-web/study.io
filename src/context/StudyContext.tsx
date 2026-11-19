@@ -1911,6 +1911,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setIsRemoteTransitioning(true);
         setTimeout(() => setIsRemoteTransitioning(false), 300);
         setLastRemoteSyncTime(Date.now());
+        if (isStudyingRef.current || isRemoteSessionRef.current) {
+          toast('Focus session ended on another device ⏹️', {
+            id: 'remote-timer-status',
+            duration: 3500,
+            icon: '⏹️',
+          });
+        }
       }
       return;
     }
@@ -1953,6 +1960,28 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       subject_id,
       subject_name,
     } = remoteSession;
+
+    // Notify user when a focus timer is turned on on another device
+    const isNewRemoteStart = isRemoteDevice && status === 'running' && (!isStudyingRef.current || !isRemoteSessionRef.current);
+    if (isNewRemoteStart) {
+      toast('Timer is turned on in another device 🔄', {
+        id: 'remote-timer-status',
+        duration: 5000,
+        icon: '🔄',
+      });
+      notify('timer_remote_started', {
+        title: 'Timer turned on in another device 🔄',
+        body: 'Your focus session is running on another device and syncing live.',
+        channelId: 'timer_alerts',
+        tab: 'timer',
+      }).catch(() => {});
+    } else if (isRemoteDevice && status === 'paused' && isStudyingRef.current && !isPausedRef.current) {
+      toast('Focus timer was paused on another device ⏸️', {
+        id: 'remote-timer-status',
+        duration: 3500,
+        icon: '⏸️',
+      });
+    }
 
     const remoteIsUltra = Boolean(
       remoteSession.is_ultra_strict ??
