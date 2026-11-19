@@ -3,14 +3,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, Zap, Flame, Shield, Target, Ban, Flag } from 'lucide-react';
+import { X, Clock, Zap, Flame, Shield, Ban, Flag } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
 import { getRankTier, RANKS, RankTier, RankTierName, RankDivision } from '../../lib/ranks';
 import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
-import { calculateStreak, calculateGoalStreak } from '../../lib/mockData';
+import { calculateStreak } from '../../lib/mockData';
 import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
 import { ClassicNudgeButton } from '../rooms/ClassicNudgeButton';
 
@@ -81,7 +81,6 @@ export function ScholarProfileModal({
   const [profileDetails, setProfileDetails] = useState<{
     level?: number;
     streakDays?: number;
-    goalStreak?: number;
     seasonRp?: number;
     rankTitle?: string;
     xp?: number;
@@ -138,7 +137,6 @@ export function ScholarProfileModal({
           if (currentUserSessions && currentUserSessions.length > 0) {
             const sumSecs = currentUserSessions.reduce((acc, s) => acc + (s.durationSeconds || 0), 0);
             const liveStreak = calculateStreak(currentUserSessions);
-            const liveGoalStreak = calculateGoalStreak(currentUserSessions, 7200);
             const dateSet = new Set(
               currentUserSessions
                 .map((s) => (s.startTime ? new Date(s.startTime).toISOString().slice(0, 10) : ''))
@@ -149,7 +147,7 @@ export function ScholarProfileModal({
               setTotalStudySeconds(sumSecs);
               setActiveStudyDays(dateSet.size);
               setAvgDailySeconds(Math.round(sumSecs / days));
-              setProfileDetails(prev => ({ ...prev, streakDays: liveStreak, goalStreak: liveGoalStreak }));
+              setProfileDetails(prev => ({ ...prev, streakDays: liveStreak }));
             }
           }
           if (active) setIsLoadingStats(false);
@@ -159,7 +157,7 @@ export function ScholarProfileModal({
         const [profRes, sessRes] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, name, username, level, xp, season_rp, streak_days, daily_goal_hours, daily_goal_minutes, rank_title, total_study_seconds, created_at')
+            .select('id, name, username, level, xp, season_rp, streak_days, rank_title, total_study_seconds, created_at')
             .eq('id', uid)
             .maybeSingle(),
           supabase
@@ -177,20 +175,11 @@ export function ScholarProfileModal({
         }));
         const liveStreak = calculateStreak(mappedSessions);
 
-        let targetGoalSecs = 7200; // sensible fallback (2 hours)
-        if (profRes.data?.daily_goal_minutes && Number(profRes.data.daily_goal_minutes) > 15) {
-          targetGoalSecs = Number(profRes.data.daily_goal_minutes) * 60;
-        } else if (profRes.data?.daily_goal_hours && Number(profRes.data.daily_goal_hours) > 0) {
-          targetGoalSecs = Math.round(Number(profRes.data.daily_goal_hours) * 3600);
-        }
-        const liveGoalStreak = calculateGoalStreak(mappedSessions, targetGoalSecs);
-
         if (profRes.data) {
           const p = profRes.data;
           setProfileDetails({
             level: p.level ? Number(p.level) : undefined,
             streakDays: liveStreak,
-            goalStreak: liveGoalStreak,
             seasonRp: p.season_rp !== undefined ? Number(p.season_rp) : undefined,
             rankTitle: p.rank_title || undefined,
             xp: p.xp !== undefined ? Number(p.xp) : undefined,
@@ -235,7 +224,6 @@ export function ScholarProfileModal({
   const handle = scholar?.username || displayName.toLowerCase().replace(/\s+/g, '');
   const level = profileDetails.level ?? scholar?.level ?? 1;
   const streak = profileDetails.streakDays ?? scholar?.streakDays ?? 0;
-  const goalStreak = profileDetails.goalStreak ?? scholar?.goalStreak ?? 0;
   const rankTitle = useMemo(() => {
     if (typeof scholar?.seasonRp === 'number') {
       return getRankTier(scholar.seasonRp).name;
@@ -413,19 +401,6 @@ export function ScholarProfileModal({
                   <Flame className={`w-2.5 h-2.5 ${streak > 0 ? 'fill-current text-amber-400' : 'text-neutral-500'}`} />
                   {streak}d Streak
                 </span>
-
-                {/* Goal Streak Badge - Always displayed */}
-                <span
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border ${
-                    goalStreak > 0
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                      : 'bg-white/5 border-white/10 text-[var(--text-dim)]'
-                  }`}
-                  title={`${goalStreak} Day Goal Streak`}
-                >
-                  <Target className={`w-2.5 h-2.5 ${goalStreak > 0 ? 'text-emerald-400' : 'text-neutral-500'}`} />
-                  {goalStreak}d Goal
-                </span>
               </div>
             </div>
           </div>
@@ -476,34 +451,36 @@ export function ScholarProfileModal({
             </label>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* Card 1: TOTAL FOCUS HOURS */}
-              <div className="p-4 rounded-xl bg-[var(--surface-2)]/70 border border-[var(--border)] flex flex-col justify-between hover:border-[var(--border-strong)] transition-all relative overflow-hidden group">
-                <div className="flex items-center justify-between text-[var(--text-dim)] mb-2">
-                  <span className="text-[10px] font-hud font-bold tracking-wider uppercase text-[var(--text-dim)]">
-                    Total Focus Time
-                  </span>
-                  <Clock className="w-3.5 h-3.5 text-white/70" />
+              {/* Card 1: TOTAL FOCUS HOURS (Hero Metric) */}
+              <div className="col-span-2 p-4 rounded-xl bg-[var(--surface-2)]/70 border border-[var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:border-[var(--border-strong)] transition-all relative overflow-hidden group">
+                <div>
+                  <div className="flex items-center gap-1.5 text-[var(--text-dim)] mb-1.5">
+                    <Clock className="w-3.5 h-3.5 text-white/70" />
+                    <span className="text-[10px] font-hud font-bold tracking-wider uppercase text-[var(--text-dim)]">
+                      Total Focus Time
+                    </span>
+                  </div>
+
+                  {isLoadingStats ? (
+                    <div className="animate-pulse space-y-1.5 my-1">
+                      <div className="h-7 bg-white/10 rounded w-24"></div>
+                      <div className="h-3.5 bg-white/5 rounded w-16"></div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight">
+                        {totalStats.formatted}
+                      </div>
+                      <div className="text-[11px] font-mono font-medium text-[var(--text-dim)] mt-0.5">
+                        {totalStats.decimalHours} total
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-[var(--text-faint)] font-mono mt-1.5">
+                    All-time focus logged
+                  </p>
                 </div>
-
-                {isLoadingStats ? (
-                  <div className="animate-pulse space-y-1.5 my-1">
-                    <div className="h-7 bg-white/10 rounded w-24"></div>
-                    <div className="h-3.5 bg-white/5 rounded w-16"></div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight">
-                      {totalStats.formatted}
-                    </div>
-                    <div className="text-[11px] font-mono font-medium text-[var(--text-dim)] mt-0.5">
-                      {totalStats.decimalHours} total
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-[10px] text-[var(--text-faint)] font-mono mt-2">
-                  All-time focus logged
-                </p>
               </div>
 
               {/* Card 2: DAILY AVERAGE FOCUS */}
@@ -563,36 +540,6 @@ export function ScholarProfileModal({
 
                 <p className="text-[10px] text-[var(--text-faint)] font-mono mt-2">
                   {streak > 0 ? 'Active study consistency' : 'Start a session to build'}
-                </p>
-              </div>
-
-              {/* Card 4: GOAL STREAK */}
-              <div className="p-4 rounded-xl bg-[var(--surface-2)]/70 border border-[var(--border)] flex flex-col justify-between hover:border-[var(--border-strong)] transition-all relative overflow-hidden group">
-                <div className="flex items-center justify-between text-[var(--text-dim)] mb-2">
-                  <span className="text-[10px] font-hud font-bold tracking-wider uppercase text-[var(--text-dim)]">
-                    Goal Streak
-                  </span>
-                  <Target className={`w-3.5 h-3.5 ${goalStreak > 0 ? 'text-emerald-400' : 'text-white/70'}`} />
-                </div>
-
-                {isLoadingStats ? (
-                  <div className="animate-pulse space-y-1.5 my-1">
-                    <div className="h-7 bg-white/10 rounded w-24"></div>
-                    <div className="h-3.5 bg-white/5 rounded w-16"></div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight">
-                      {goalStreak} <span className="text-xs sm:text-sm font-sans font-medium text-[var(--text-dim)]">days</span>
-                    </div>
-                    <div className={`text-[11px] font-mono font-medium mt-0.5 ${goalStreak > 0 ? 'text-emerald-400/90' : 'text-[var(--text-dim)]'}`}>
-                      {goalStreak > 0 ? `${goalStreak}d target met` : '0d target met'}
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-[10px] text-[var(--text-faint)] font-mono mt-2">
-                  {goalStreak > 0 ? 'Daily target completed' : 'Daily focus target'}
                 </p>
               </div>
             </div>

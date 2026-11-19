@@ -142,3 +142,34 @@ describe('Task Priority Styling Specification', () => {
   });
 });
 
+describe('Scholar Profile Modal Specification', () => {
+  test('guarantees Goal Streak card and badge are removed from scholar profile', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const modalPath = path.resolve(process.cwd(), 'src/components/common/ScholarProfileModal.tsx');
+    const modalContent = fs.readFileSync(modalPath, 'utf8');
+
+    // 1. Must NOT render Goal Streak card
+    assert.doesNotMatch(
+      modalContent,
+      /Goal Streak/,
+      'Goal Streak card must not be present in ScholarProfileModal'
+    );
+
+    // 2. Must NOT render Goal Streak badge
+    assert.doesNotMatch(
+      modalContent,
+      /d Goal/,
+      'Goal Streak badge must not be present in ScholarProfileModal'
+    );
+
+    // 3. Total Focus Time spans col-span-2 as hero card
+    assert.match(
+      modalContent,
+      /col-span-2[\s\S]*?Total Focus Time/,
+      'Total Focus Time must span 2 columns as a hero card'
+    );
+  });
+});
+
+
