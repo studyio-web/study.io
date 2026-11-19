@@ -2551,15 +2551,15 @@ CREATE POLICY "Hosts can update their own study rooms"
               >
                 {mutedRoomIds.includes(activeMenu.room.id) ? (
                   <>
-                    <Bell className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Bell className="w-4 h-4 text-white shrink-0" />
                     <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-emerald-300">Unmute Messages</span>
+                      <span className="font-semibold text-white">Unmute Messages</span>
                       <span className="text-[10px] text-[var(--text-dim)] truncate">Restore notifications</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <BellOff className="w-4 h-4 text-amber-400 shrink-0" />
+                    <BellOff className="w-4 h-4 text-white shrink-0" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-semibold text-[var(--text)]">Mute Messages</span>
                       <span className="text-[10px] text-[var(--text-dim)] truncate">Silence notifications</span>
