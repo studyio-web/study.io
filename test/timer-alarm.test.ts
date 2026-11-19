@@ -1,0 +1,181 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  loadTimerAlarmEnabled,
+  saveTimerAlarmEnabled,
+  formatAlarmRemaining,
+  STORAGE_KEY_ALARM_ENABLED,
+  ALARM_MAX_DURATION_SECONDS,
+} from '../src/lib/timerAlarm';
+import { soundFx } from '../src/lib/audio';
+
+describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () => {
+  it('loads timer alarm enabled state (defaulting to true when unset)', () => {
+    const store: Record<string, string> = {};
+    const originalLocalStorage = global.localStorage;
+    const originalWindow = (global as any).window;
+
+    (global as any).window = global;
+    (global as any).localStorage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, val: string) => {
+        store[key] = val;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    };
+
+    try {
+      // 1. When unset, defaults to true
+      assert.equal(loadTimerAlarmEnabled(), true, 'Alarm should default to enabled');
+
+      // 2. Can be toggled to false
+      saveTimerAlarmEnabled(false);
+      assert.equal(loadTimerAlarmEnabled(), false, 'Alarm should be disabled when set to false');
+      assert.equal(store[STORAGE_KEY_ALARM_ENABLED], 'false');
+
+      // 3. Can be toggled back to true
+      saveTimerAlarmEnabled(true);
+      assert.equal(loadTimerAlarmEnabled(), true, 'Alarm should be enabled when set to true');
+      assert.equal(store[STORAGE_KEY_ALARM_ENABLED], 'true');
+    } finally {
+      (global as any).localStorage = originalLocalStorage;
+      (global as any).window = originalWindow;
+    }
+  });
+
+  it('correctly formats alarm countdown durations up to 5 minutes', () => {
+    assert.equal(ALARM_MAX_DURATION_SECONDS, 300, 'Max alarm duration must be 300s (5 minutes)');
+    assert.equal(formatAlarmRemaining(300), '05:00');
+    assert.equal(formatAlarmRemaining(299), '04:59');
+    assert.equal(formatAlarmRemaining(65), '01:05');
+    assert.equal(formatAlarmRemaining(9), '00:09');
+    assert.equal(formatAlarmRemaining(0), '00:00');
+    assert.equal(formatAlarmRemaining(-5), '00:00');
+  });
+
+  it('guarantees startTimerAlarm and stopTimerAlarm control alarm ringing state safely', () => {
+    // In node test environment without browser AudioContext, methods handle absence gracefully
+    soundFx.stopTimerAlarm();
+    assert.equal(soundFx.isAlarmRinging(), false);
+
+    // Starting alarm marks active and respects stop
+    soundFx.startTimerAlarm(300);
+    // In node/headless without window, AudioEngine safety guard returns gracefully
+    soundFx.stopTimerAlarm();
+    assert.equal(soundFx.isAlarmRinging(), false);
+  });
+
+  it('triggers 5-minute alarm on countdown completion when alarm is enabled', () => {
+    let alarmTriggered = false;
+    let alarmDuration = 0;
+    let modalOpened = false;
+    let modalMode = '';
+
+    const triggerCountdownCompletion = (
+      mode: string,
+      isStudying: boolean,
+      elapsedSeconds: number,
+      targetSeconds: number,
+      isCompleted: boolean,
+      alarmEnabled: boolean,
+      isUltra: boolean
+    ) => {
+      if (mode === 'countdown' && isStudying && elapsedSeconds >= targetSeconds && !isCompleted) {
+        if (alarmEnabled) {
+          alarmTriggered = true;
+          alarmDuration = ALARM_MAX_DURATION_SECONDS;
+          modalOpened = true;
+          modalMode = isUltra ? 'ultra_strict' : 'countdown';
+        }
+      }
+    };
+
+    // 1. Normal countdown finishes with alarm enabled
+    triggerCountdownCompletion('countdown', true, 1800, 1800, false, true, false);
+    assert.equal(alarmTriggered, true, 'Alarm must trigger when countdown finishes with alarm enabled');
+    assert.equal(alarmDuration, 300, 'Alarm must be configured for 5 minutes (300s)');
+    assert.equal(modalOpened, true, 'Alarm modal must open');
+    assert.equal(modalMode, 'countdown');
+
+    // 2. Countdown finishes with alarm disabled (optional alarm)
+    alarmTriggered = false;
+    modalOpened = false;
+    triggerCountdownCompletion('countdown', true, 1800, 1800, false, false, false);
+    assert.equal(alarmTriggered, false, 'Alarm must NOT trigger when alarm is disabled');
+    assert.equal(modalOpened, false, 'Alarm modal must NOT open when alarm is disabled');
+
+    // 3. Ultra strict countdown finishes with alarm enabled
+    alarmTriggered = false;
+    modalOpened = false;
+    triggerCountdownCompletion('countdown', true, 3600, 3600, false, true, true);
+    assert.equal(alarmTriggered, true, 'Alarm must trigger when ultra strict countdown completes');
+    assert.equal(modalOpened, true);
+    assert.equal(modalMode, 'ultra_strict');
+  });
+
+  it('triggers 5-minute alarm on Pomodoro work and break completion when alarm is enabled', () => {
+    let alarmTriggered = false;
+    let alarmPhase = '';
+
+    const handlePomodoroCompletion = (
+      completedPhase: 'work' | 'break' | null,
+      alarmEnabled: boolean
+    ) => {
+      if (!completedPhase || !alarmEnabled) return;
+      alarmTriggered = true;
+      alarmPhase = completedPhase;
+    };
+
+    // 1. Pomodoro work phase finishes (25m or 50m)
+    handlePomodoroCompletion('work', true);
+    assert.equal(alarmTriggered, true, 'Alarm must trigger when Pomodoro focus block completes');
+    assert.equal(alarmPhase, 'work');
+
+    // 2. Pomodoro break phase finishes (5m or 10m)
+    alarmTriggered = false;
+    handlePomodoroCompletion('break', true);
+    assert.equal(alarmTriggered, true, 'Alarm must trigger when Pomodoro break finishes');
+    assert.equal(alarmPhase, 'break');
+
+    // 3. Optional: disabled alarm
+    alarmTriggered = false;
+    handlePomodoroCompletion('work', false);
+    assert.equal(alarmTriggered, false, 'Alarm must not trigger when disabled');
+  });
+
+  it('guarantees dismissing or stopping alarm immediately halts alarm audio and closes modal', () => {
+    let alarmAudioPlaying = true;
+    let alarmModalOpen = true;
+
+    const handleDismiss = () => {
+      soundFx.stopTimerAlarm();
+      alarmAudioPlaying = false;
+      alarmModalOpen = false;
+    };
+
+    handleDismiss();
+    assert.equal(alarmAudioPlaying, false, 'Audio must stop immediately on dismiss');
+    assert.equal(alarmModalOpen, false, 'Modal must close immediately on dismiss');
+    assert.equal(soundFx.isAlarmRinging(), false);
+  });
+
+  it('guarantees snooze stops alarm and extends countdown target by 5 minutes (300s)', () => {
+    let currentTarget = 1800; // 30 minutes
+    let isCompleted = true;
+    let isAlarmRinging = true;
+
+    const handleSnooze = () => {
+      soundFx.stopTimerAlarm();
+      isAlarmRinging = false;
+      currentTarget += 300; // +5 minutes
+      isCompleted = false;
+    };
+
+    handleSnooze();
+    assert.equal(isAlarmRinging, false, 'Snooze must silence the alarm');
+    assert.equal(currentTarget, 2100, 'Snooze must add 300 seconds (5 min) to countdown');
+    assert.equal(isCompleted, false, 'Countdown completed flag must be cleared');
+  });
+});

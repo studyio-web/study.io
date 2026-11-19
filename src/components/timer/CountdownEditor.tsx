@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check } from 'lucide-react';
+import { X, Check, Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { loadTimerAlarmEnabled, saveTimerAlarmEnabled } from '../../lib/timerAlarm';
+import { triggerHaptic } from '../../lib/native-feel';
 
 interface CountdownEditorProps {
   initialSeconds: number;
@@ -283,6 +285,7 @@ export function CountdownEditor({ initialSeconds, onSave, onCancel }: CountdownE
 
   const totalSeconds = hours * 3600 + minutes * 60 + seconds;
   const isSaveDisabled = totalSeconds < 60; // Pick at least 1 minute
+  const [alarmEnabled, setAlarmEnabled] = useState(() => loadTimerAlarmEnabled());
 
   const shouldReduceMotion = useReducedMotion() ?? false;
   const [mounted, setMounted] = useState(false);
@@ -466,6 +469,42 @@ export function CountdownEditor({ initialSeconds, onSave, onCancel }: CountdownE
             columnRef={secondsColRef}
             ariaLabel="Seconds"
           />
+        </div>
+
+        {/* Alarm on finish toggle */}
+        <div className="mt-3 mb-2 px-3.5 py-2.5 rounded-2xl bg-fg/[0.03] border border-[var(--border)] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-xs text-left">
+            {alarmEnabled ? (
+              <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+            ) : (
+              <BellOff className="w-4 h-4 text-[var(--text-dim)] shrink-0" />
+            )}
+            <div>
+              <p className="font-semibold text-xs text-[var(--text)]">Timer Alarm</p>
+              <p className="text-[10px] text-[var(--text-dim)]">5-minute alarm when countdown finishes</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={alarmEnabled}
+            onClick={() => {
+              triggerHaptic('light');
+              const next = !alarmEnabled;
+              setAlarmEnabled(next);
+              saveTimerAlarmEnabled(next);
+            }}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              alarmEnabled ? 'bg-amber-500' : 'bg-zinc-700'
+            }`}
+            title={alarmEnabled ? 'Alarm enabled' : 'Alarm disabled'}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                alarmEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         {/* Footer Actions */}

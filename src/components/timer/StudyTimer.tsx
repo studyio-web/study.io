@@ -44,7 +44,12 @@ import {
   WifiOff,
   Shield,
   Lock,
+  Bell,
+  BellOff,
+  BellRing,
 } from 'lucide-react';
+import { loadTimerAlarmEnabled, saveTimerAlarmEnabled } from '../../lib/timerAlarm';
+import { TimerAlarmModal } from './TimerAlarmModal';
 import { App } from '@capacitor/app';
 import {
   StrictMode,
@@ -79,7 +84,7 @@ import { fetchAuthoritativeServerTime, saveValidatedSession } from '../../lib/se
 import { getDailyQuote } from '../../lib/quotes';
 import { motion, useReducedMotion } from 'framer-motion';
 import { TimerDial } from './TimerDial';
-import { StudySession, Subject, TimerMode, UserProfile } from '../../types';
+import { StudySession, Subject, TimerMode, UserProfile, PomodoroCompletedPhase } from '../../types';
 import { calculateFocusXP, getLevelFromLifetimeXP, getScholarTitle } from '../../lib/gamification';
 import { calculateSessionRP, HARD_RESET_CAP_RP } from '../../lib/rankedSystem';
 import { getCurrentMonthFocusSeconds, calculateSeasonRp, getRankTier, resolveLiveSeasonStats } from '../../lib/ranks';
@@ -197,6 +202,27 @@ export function StudyTimer() {
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
   const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState(false);
+
+  // Optional Timer Alarm state for Countdown, Ultra Strict & Pomodoro modes
+  const [isAlarmEnabled, setIsAlarmEnabled] = useState<boolean>(() => loadTimerAlarmEnabled());
+  const [isAlarmRinging, setIsAlarmRinging] = useState(false);
+  const [alarmModalData, setAlarmModalData] = useState<{
+    mode: 'countdown' | 'pomodoro';
+    phase?: 'work' | 'break';
+    isUltraStrict?: boolean;
+    subjectName?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleAlarmChanged = (e: Event) => {
+      const custom = e as CustomEvent<{ enabled: boolean }>;
+      if (typeof custom.detail?.enabled === 'boolean') {
+        setIsAlarmEnabled(custom.detail.enabled);
+      }
+    };
+    window.addEventListener('studyio_timer_alarm_changed', handleAlarmChanged);
+    return () => window.removeEventListener('studyio_timer_alarm_changed', handleAlarmChanged);
+  }, []);
 
   const isStudyingRef = useRef(isStudying);
   isStudyingRef.current = isStudying;
@@ -1354,8 +1380,72 @@ export function StudyTimer() {
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
       setIsFocusModeOpen(false);
       exitFullscreenSafely();
+
+      // Trigger 5-minute alarm if enabled for countdown / ultra strict
+      if (isAlarmEnabled) {
+        soundFx.startTimerAlarm(300);
+        setIsAlarmRinging(true);
+        setAlarmModalData({
+          mode: 'countdown',
+          isUltraStrict,
+          subjectName: selectedSubject?.name,
+        });
+      }
     }
-  }, [timerMode, isStudying, elapsedSeconds, countdownTarget, isCountdownCompleted, pauseTimer, setIsFocusModeOpen]);
+  }, [timerMode, isStudying, elapsedSeconds, countdownTarget, isCountdownCompleted, pauseTimer, setIsFocusModeOpen, isAlarmEnabled, isUltraStrict, selectedSubject?.name]);
+
+  // Handle Pomodoro Work / Break Completion Alarm
+  const prevPomodoroCompletedPhaseRef = useRef<PomodoroCompletedPhase>(null);
+  useEffect(() => {
+    if (
+      timerMode === 'pomodoro' &&
+      pomodoroCompletedPhase &&
+      pomodoroCompletedPhase !== prevPomodoroCompletedPhaseRef.current
+    ) {
+      if (isAlarmEnabled) {
+        soundFx.startTimerAlarm(300);
+        setIsAlarmRinging(true);
+        setAlarmModalData({
+          mode: 'pomodoro',
+          phase: pomodoroCompletedPhase === 'work' ? 'work' : 'break',
+          subjectName: selectedSubject?.name,
+        });
+      }
+    }
+    prevPomodoroCompletedPhaseRef.current = pomodoroCompletedPhase;
+  }, [timerMode, pomodoroCompletedPhase, isAlarmEnabled, selectedSubject?.name]);
+
+  // Alarm action handlers
+  const handleDismissAlarm = useCallback(() => {
+    soundFx.stopTimerAlarm();
+    setIsAlarmRinging(false);
+    setAlarmModalData(null);
+  }, []);
+
+  const handleSnoozeAlarm = useCallback(() => {
+    handleDismissAlarm();
+    if (timerMode === 'countdown') {
+      const nextTarget = countdownTarget + 300;
+      setCountdownTarget(nextTarget);
+      setIsCountdownCompleted(false);
+      try {
+        localStorage.removeItem('studyio_timer_countdown_completed');
+      } catch {}
+      resumeTimer();
+      toast.success('Snoozed for 5 minutes', { icon: '⏰' });
+    }
+  }, [handleDismissAlarm, timerMode, countdownTarget, setCountdownTarget, resumeTimer]);
+
+  const handleStartBreakFromAlarm = useCallback(() => {
+    handleDismissAlarm();
+    saveAndStartBreak();
+  }, [handleDismissAlarm, saveAndStartBreak]);
+
+  const handleStartFocusFromAlarm = useCallback(() => {
+    handleDismissAlarm();
+    setPomodoroCompletedPhase(null);
+    handleStartSession();
+  }, [handleDismissAlarm, setPomodoroCompletedPhase, handleStartSession]);
 
   // Filtered sessions for Today (browser-local timezone)
   const todaySessions = useMemo(() => {
@@ -2221,6 +2311,37 @@ export function StudyTimer() {
             )}
           </div>
 
+          {/* Alarm Toggle Button (Optional 5-min alarm for Countdown, Ultra Strict, Pomodoro) */}
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              const next = !isAlarmEnabled;
+              setIsAlarmEnabled(next);
+              saveTimerAlarmEnabled(next);
+              toast(next ? 'Timer alarm: ON (rings for 5 min)' : 'Timer alarm: OFF', {
+                icon: next ? '🔔' : '🔕',
+              });
+            }}
+            className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
+              isAlarmEnabled
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 font-medium shadow-xs'
+                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+            }`}
+            title={
+              isAlarmEnabled
+                ? 'Alarm is ON (plays 5-minute repeating alarm when timer ends)'
+                : 'Alarm is OFF (silent on timer completion)'
+            }
+          >
+            {isAlarmEnabled ? (
+              <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            ) : (
+              <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
+            )}
+            <span>Alarm: {isAlarmEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+
           {/* Focus Button - always visible in any mode */}
           <button
             type="button"
@@ -2368,6 +2489,19 @@ export function StudyTimer() {
           onCancel={handleCancelStrictCountdown}
         />
       )}
+
+      {/* Optional 5-Minute Timer Alarm Ringing Modal */}
+      <TimerAlarmModal
+        isOpen={isAlarmRinging}
+        mode={alarmModalData?.mode || 'countdown'}
+        phase={alarmModalData?.phase || 'work'}
+        isUltraStrict={Boolean(alarmModalData?.isUltraStrict)}
+        subjectName={alarmModalData?.subjectName}
+        onDismiss={handleDismissAlarm}
+        onSnooze={alarmModalData?.mode === 'countdown' ? handleSnoozeAlarm : undefined}
+        onStartBreak={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'work' ? handleStartBreakFromAlarm : undefined}
+        onStartFocus={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'break' ? handleStartFocusFromAlarm : undefined}
+      />
     </div>
   );
 }

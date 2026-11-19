@@ -20,6 +20,10 @@ class AudioEngine {
   private htmlAudio: HTMLAudioElement | null = null;
   private noiseInterval: number | null = null;
   private activeNodes: (AudioNode & { stop?: () => void })[] = [];
+  private alarmInterval: number | null = null;
+  private alarmTimeout: number | null = null;
+  private alarmNodes: (AudioNode & { stop?: () => void })[] = [];
+  private isAlarmActive: boolean = false;
   private isAmbientPaused: boolean = false;
   private pausedAmbientType: AmbientSoundType | null = null;
   private pausedAmbientVolume: number = 0.5;
@@ -907,8 +911,116 @@ class AudioEngine {
     return this.currentAmbientType;
   }
 
+  /**
+   * Start 5-minute repeating timer alarm.
+   * Plays a pleasant harmonic digital chime pattern every 1.5s until stopped or 5 min max.
+   */
+  public startTimerAlarm(maxDurationSeconds: number = 300) {
+    if (typeof window === 'undefined') return;
+    this.stopTimerAlarm(); // ensure no overlapping alarm
+
+    this.isAlarmActive = true;
+    this.resumeContext();
+
+    const playBeepBurst = () => {
+      if (!this.isAlarmActive) return;
+      try {
+        const ctx = this.getContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
+        // Beep pattern: 3 quick twin-harmonic beeps (like a digital timer alarm)
+        const beeps = [0, 0.18, 0.36];
+        beeps.forEach((offset) => {
+          const startTime = now + offset;
+          const duration = 0.1;
+
+          // Dual frequency: 987.77 Hz (B5) + 1318.51 Hz (E6) - crisp, attention-grabbing chime
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(987.77, startTime);
+
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1318.51, startTime);
+
+          gain.gain.setValueAtTime(0.0001, startTime);
+          gain.gain.linearRampToValueAtTime(0.35, startTime + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start(startTime);
+          osc1.stop(startTime + duration + 0.02);
+          osc2.start(startTime);
+          osc2.stop(startTime + duration + 0.02);
+
+          this.alarmNodes.push(osc1, osc2, gain);
+        });
+
+        // Clean up finished nodes from alarmNodes
+        setTimeout(() => {
+          this.alarmNodes = this.alarmNodes.filter((n) => {
+            try {
+              return (n as any).context?.state !== 'closed';
+            } catch {
+              return false;
+            }
+          });
+        }, 600);
+      } catch (err) {
+        console.warn('[AudioEngine] startTimerAlarm burst error:', err);
+      }
+    };
+
+    // Play immediately
+    playBeepBurst();
+
+    // Repeat every 1.5 seconds
+    this.alarmInterval = window.setInterval(playBeepBurst, 1500);
+
+    // Auto-silence after maxDurationSeconds (default 5 minutes = 300 seconds)
+    this.alarmTimeout = window.setTimeout(() => {
+      this.stopTimerAlarm();
+    }, maxDurationSeconds * 1000);
+  }
+
+  public stopTimerAlarm() {
+    this.isAlarmActive = false;
+    if (this.alarmInterval) {
+      clearInterval(this.alarmInterval);
+      this.alarmInterval = null;
+    }
+    if (this.alarmTimeout) {
+      clearTimeout(this.alarmTimeout);
+      this.alarmTimeout = null;
+    }
+
+    // Stop and disconnect any currently sounding nodes
+    const nodes = [...this.alarmNodes];
+    this.alarmNodes = [];
+    nodes.forEach((node) => {
+      try {
+        if (typeof node.stop === 'function') {
+          node.stop();
+        }
+        node.disconnect();
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  public isAlarmRinging(): boolean {
+    return this.isAlarmActive;
+  }
+
   public playAlarm() {
-    // Silenced per user request
+    this.startTimerAlarm(300);
   }
 }
 
