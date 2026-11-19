@@ -44,11 +44,8 @@ import {
   WifiOff,
   Shield,
   Lock,
-  Bell,
-  BellOff,
-  BellRing,
 } from 'lucide-react';
-import { loadTimerAlarmEnabled, saveTimerAlarmEnabled } from '../../lib/timerAlarm';
+import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
 import { TimerAlarmModal } from './TimerAlarmModal';
 import { App } from '@capacitor/app';
 import {
@@ -2376,37 +2373,6 @@ export function StudyTimer() {
               </>
             )}
           </div>
-
-          {/* Alarm Toggle Button (Optional 5-min alarm for Countdown, Ultra Strict, Pomodoro) */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              const next = !isAlarmEnabled;
-              setIsAlarmEnabled(next);
-              saveTimerAlarmEnabled(next);
-              toast(next ? 'Timer alarm: ON (rings for 5 min)' : 'Timer alarm: OFF', {
-                icon: next ? '🔔' : '🔕',
-              });
-            }}
-            className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
-              isAlarmEnabled
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 font-medium shadow-xs'
-                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
-            }`}
-            title={
-              isAlarmEnabled
-                ? 'Alarm is ON (plays 5-minute repeating alarm when timer ends)'
-                : 'Alarm is OFF (silent on timer completion)'
-            }
-          >
-            {isAlarmEnabled ? (
-              <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            ) : (
-              <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
-            )}
-            <span>Alarm: {isAlarmEnabled ? 'ON' : 'OFF'}</span>
-          </button>
 
           {/* Focus Button - always visible in any mode */}
           <button
