@@ -37,6 +37,7 @@ import {
 } from '../lib/ranks';
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
 import { fetchAuthoritativeServerTime, saveValidatedSession } from '../lib/serverTime';
+import { calculateNonOverlappingSeconds } from '../lib/nonOverlappingTime';
 import { notify, initNotificationChannels, requestNotificationPermission as requestNotifyPermission } from '../lib/notifications';
 import { isNativeAndroid } from '../lib/timerNotificationPlugin';
 
@@ -971,9 +972,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id, user?.currentSeasonId, user?.seasonRp, isLoading, isAuthenticated, updateProfile]);
 
-  // Compute total focus time in seconds from all saved sessions
+  // Compute total focus time in seconds from all saved sessions (merging overlapping sessions)
   const totalStudySeconds = useMemo(() => {
-    return sessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0);
+    return calculateNonOverlappingSeconds(sessions);
   }, [sessions]);
 
   // Compute total completed tasks
@@ -1146,12 +1147,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const getTodayTotalSeconds = useCallback(() => {
     const startOfToday = getLocalStartOfDay(new Date());
     const endOfToday = getLocalEndOfDay(new Date());
-    const loggedToday = sessions
-      .filter(s => {
-        const t = new Date(s.startTime).getTime();
-        return t >= startOfToday.getTime() && t <= endOfToday.getTime();
-      })
-      .reduce((sum, s) => sum + s.durationSeconds, 0);
+    const loggedTodaySessions = sessions.filter(s => {
+      const t = new Date(s.startTime).getTime();
+      return t >= startOfToday.getTime() && t <= endOfToday.getTime();
+    });
+    const loggedToday = calculateNonOverlappingSeconds(loggedTodaySessions);
 
     return loggedToday + (isStudying ? elapsedSeconds : 0);
   }, [sessions, isStudying, elapsedSeconds]);

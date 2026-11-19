@@ -15,6 +15,7 @@ import {
   getLocalDateString,
   parseLocalDateString,
 } from '../../lib/utils';
+import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -122,9 +123,9 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       if (!map[dateKey]) {
         map[dateKey] = { totalSeconds: 0, count: 0, sessions: [] };
       }
-      map[dateKey].totalSeconds += duration;
-      map[dateKey].count += 1;
       map[dateKey].sessions.push(s);
+      map[dateKey].totalSeconds = calculateNonOverlappingSeconds(map[dateKey].sessions);
+      map[dateKey].count += 1;
     });
     return map;
   }, [sessions]);
@@ -155,34 +156,31 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
     const startOfCurrentMonthUTC = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth(), 1)).getTime();
     const endOfCurrentMonthUTC = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() + 1, 0, 23, 59, 59, 999)).getTime();
 
-    // 1. Focus Time of This Month
-    const thisMonthFocusSec = validSessions
-      .filter(s => {
-        const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-        const sessionTime = new Date(sessionDateStr).getTime();
-        return sessionTime >= startOfCurrentMonthUTC && sessionTime <= endOfCurrentMonthUTC;
-      })
-      .reduce((sum, s) => sum + Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0), 0);
+    // 1. Focus Time of This Month (strictly merging overlapping sessions)
+    const thisMonthSessions = validSessions.filter(s => {
+      const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
+      const sessionTime = new Date(sessionDateStr).getTime();
+      return sessionTime >= startOfCurrentMonthUTC && sessionTime <= endOfCurrentMonthUTC;
+    });
+    const thisMonthFocusSec = calculateNonOverlappingSeconds(thisMonthSessions);
 
-    // 2. Focus Time of This Week
-    const thisWeekFocusSec = validSessions
-      .filter(s => {
-        const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-        const dStr = getLocalDateString(new Date(sessionDateStr));
-        return dStr >= weekMonStr && dStr <= weekSunStr;
-      })
-      .reduce((sum, s) => sum + Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0), 0);
+    // 2. Focus Time of This Week (strictly merging overlapping sessions)
+    const thisWeekSessions = validSessions.filter(s => {
+      const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
+      const dStr = getLocalDateString(new Date(sessionDateStr));
+      return dStr >= weekMonStr && dStr <= weekSunStr;
+    });
+    const thisWeekFocusSec = calculateNonOverlappingSeconds(thisWeekSessions);
 
-    // 3. Focus Time of Today
+    // 3. Focus Time of Today (strictly merging overlapping sessions)
     const todayLocalDate = new Date().toLocaleDateString();
-    const todayFocusSec = validSessions
-      .filter(s => {
-        const sessionDate = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-        if (!sessionDate) return false;
-        const d = new Date(sessionDate);
-        return d.toLocaleDateString() === todayLocalDate || getLocalDateString(d) === todayStr;
-      })
-      .reduce((sum, s) => sum + Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0), 0);
+    const todaySessionsList = validSessions.filter(s => {
+      const sessionDate = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
+      if (!sessionDate) return false;
+      const d = new Date(sessionDate);
+      return d.toLocaleDateString() === todayLocalDate || getLocalDateString(d) === todayStr;
+    });
+    const todayFocusSec = calculateNonOverlappingSeconds(todaySessionsList);
 
     return {
       thisMonthFocusSec,

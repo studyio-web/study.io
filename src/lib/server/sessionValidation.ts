@@ -1,6 +1,7 @@
 import 'server-only';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from './supabaseAdmin';
+import { calculateOverlappingSeconds } from '../nonOverlappingTime';
 
 export const MAX_SESSION_SECONDS = 12 * 3600; // 43,200 seconds (12 hours)
 export const MAX_DAILY_SECONDS = 24 * 3600;   // 86,400 seconds (24 hours)
@@ -212,31 +213,41 @@ export async function validateAndSaveSession(
       };
     }
 
-    // 8. Overlap Protection: Check if this session overlaps with an existing session
-    const { data: overlapping } = await dbClient
+    // 8. Overlap Protection: Prevent multi-device concurrent focus time cheat
+    // Physical time is absolute: if there are 2 hours of focus time in 1 hour, remove the overlapping hour
+    const { data: overlappingSessions } = await dbClient
       .from('study_sessions')
-      .select('id, started_at, ended_at')
+      .select('id, started_at, ended_at, duration_seconds')
       .eq('user_id', user.id)
       .lt('started_at', endTime.toISOString())
-      .gt('ended_at', startTime.toISOString())
-      .limit(1);
+      .gt('ended_at', startTime.toISOString());
 
-    if (overlapping && overlapping.length > 0) {
-      const prev = overlapping[0];
-      const prevEnd = new Date(prev.ended_at).getTime();
-      if (prevEnd > startTime.getTime()) {
-        // Shift start time to after previous session
-        startTime = new Date(prevEnd);
-        calculatedSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
-        if (calculatedSeconds <= 0) {
+    if (overlappingSessions && overlappingSessions.length > 0) {
+      const overlapSec = calculateOverlappingSeconds(
+        startTime.getTime(),
+        endTime.getTime(),
+        overlappingSessions
+      );
+
+      if (overlapSec > 0) {
+        console.warn(`[Anti-Tamper] Detected ${overlapSec}s overlap with existing sessions in interval.`);
+        const netUniqueSeconds = Math.max(0, calculatedSeconds - overlapSec);
+
+        // If completely overlapping with existing session(s) (allow <= 3s network jitter tolerance)
+        if (netUniqueSeconds <= 3) {
           return {
             success: true,
             discarded: true,
-            reason: 'Session completely overlaps with an existing study session.',
+            isDuplicate: true,
+            reason: 'Focus time already recorded for this time window on another device or session.',
             session: null,
             calculatedSeconds: 0,
           };
         }
+
+        // Partial overlap: deduct overlapping time so only genuine non-overlapping focus time is credited
+        calculatedSeconds = netUniqueSeconds;
+        startTime = new Date(endTime.getTime() - calculatedSeconds * 1000);
       }
     }
 

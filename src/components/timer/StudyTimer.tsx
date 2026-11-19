@@ -46,6 +46,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
+import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import { TimerAlarmModal } from './TimerAlarmModal';
 import { App } from '@capacitor/app';
 import {
@@ -1526,23 +1527,22 @@ export function StudyTimer() {
     });
   }, [sessions]);
 
-  // Overview metrics (Today & Yesterday) - calculated strictly from saved sessions, never recalculates during active ticks
+  // Overview metrics (Today & Yesterday) - calculated strictly merging overlapping sessions to prevent 2x cheat
   const overviewTodaySeconds = useMemo(() => {
-    return todaySessions.reduce((sum, s) => sum + s.durationSeconds, 0);
+    return calculateNonOverlappingSeconds(todaySessions);
   }, [todaySessions]);
   const overviewTodaySessionsCount = todaySessions.length;
 
   const yesterdayTotalSeconds = useMemo(() => {
-    return yesterdaySessions.reduce((sum, s) => sum + s.durationSeconds, 0);
+    return calculateNonOverlappingSeconds(yesterdaySessions);
   }, [yesterdaySessions]);
   const yesterdaySessionsCount = yesterdaySessions.length;
 
   // Calculate today's subject study time (completed sessions only to avoid active ticking re-evaluations)
   const todaySubjectSeconds = useMemo(() => {
     if (!selectedSubject?.id) return 0;
-    return todaySessions
-      .filter(s => s && s.subjectId === selectedSubject.id)
-      .reduce((sum, s) => sum + (s?.durationSeconds || 0), 0);
+    const subjSessions = todaySessions.filter(s => s && s.subjectId === selectedSubject.id);
+    return calculateNonOverlappingSeconds(subjSessions);
   }, [todaySessions, selectedSubject?.id]);
 
   const shouldReduceMotion = useReducedMotion() ?? false;
