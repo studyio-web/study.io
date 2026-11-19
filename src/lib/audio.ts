@@ -929,49 +929,58 @@ class AudioEngine {
         if (!ctx) return;
         const now = ctx.currentTime;
 
-        // Ascending harmonic chime notes: C5 (523.25), E5 (659.25), G5 (783.99), C6 (1046.50)
+        // Warm organic acoustic mallet & singing chime progression:
+        // Soft wooden body (triangle wave) + gentle lowpass warm filter + natural exponential acoustic tail
         const notes = [
-          { freq: 523.25, offset: 0.0 },
-          { freq: 659.25, offset: 0.22 },
-          { freq: 783.99, offset: 0.44 },
-          { freq: 1046.5, offset: 0.66 },
+          { freq: 392.00, offset: 0.00, duration: 1.2 }, // G4
+          { freq: 587.33, offset: 0.20, duration: 1.1 }, // D5
+          { freq: 880.00, offset: 0.40, duration: 1.4 }, // A5
+          { freq: 1174.66, offset: 0.60, duration: 1.6 }, // D6
         ];
 
-        notes.forEach(({ freq, offset }) => {
-          const startTime = now + offset;
-          const duration = 0.7;
+        // Shared warm acoustic low-pass filter to remove digital harshness
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1400, now);
+        filter.Q.setValueAtTime(1.2, now);
+        filter.connect(ctx.destination);
+        this.alarmNodes.push(filter);
 
-          // Fundamental resonant chime
+        notes.forEach(({ freq, offset, duration }) => {
+          const startTime = now + offset;
+
+          // Warm resonant mallet body (triangle wave with natural acoustic harmonics)
           const osc1 = ctx.createOscillator();
           const gain1 = ctx.createGain();
-          osc1.type = 'sine';
+          osc1.type = 'triangle';
           osc1.frequency.setValueAtTime(freq, startTime);
 
+          // Natural felt mallet envelope: soft 6ms attack, organic exponential decay
           gain1.gain.setValueAtTime(0.0001, startTime);
-          gain1.gain.linearRampToValueAtTime(0.22, startTime + 0.015);
+          gain1.gain.linearRampToValueAtTime(0.18, startTime + 0.008);
           gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
           osc1.connect(gain1);
-          gain1.connect(ctx.destination);
+          gain1.connect(filter);
 
           osc1.start(startTime);
           osc1.stop(startTime + duration + 0.05);
 
-          // Subtle octave overtone for acoustic bell depth
+          // Gentle sine sub-chime for rich spatial depth
           const osc2 = ctx.createOscillator();
           const gain2 = ctx.createGain();
           osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(freq * 2, startTime);
+          osc2.frequency.setValueAtTime(freq * 0.5, startTime);
 
           gain2.gain.setValueAtTime(0.0001, startTime);
-          gain2.gain.linearRampToValueAtTime(0.05, startTime + 0.015);
-          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.4);
+          gain2.gain.linearRampToValueAtTime(0.04, startTime + 0.01);
+          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.7);
 
           osc2.connect(gain2);
-          gain2.connect(ctx.destination);
+          gain2.connect(filter);
 
           osc2.start(startTime);
-          osc2.stop(startTime + 0.45);
+          osc2.stop(startTime + duration * 0.7 + 0.05);
 
           this.alarmNodes.push(osc1, osc2, gain1, gain2);
         });
@@ -985,7 +994,7 @@ class AudioEngine {
               return false;
             }
           });
-        }, 1600);
+        }, 2200);
       } catch (err) {
         console.warn('[AudioEngine] startTimerAlarm chime error:', err);
       }
@@ -994,8 +1003,8 @@ class AudioEngine {
     // Play immediately
     playChimePhrase();
 
-    // Repeat every 2.8 seconds for an unhurried, rich, mindful chime cadence
-    this.alarmInterval = window.setInterval(playChimePhrase, 2800);
+    // Repeat every 3.2 seconds for an organic, mindful, soothing acoustic cadence
+    this.alarmInterval = window.setInterval(playChimePhrase, 3200);
 
     // Auto-silence after maxDurationSeconds (default 5 minutes = 300 seconds)
     this.alarmTimeout = window.setTimeout(() => {

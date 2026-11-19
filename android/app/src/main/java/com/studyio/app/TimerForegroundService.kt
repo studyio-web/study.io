@@ -40,6 +40,7 @@ class TimerForegroundService : Service() {
         const val ACTION_PAUSE = "com.studyio.app.ACTION_TIMER_PAUSE"
         const val ACTION_RESUME = "com.studyio.app.ACTION_TIMER_RESUME"
         const val ACTION_STOP = "com.studyio.app.ACTION_TIMER_STOP"
+        const val ACTION_ALARM_TARGET_REACHED = "com.studyio.app.ACTION_ALARM_TARGET_REACHED"
 
         const val EXTRA_MODE = "mode" // "stopwatch" | "countdown" | "pomodoro"
         const val EXTRA_PHASE = "phase" // "work" | "break"
@@ -54,6 +55,22 @@ class TimerForegroundService : Service() {
 
         @Volatile
         private var instance: TimerForegroundService? = null
+
+        fun onTargetReachedDirect(context: Context) {
+            val inst = instance
+            if (inst != null) {
+                inst.onTimerTargetReached()
+            } else {
+                val intent = Intent(context, TimerForegroundService::class.java).apply {
+                    action = ACTION_ALARM_TARGET_REACHED
+                }
+                try {
+                    context.startService(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to startService with ACTION_ALARM_TARGET_REACHED", e)
+                }
+            }
+        }
 
         fun pauseDirect(context: Context) {
             val inst = instance
@@ -498,6 +515,11 @@ class TimerForegroundService : Service() {
                     Log.w(TAG, "Stop rejected: Ultra Strict Mode active until timer ends")
                 }
             }
+
+            ACTION_ALARM_TARGET_REACHED -> {
+                Log.d(TAG, "onStartCommand: ACTION_ALARM_TARGET_REACHED received from exact wake alarm")
+                onTimerTargetReached()
+            }
         }
 
         return START_STICKY
@@ -876,12 +898,44 @@ class TimerForegroundService : Service() {
             return
         }
 
+        // 1. In-app looper runnable
         finishRunnable = Runnable {
             if (isRunning && !isPaused) {
                 onTimerTargetReached()
             }
         }
         mainHandler.postDelayed(finishRunnable!!, delayMs)
+
+        // 2. Hardware AlarmManager RTC_WAKEUP (guarantees wakeup even when device screen is OFF / sleeping)
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val alarmIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
+                action = TimerNotificationReceiver.ACTION_TIMER_EXACT_FINISH
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                888,
+                alarmIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerAtMs = System.currentTimeMillis() + delayMs
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager?.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMs,
+                    pendingIntent
+                )
+            } else {
+                alarmManager?.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMs,
+                    pendingIntent
+                )
+            }
+            Log.d(TAG, "Exact alarm scheduled with AlarmManager in ${delayMs / 1000}s (at $triggerAtMs)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to schedule AlarmManager exact wakeup alarm", e)
+        }
     }
 
     private fun cancelScheduledFinishCheck() {
@@ -889,10 +943,27 @@ class TimerForegroundService : Service() {
             mainHandler.removeCallbacks(it)
             finishRunnable = null
         }
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val alarmIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
+                action = TimerNotificationReceiver.ACTION_TIMER_EXACT_FINISH
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                888,
+                alarmIntent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (pendingIntent != null) {
+                alarmManager?.cancel(pendingIntent)
+                pendingIntent.cancel()
+            }
+        } catch (_: Exception) {}
     }
 
     private fun onTimerTargetReached() {
         Log.d(TAG, "Timer target reached: mode=$mode, phase=$phase, isUltra=$isUltraStrict")
+        cancelScheduledFinishCheck()
         val wasUltra = isUltraStrict
         if (isUltraStrict) {
             isUltraStrict = false
@@ -903,6 +974,20 @@ class TimerForegroundService : Service() {
                 Log.w(TAG, "Failed clearing is_ultra on target reached", e)
             }
         }
+
+        // Wake screen if phone screen is OFF / sleeping so lockscreen lights up with notification
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            @Suppress("DEPRECATION")
+            val screenWakeLock = pm?.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+                "StudyIO:CountdownFinishScreenWake"
+            )
+            screenWakeLock?.acquire(10000L) // Light up screen for 10s
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not acquire screen wakeup lock", e)
+        }
+
         postFinishAlertNotification(wasUltra)
 
         if (mode == "pomodoro") {
@@ -944,15 +1029,23 @@ class TimerForegroundService : Service() {
             else -> "Session complete."
         }
 
+        val alarmSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+            ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_studyio)
             .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
             .setContentTitle(title)
             .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setSound(alarmSound)
+            .setVibrate(longArrayOf(0, 500, 250, 500, 250, 1000))
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(createContentPendingIntent())
+            .setFullScreenIntent(createContentPendingIntent(), true)
 
         try {
             val largeIcon = android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BellRing, BellOff, Coffee, Play, ShieldAlert } from 'lucide-react';
+import { BellOff, Coffee, Play, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { triggerHaptic } from '../../lib/native-feel';
 import { ALARM_MAX_DURATION_SECONDS, formatAlarmRemaining } from '../../lib/timerAlarm';
 
@@ -38,10 +38,10 @@ export function TimerAlarmModal({
 
     setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
 
-    // Periodic gentle haptic pulse every 2.8s matching acoustic chime cadence
+    // Periodic gentle haptic pulse matching acoustic chime cadence (3.2s)
     const hapticInterval = setInterval(() => {
       triggerHaptic('medium');
-    }, 2800);
+    }, 3200);
 
     const timer = setInterval(() => {
       setSecondsRemaining((prev) => {
@@ -63,30 +63,30 @@ export function TimerAlarmModal({
   if (!isOpen) return null;
 
   const categoryLabel = (() => {
-    if (isUltraStrict) return 'LOCKDOWN COMPLETE';
-    if (mode === 'countdown') return 'COUNTDOWN FINISHED';
-    if (phase === 'work') return 'FOCUS SESSION COMPLETED';
-    return 'BREAK PERIOD COMPLETED';
+    if (isUltraStrict) return 'ULTRA LOCKDOWN PROTOCOL';
+    if (mode === 'countdown') return 'COUNTDOWN TIMER';
+    if (phase === 'work') return 'FOCUS SESSION';
+    return 'BREAK PERIOD';
   })();
 
   const title = (() => {
-    if (isUltraStrict) return 'ULTRA LOCKDOWN COMPLETE';
-    if (mode === 'countdown') return "TIME'S UP!";
-    if (phase === 'work') return 'FOCUS BLOCK COMPLETE!';
-    return 'BREAK TIME OVER!';
+    if (isUltraStrict) return 'Session Complete';
+    if (mode === 'countdown') return 'Time is Up';
+    if (phase === 'work') return 'Focus Complete';
+    return 'Break Finished';
   })();
 
   const subtitle = (() => {
     if (isUltraStrict) {
-      return 'Lockdown lifted. All blocked apps are now unlocked.';
+      return 'Lockdown lifted. Your session is ready to save.';
     }
     if (mode === 'countdown') {
-      return 'Your scheduled countdown session has finished.';
+      return 'Your focus target has been reached.';
     }
     if (phase === 'work') {
-      return 'Great focus! Take a break or start your next round.';
+      return 'Time for a quick break or your next focus round.';
     }
-    return 'Break finished! Ready to jump into your next focus block?';
+    return 'Ready to start your next focus block?';
   })();
 
   return (
@@ -94,77 +94,133 @@ export function TimerAlarmModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="alarm-modal-title"
-      className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-[#050507]/90 backdrop-blur-2xl animate-in fade-in duration-200"
     >
-      {/* Background ambient radial glow */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-[320px] h-[320px] sm:w-[440px] sm:h-[440px] rounded-full bg-emerald-500/10 blur-[100px] animate-pulse" />
+      {/* Dynamic Ambient Spatial Halo */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+        <div
+          className={`w-[360px] h-[360px] sm:w-[500px] sm:h-[500px] rounded-full blur-[120px] opacity-40 animate-pulse ${
+            isUltraStrict ? 'bg-red-500/20' : 'bg-emerald-500/15'
+          }`}
+          style={{ animationDuration: '3.2s' }}
+        />
       </div>
 
-      <div className="relative w-full max-w-sm rounded-[32px] bg-[#0E121A]/95 border border-white/[0.08] p-7 shadow-[0_25px_60px_rgba(0,0,0,0.85)] text-white text-center animate-in zoom-in-95 duration-150 overflow-hidden">
-        {/* Subtle top highlight gradient border */}
-        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+      {/* Main Glass Shell */}
+      <div
+        className={`relative w-full max-w-sm rounded-[32px] bg-[#0A0D14]/95 border p-7 sm:p-8 text-center animate-in zoom-in-95 duration-150 overflow-hidden ${
+          isUltraStrict
+            ? 'border-red-500/30 shadow-[0_20px_60px_rgba(239,68,68,0.25)]'
+            : 'border-white/[0.08] shadow-[0_20px_60px_rgba(0,0,0,0.85)]'
+        }`}
+      >
+        {/* Subtle Top Accent Highlight */}
+        <div
+          className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent ${
+            isUltraStrict ? 'via-red-500/50' : 'via-emerald-400/40'
+          } to-transparent`}
+        />
 
-        {/* Pulsing Concentric Radar Alarm Orb */}
-        <div className="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+        {/* Hero Completion Ring & Dial */}
+        <div className="relative w-24 h-24 mx-auto mb-5 flex items-center justify-center">
+          {/* Breathing ambient ring */}
           <div
-            className="absolute inset-0 rounded-full border border-emerald-500/25 animate-ping opacity-60"
-            style={{ animationDuration: '2.8s' }}
+            className={`absolute inset-0 rounded-full border animate-ping opacity-30 ${
+              isUltraStrict ? 'border-red-500' : 'border-emerald-400'
+            }`}
+            style={{ animationDuration: '3.2s' }}
           />
-          <div className="absolute -inset-1.5 rounded-full border border-emerald-500/20" />
-          <div className="relative w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.2)]">
+          {/* Static frosted ring */}
+          <div
+            className={`absolute -inset-2 rounded-full border ${
+              isUltraStrict ? 'border-red-500/15' : 'border-emerald-500/15'
+            }`}
+          />
+          {/* Core circular HUD emblem */}
+          <div
+            className={`relative w-24 h-24 rounded-full border flex flex-col items-center justify-center shadow-lg transition-transform ${
+              isUltraStrict
+                ? 'bg-red-500/10 border-red-500/35 text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.25)]'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
+            }`}
+          >
             {isUltraStrict ? (
-              <ShieldAlert className="w-9 h-9 text-emerald-400" />
+              <ShieldCheck className="w-10 h-10 text-red-400 stroke-[1.75]" />
             ) : (
-              <BellRing className="w-8 h-8 text-emerald-400 animate-pulse" />
+              <CheckCircle2 className="w-10 h-10 text-emerald-400 stroke-[1.75]" />
             )}
+            <span className="text-[10px] font-mono tracking-wider text-white/50 mt-0.5">00:00</span>
           </div>
         </div>
 
-        {/* Category tracker overline badge */}
-        <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-emerald-400/90 font-semibold mb-1.5">
-          {categoryLabel}
-        </p>
+        {/* Minimalist Monospace Category Tag */}
+        <div className="flex items-center justify-center gap-1.5 mb-2">
+          <span
+            className={`w-1.5 h-1.5 rounded-full animate-ping ${
+              isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
+            }`}
+          />
+          <p
+            className={`text-[10px] font-mono uppercase tracking-[0.22em] font-semibold ${
+              isUltraStrict ? 'text-red-400/90' : 'text-emerald-400/90'
+            }`}
+          >
+            {categoryLabel}
+          </p>
+        </div>
 
-        {/* Main Title */}
-        <h2 id="alarm-modal-title" className="font-hud text-2xl font-bold tracking-tight text-white mb-2">
+        {/* Clean Modern Title */}
+        <h2 id="alarm-modal-title" className="font-hud text-3xl font-bold tracking-tight text-white mb-2">
           {title}
         </h2>
 
-        {/* Clean Subject Chip (No sparkle symbol) */}
+        {/* Subject Badge */}
         {subjectName && (
-          <div className="mb-2.5 inline-flex items-center px-3.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-xs text-white/85 font-medium">
-            <span className="truncate max-w-[200px]">{subjectName}</span>
+          <div className="mb-2.5 inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-xs text-white/90">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
+              }`}
+            />
+            <span className="font-medium truncate max-w-[200px]">{subjectName}</span>
           </div>
         )}
 
         {/* Subtitle Description */}
-        <p className="text-xs text-white/60 leading-relaxed max-w-[260px] mx-auto mb-4">
+        <p className="text-xs text-white/60 leading-relaxed max-w-[260px] mx-auto mb-5">
           {subtitle}
         </p>
 
-        {/* Auto-silence countdown badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-mono text-white/50 mb-6">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        {/* Auto-silence Countdown Indicator */}
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-[11px] font-mono text-white/50 mb-6">
+          <span
+            className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+              isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
+            }`}
+          />
           <span>Auto-silences in {formatAlarmRemaining(secondsRemaining)}</span>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Controls */}
         <div className="flex flex-col gap-2.5">
-          {/* Primary Action Button: STOP ALARM */}
+          {/* Primary Dismiss Button */}
           <button
             type="button"
             onClick={() => {
               triggerHaptic('heavy');
               onDismiss();
             }}
-            className="w-full h-13 rounded-2xl bg-white hover:bg-slate-100 text-black font-hud font-bold text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(255,255,255,0.15)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className={`w-full h-13 rounded-2xl font-hud font-bold text-sm uppercase tracking-wider active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              isUltraStrict
+                ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]'
+                : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_28px_rgba(16,185,129,0.35)]'
+            }`}
           >
             <BellOff className="w-4 h-4 stroke-[2.5]" />
             <span>Stop Alarm</span>
           </button>
 
-          {/* Pomodoro Action Buttons (if in pomodoro mode) */}
+          {/* Pomodoro Transitions */}
           {mode === 'pomodoro' && phase === 'work' && onStartBreak && (
             <button
               type="button"

@@ -14,6 +14,7 @@ class TimerNotificationReceiver : BroadcastReceiver() {
         const val ACTION_TIMER_RESUME = "com.studyio.app.ACTION_TIMER_RESUME"
         const val ACTION_TIMER_STOP = "com.studyio.app.ACTION_TIMER_STOP"
         const val ACTION_NOTIFICATION_DELETED = "com.studyio.app.ACTION_NOTIFICATION_DELETED"
+        const val ACTION_TIMER_EXACT_FINISH = "com.studyio.app.ACTION_TIMER_EXACT_FINISH"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -21,6 +22,10 @@ class TimerNotificationReceiver : BroadcastReceiver() {
         Log.d(TAG, "onReceive action: $action")
 
         when (action) {
+            ACTION_TIMER_EXACT_FINISH -> {
+                Log.d(TAG, "Exact timer finish triggered by AlarmManager while device was idle/locked!")
+                TimerForegroundService.onTargetReachedDirect(context)
+            }
             ACTION_TIMER_PAUSE -> {
                 // Update notification UI immediately to paused
                 TimerForegroundService.pauseDirect(context)

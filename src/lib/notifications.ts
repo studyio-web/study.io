@@ -349,12 +349,6 @@ export async function notify(
 
   // 2. Native Android Execution via @capacitor/local-notifications
   if (isNative) {
-    // On native Android, countdown completion alerts are managed exclusively by TimerForegroundService
-    // to guarantee exactly one notification appears.
-    if ((type as string) === 'countdown_completed' || (type as string) === 'countdown_finished') {
-      return true;
-    }
-
     try {
       await initNotificationChannels();
       const notifId = getNotificationId(type, payload.id);
