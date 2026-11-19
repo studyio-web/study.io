@@ -262,6 +262,7 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   const {
     isRunning,
     isPaused,
+    isUltraStrict,
     elapsedSeconds,
     getTodayTotalSeconds,
     startTimer,
@@ -3161,20 +3162,34 @@ CREATE POLICY "Hosts can update their own study rooms"
 
                         {/* Single Toggle Control Button (Start / Pause / Resume) */}
                         <div className="flex items-center pl-1 border-l border-white/15">
-                          <button
-                            type="button"
-                            onClick={isRunning ? handlePauseTimer : handleStartOrResume}
-                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 hover:brightness-110 active:brightness-95 shadow-[0_0_16px_var(--glow)]"
-                            style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
-                            title={isRunning ? 'Pause focus timer' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
-                            aria-label={isRunning ? 'Pause timer' : isPaused ? 'Resume timer' : 'Start timer'}
-                          >
-                            {isRunning ? (
-                              <Pause className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current" />
-                            ) : (
-                              <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current ml-0.5" />
-                            )}
-                          </button>
+                          {isUltraStrict && isRunning ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toast('Ultra Focus Mode is locked until countdown completes', { icon: '🔒' });
+                              }}
+                              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-not-allowed touch-manipulation select-none bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                              title="Ultra Focus Mode is locked until countdown completes"
+                              aria-label="Ultra Focus Mode locked"
+                            >
+                              <Lock className="w-4.5 h-4.5 sm:w-5 sm:h-5 animate-pulse" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={isRunning ? handlePauseTimer : handleStartOrResume}
+                              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 hover:brightness-110 active:brightness-95 shadow-[0_0_16px_var(--glow)]"
+                              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                              title={isRunning ? 'Pause focus timer' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
+                              aria-label={isRunning ? 'Pause timer' : isPaused ? 'Resume timer' : 'Start timer'}
+                            >
+                              {isRunning ? (
+                                <Pause className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current" />
+                              ) : (
+                                <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current ml-0.5" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

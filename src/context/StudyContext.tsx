@@ -90,6 +90,9 @@ interface StudyContextType {
   setTimerMode: (mode: TimerMode) => void;
   countdownTarget: number;
   setCountdownTarget: (target: number) => void;
+  isUltraStrict: boolean;
+  setIsUltraStrict: (val: boolean | ((prev: boolean) => boolean)) => void;
+  syncTimerMode: (mode: TimerMode, isUltra?: boolean, target?: number) => void;
   isStudying: boolean;
   isPaused: boolean;
   isRunning: boolean;
@@ -470,15 +473,80 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const setCountdownTarget = useCallback((target: number) => {
     setCountdownTargetState(target);
+    countdownTargetRef.current = target;
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('studyio_timer_countdown_target', String(target));
       } catch (e) {}
     }
   }, []);
+
+  const countdownTargetRef = useRef(countdownTarget);
+  countdownTargetRef.current = countdownTarget;
+
+  const [isUltraStrict, setIsUltraStrictState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('studyio_ultra_strict_enabled') === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+  const isUltraStrictRef = useRef(isUltraStrict);
+  isUltraStrictRef.current = isUltraStrict;
+
+  const setIsUltraStrict = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
+    setIsUltraStrictState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      isUltraStrictRef.current = next;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('studyio_ultra_strict_enabled', next ? 'true' : 'false');
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  const syncTimerMode = useCallback((mode: TimerMode, isUltra?: boolean, target?: number) => {
+    setTimerMode(mode);
+    if (isUltra !== undefined) {
+      setIsUltraStrict(isUltra);
+    }
+    if (target !== undefined) {
+      setCountdownTarget(target);
+    }
+
+    const supabase = getSupabase();
+    const uid = userRef.current?.id || user?.id;
+    if (!supabase || !uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
+
+    try {
+      activeChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'timer_mode_sync',
+        payload: {
+          user_id: uid,
+          device_id: getDeviceId(),
+          mode,
+          timer_mode: mode,
+          is_ultra_strict: isUltra !== undefined ? isUltra : isUltraStrictRef.current,
+          target_duration: target !== undefined ? target : countdownTargetRef.current,
+        },
+      });
+    } catch (err) {
+      console.warn('[Realtime Broadcast timer_mode_sync error]:', err);
+    }
+  }, [user?.id, setIsUltraStrict, setCountdownTarget]);
   
   const [isStudying, setIsStudying] = useState(false);
+  const isStudyingRef = useRef(isStudying);
+  isStudyingRef.current = isStudying;
   const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(isPaused);
+  isPausedRef.current = isPaused;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>(() => {
     if (typeof window !== 'undefined') {
@@ -1367,6 +1435,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       mode?: TimerMode;
       targetDuration?: number | null;
       pomodoroPhase?: PomodoroPhase;
+      isUltraStrict?: boolean;
     }
   ) => {
     const supabase = getSupabase();
@@ -1439,6 +1508,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               device_id: deviceId,
               user_id: uid,
               accumulated_seconds: 0,
+              is_ultra_strict: false,
+              isUltraStrict: false,
             },
           });
         } catch (bErr) {
@@ -1449,6 +1520,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       } else if (status === 'paused') {
         const effectiveAccumulated = extra?.accumulatedSeconds ?? extra?.elapsedBeforePause ?? accumulatedSecondsRef.current;
         const effectiveMode = extra?.mode || timerMode || 'stopwatch';
+        const effectiveIsUltra = Boolean(
+          extra?.isUltraStrict !== undefined
+            ? extra.isUltraStrict
+            : (effectiveMode === 'countdown' && isUltraStrictRef.current)
+        );
+        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}`;
         const dbMode = effectiveMode === 'pomodoro' ? 'pomodoro' : 'stopwatch';
         
         const effectivePhase = extra?.pomodoroPhase || pomodoroPhase;
@@ -1463,7 +1540,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         console.log('[Timer Write: syncActiveSessionToDb (paused)]', {
           timestamp: new Date().toISOString(),
           userId: uid,
-          deviceId,
+          deviceId: finalDeviceId,
           accumulated_seconds_before: accumulatedSecondsRef.current,
           accumulated_seconds_after: effectiveAccumulated,
         });
@@ -1474,7 +1551,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         
         if (!isChangingPhase) {
           const res = await supabase.rpc('pause_session', {
-            p_device_id: deviceId,
+            p_device_id: finalDeviceId,
           });
           rpcError = res.error;
         }
@@ -1484,7 +1561,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           // Fallback direct upsert
           await supabase.from('active_sessions').upsert({
             user_id: uid,
-            device_id: deviceId,
+            device_id: finalDeviceId,
             status: 'paused',
             started_at: null,
             accumulated_seconds: effectiveAccumulated,
@@ -1502,11 +1579,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             event: 'active_session_sync',
             payload: {
               status: 'paused',
-              device_id: deviceId,
+              device_id: finalDeviceId,
               user_id: uid,
               accumulated_seconds: effectiveAccumulated,
               mode: effectiveMode,
               timer_mode: effectiveMode,
+              is_ultra_strict: effectiveIsUltra,
+              isUltraStrict: effectiveIsUltra,
               pomodoro_phase: extra?.pomodoroPhase || pomodoroPhase,
             },
           });
@@ -1519,13 +1598,19 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const activeSubId = extra?.subjectId !== undefined ? extra.subjectId : (isUuid(sub?.id) ? sub!.id : null);
         const activeSubName = extra?.subjectName !== undefined ? extra.subjectName : (sub?.name || null);
         const effectiveMode = extra?.mode || timerMode || 'stopwatch';
+        const effectiveIsUltra = Boolean(
+          extra?.isUltraStrict !== undefined
+            ? extra.isUltraStrict
+            : (effectiveMode === 'countdown' && isUltraStrictRef.current)
+        );
+        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}`;
         const dbMode = effectiveMode === 'pomodoro' ? 'pomodoro' : 'stopwatch';
         const effectivePhase = extra?.pomodoroPhase || pomodoroPhase;
         
         const targetDuration = extra?.targetDuration !== undefined ? extra.targetDuration : (
           effectiveMode === 'pomodoro'
             ? (effectivePhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration)
-            : null
+            : (effectiveMode === 'countdown' ? countdownTargetRef.current : null)
         );
         const dbPhase = effectiveMode === 'pomodoro'
           ? (effectivePhase === 'work' ? 'focus' : 'break')
@@ -1536,16 +1621,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         console.log('[Timer Write: syncActiveSessionToDb (running)]', {
           timestamp: new Date().toISOString(),
           userId: uid,
-          deviceId,
+          deviceId: finalDeviceId,
           accumulated_seconds: effectiveAccumulated,
           startedAt: startedAtIso,
           mode: dbMode,
+          isUltra: effectiveIsUltra,
         });
 
         // Direct upsert with exact columns matching active_sessions table schema
         await supabase.from('active_sessions').upsert({
           user_id: uid,
-          device_id: deviceId,
+          device_id: finalDeviceId,
           subject_id: isUuid(activeSubId) ? activeSubId : null,
           status: 'running',
           started_at: startedAtIso,
@@ -1563,12 +1649,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             event: 'active_session_sync',
             payload: {
               status: 'running',
-              device_id: deviceId,
+              device_id: finalDeviceId,
               user_id: uid,
               started_at: startedAtIso,
               accumulated_seconds: effectiveAccumulated,
               mode: effectiveMode,
               timer_mode: effectiveMode,
+              is_ultra_strict: effectiveIsUltra,
+              isUltraStrict: effectiveIsUltra,
               pomodoro_phase: extra?.pomodoroPhase || pomodoroPhase,
               pomodoro_duration_seconds: targetDuration,
               target_duration: targetDuration,
@@ -1812,10 +1900,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setIsPaused(false);
       setIsRemoteSession(false);
       isRemoteSessionRef.current = false;
+      setIsUltraStrict(false);
+      isUltraStrictRef.current = false;
       setPomodoroCompletedPhase(null);
       clearPersistedTimer();
 
-      if (remoteSession?.device_id && remoteSession.device_id !== myDeviceId) {
+      const rawStopDevId = String(remoteSession?.device_id || '');
+      const baseStopDevId = rawStopDevId.split('#')[0];
+      if (baseStopDevId && baseStopDevId !== myDeviceId) {
         setIsRemoteTransitioning(true);
         setTimeout(() => setIsRemoteTransitioning(false), 300);
         setLastRemoteSyncTime(Date.now());
@@ -1823,7 +1915,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const isRemoteDevice = Boolean(remoteSession.device_id && remoteSession.device_id !== myDeviceId);
+    const rawDeviceId = String(remoteSession.device_id || '');
+    const baseDeviceId = rawDeviceId.split('#')[0];
+    const isRemoteDevice = Boolean(baseDeviceId && baseDeviceId !== myDeviceId);
 
     // Ignore immediate echo of local action from this same tab
     if (
@@ -1860,17 +1954,36 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       subject_name,
     } = remoteSession;
 
-    const effectiveMode = mode || timer_mode || 'stopwatch';
-    setTimerMode(prev => {
-      // Countdown is mapped to stopwatch in the DB schema.
-      // So if the DB says stopwatch, but we locally know we are in countdown mode, we preserve the local state.
-      if (effectiveMode === 'stopwatch' && prev === 'countdown') return prev;
-      if (effectiveMode === 'stopwatch' || effectiveMode === 'pomodoro' || effectiveMode === 'countdown') return effectiveMode as TimerMode;
-      return prev;
-    });
+    const remoteIsUltra = Boolean(
+      remoteSession.is_ultra_strict ??
+      remoteSession.isUltraStrict ??
+      rawDeviceId.includes('#ultra')
+    );
 
-    if (effectiveMode === 'countdown' && Number(target_duration) > 0) {
-      setCountdownTarget(Number(target_duration));
+    let remoteEffectiveMode: TimerMode;
+    if (mode === 'pomodoro' || timer_mode === 'pomodoro') {
+      remoteEffectiveMode = 'pomodoro';
+    } else if (
+      mode === 'countdown' ||
+      timer_mode === 'countdown' ||
+      remoteIsUltra ||
+      rawDeviceId.includes('#countdown') ||
+      (Number(target_duration ?? pomodoro_duration_seconds ?? 0) > 0 && !pomodoro_phase)
+    ) {
+      remoteEffectiveMode = 'countdown';
+    } else {
+      remoteEffectiveMode = 'stopwatch';
+    }
+
+    setTimerMode(remoteEffectiveMode);
+    setIsUltraStrict(remoteIsUltra);
+    isUltraStrictRef.current = remoteIsUltra;
+
+    if (remoteEffectiveMode === 'countdown') {
+      const cdTarget = Number(target_duration ?? pomodoro_duration_seconds ?? 0);
+      if (cdTarget > 0) {
+        setCountdownTarget(cdTarget);
+      }
     }
 
     if (pomodoro_phase) {
@@ -1915,7 +2028,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (effectiveMode === 'pomodoro' && targetDuration > 0 && calculatedElapsed >= targetDuration) {
+      if (remoteEffectiveMode === 'pomodoro' && targetDuration > 0 && calculatedElapsed >= targetDuration) {
         if (timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
           timerIntervalRef.current = null;
@@ -2035,6 +2148,30 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           console.log(`[Realtime Broadcast #${realtimeEventCountRef.current}] active_session_sync:`, payload);
           if (payload?.payload && handleRemoteSyncRef.current) {
             handleRemoteSyncRef.current(payload.payload);
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'timer_mode_sync' },
+        (payload: any) => {
+          const data = payload?.payload;
+          if (!data) return;
+          const myDeviceId = getDeviceId();
+          const rawDeviceId = String(data.device_id || '');
+          const baseDeviceId = rawDeviceId.split('#')[0];
+          if (baseDeviceId && baseDeviceId === myDeviceId) return;
+
+          if (!isStudyingRef.current) {
+            const remoteMode = data.mode || data.timer_mode;
+            const remoteIsUltra = Boolean(data.is_ultra_strict);
+            if (remoteMode === 'stopwatch' || remoteMode === 'countdown' || remoteMode === 'pomodoro') {
+              setTimerMode(remoteMode);
+            }
+            setIsUltraStrict(remoteIsUltra);
+            if (data.target_duration && Number(data.target_duration) > 0) {
+              setCountdownTarget(Number(data.target_duration));
+            }
           }
         }
       )
@@ -2916,14 +3053,21 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       subjectId: isUuid(targetSub.id) ? targetSub.id : null,
       subjectName: targetSub.name,
       mode: timerMode,
+      targetDuration: timerMode === 'countdown' ? countdownTargetRef.current : (timerMode === 'pomodoro' ? (pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration) : null),
       pomodoroPhase,
+      isUltraStrict: timerMode === 'countdown' ? isUltraStrictRef.current : false,
     });
     return true;
-  }, [checkDebounce, selectedSubjectId, selectedSubject, subjects, timerMode, pomodoroPhase, setSelectedSubjectId, updateProfile, syncActiveSessionToDb]);
+  }, [checkDebounce, selectedSubjectId, selectedSubject, subjects, timerMode, pomodoroPhase, setSelectedSubjectId, updateProfile, syncActiveSessionToDb, pomodoroWorkDuration, pomodoroBreakDuration]);
 
   // Pause Timer - freeze accumulatedSeconds = actualElapsed, clear interval, and sync to Supabase
   const pauseTimer = useCallback(() => {
     if (!checkDebounce()) return;
+
+    if (isUltraStrictRef.current && isStudying && (countdownTargetRef.current > 0 && elapsedSeconds < countdownTargetRef.current)) {
+      toast('Ultra Focus Mode is locked until countdown completes', { icon: '🔒' });
+      return;
+    }
 
     let actualElapsed = accumulatedSecondsRef.current;
     if (startTimeRef.current !== null) {
@@ -3462,6 +3606,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   ) => {
     if (!checkDebounce()) return;
 
+    if (isUltraStrictRef.current && isStudying && (countdownTargetRef.current > 0 && elapsedSeconds < countdownTargetRef.current)) {
+      toast('Ultra Focus Mode is locked until countdown completes', { icon: '🔒' });
+      return;
+    }
+
     const currentActual = startTimeRef.current !== null && !isPaused
       ? Math.floor((Date.now() - startTimeRef.current) / 1000)
       : accumulatedSecondsRef.current;
@@ -3697,6 +3846,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   // Reset Timer - cleanly resets elapsed time, references, and isRunning state, syncing to active_sessions
   // Critical Anti-Tamper: State cleanup must NEVER be debounced
   const resetTimer = useCallback(() => {
+    if (isUltraStrictRef.current && isStudying && (countdownTargetRef.current > 0 && elapsedSeconds < countdownTargetRef.current)) {
+      toast('Ultra Focus Mode is locked until countdown completes', { icon: '🔒' });
+      return;
+    }
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -4095,6 +4248,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setTimerMode,
         countdownTarget,
         setCountdownTarget,
+        isUltraStrict,
+        setIsUltraStrict,
+        syncTimerMode,
         isStudying,
         isPaused,
         elapsedSeconds,

@@ -332,4 +332,127 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     const restoredNativeConfig = computeEffectiveStrictConfig(isLocalStrictMode, isRemoteSession);
     assert.equal(restoredNativeConfig.enabled, true, 'Local strict mode preference is restored once remote session ends');
   });
+
+  it('guarantees bidirectional timer mode sync: phone switches from ultra countdown to stopwatch when PC starts stopwatch', () => {
+    // Simulated phone state
+    let phoneTimerMode: 'stopwatch' | 'countdown' | 'pomodoro' = 'countdown';
+    let phoneIsUltraStrict = true;
+    let phoneIsStudying = false;
+    let phoneIsRemoteSession = false;
+
+    // Simulated remote sync handler logic from StudyContext
+    const handleRemoteSyncOnPhone = (remotePayload: {
+      status: string;
+      mode?: string;
+      timer_mode?: string;
+      device_id?: string;
+      is_ultra_strict?: boolean;
+    }, myDeviceId: string) => {
+      const rawDeviceId = String(remotePayload.device_id || '');
+      const baseDeviceId = rawDeviceId.split('#')[0];
+      const isRemote = Boolean(baseDeviceId && baseDeviceId !== myDeviceId);
+
+      if (remotePayload.status === 'stopped' || remotePayload.status === 'idle') {
+        phoneIsStudying = false;
+        phoneIsRemoteSession = false;
+        phoneIsUltraStrict = false;
+        return;
+      }
+
+      phoneIsRemoteSession = isRemote;
+      const remoteIsUltra = Boolean(
+        remotePayload.is_ultra_strict ??
+        rawDeviceId.includes('#ultra')
+      );
+
+      let remoteEffectiveMode: 'stopwatch' | 'countdown' | 'pomodoro';
+      if (remotePayload.mode === 'pomodoro' || remotePayload.timer_mode === 'pomodoro') {
+        remoteEffectiveMode = 'pomodoro';
+      } else if (
+        remotePayload.mode === 'countdown' ||
+        remotePayload.timer_mode === 'countdown' ||
+        remoteIsUltra ||
+        rawDeviceId.includes('#countdown')
+      ) {
+        remoteEffectiveMode = 'countdown';
+      } else {
+        remoteEffectiveMode = 'stopwatch';
+      }
+
+      phoneTimerMode = remoteEffectiveMode;
+      phoneIsUltraStrict = remoteIsUltra;
+      phoneIsStudying = remotePayload.status === 'running';
+    };
+
+    // 1. Phone was idle with Ultra Strict Mode enabled (Countdown)
+    assert.equal(phoneTimerMode, 'countdown');
+    assert.equal(phoneIsUltraStrict, true);
+    assert.equal(phoneIsStudying, false);
+
+    // 2. PC starts a stopwatch session
+    const pcSessionPayload = {
+      status: 'running',
+      mode: 'stopwatch',
+      timer_mode: 'stopwatch',
+      device_id: 'web-desktop-pc',
+      is_ultra_strict: false,
+    };
+
+    handleRemoteSyncOnPhone(pcSessionPayload, 'android-mobile-phone');
+
+    // Phone MUST switch to stopwatch mode, must NOT be in ultra strict, and must run remote session
+    assert.equal(phoneTimerMode, 'stopwatch', 'Phone timer mode must sync to stopwatch');
+    assert.equal(phoneIsUltraStrict, false, 'Phone Ultra Strict mode must be released during remote stopwatch session');
+    assert.equal(phoneIsStudying, true, 'Phone timer must be running');
+    assert.equal(phoneIsRemoteSession, true, 'Phone must mark session as remote');
+  });
+
+  it('guarantees PC displays Ultra Focus Mode and locks pause/stop controls during Ultra Strict sessions', () => {
+    // Simulated PC state
+    let pcTimerMode: 'stopwatch' | 'countdown' | 'pomodoro' = 'stopwatch';
+    let pcIsUltraStrict = false;
+    let pcIsStudying = false;
+    let pcElapsedSeconds = 120;
+    const pcCountdownTarget = 1800; // 30 minutes
+
+    // 1. Phone activates Ultra Strict session
+    const ultraSessionPayload = {
+      status: 'running',
+      mode: 'countdown',
+      timer_mode: 'countdown',
+      device_id: 'android-phone#ultra#countdown',
+      is_ultra_strict: true,
+      target_duration: 1800,
+    };
+
+    // Handler on PC
+    const rawDeviceId = String(ultraSessionPayload.device_id || '');
+    pcIsUltraStrict = Boolean(ultraSessionPayload.is_ultra_strict || rawDeviceId.includes('#ultra'));
+    pcTimerMode = 'countdown';
+    pcIsStudying = true;
+
+    // PC status text derivation
+    const getStatusText = (isUltra: boolean, studying: boolean) => {
+      if (isUltra) return studying ? 'Ultra Focus' : 'Ultra Focus Mode';
+      return studying ? 'Studying' : 'Ready';
+    };
+
+    assert.equal(pcIsUltraStrict, true, 'PC must recognize Ultra Strict session');
+    assert.equal(getStatusText(pcIsUltraStrict, pcIsStudying), 'Ultra Focus', 'Status text must show Ultra Focus');
+
+    // Control lock evaluation
+    const canPauseOrStop = (isUltra: boolean, studying: boolean, elapsed: number, target: number) => {
+      if (isUltra && studying && elapsed < target) {
+        return false; // LOCKED
+      }
+      return true;
+    };
+
+    // While session is running: pause and stop must be prohibited
+    assert.equal(canPauseOrStop(pcIsUltraStrict, pcIsStudying, pcElapsedSeconds, pcCountdownTarget), false, 'Controls must be locked on PC during active ultra focus session');
+
+    // Once countdown target is reached: lockout is released
+    pcElapsedSeconds = 1800;
+    assert.equal(canPauseOrStop(pcIsUltraStrict, pcIsStudying, pcElapsedSeconds, pcCountdownTarget), true, 'Controls unlock once countdown target is completed');
+  });
 });

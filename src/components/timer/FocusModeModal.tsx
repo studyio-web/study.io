@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { formatSeconds } from '../../lib/utils';
-import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, Palette } from 'lucide-react';
+import { Minimize2, Sliders, Crown, Music, Play, Pause, Loader2, Palette, Lock } from 'lucide-react';
 import { FocusSceneLayer } from '../focus/FocusSceneLayer';
 import { useFocusScene } from '../focus/useFocusScene';
 import { ScenePicker, ScenePreviewPill } from '../focus/ScenePicker';
@@ -124,6 +124,7 @@ export function FocusModeModal() {
     selectedSubject,
     isStudying,
     isPaused,
+    isUltraStrict,
     pauseTimer,
     resumeTimer,
     startTimer,
@@ -462,17 +463,21 @@ export function FocusModeModal() {
           />
         )}
 
-        {/* Mode Tag (Pomodoro / Countdown) positioned above without offsetting vertical center */}
-        {timerMode === 'pomodoro' && (
+        {/* Mode Tag (Pomodoro / Countdown / Ultra Focus) positioned above without offsetting vertical center */}
+        {isUltraStrict ? (
+          <div className="absolute bottom-full mb-3.5 landscape:mb-2 px-3 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 text-xs sm:text-sm font-bold text-emerald-400 tracking-[0.25em] uppercase shadow-md whitespace-nowrap left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" />
+            <span>Ultra Focus Mode</span>
+          </div>
+        ) : timerMode === 'pomodoro' ? (
           <div className="absolute bottom-full mb-3.5 landscape:mb-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md whitespace-nowrap left-1/2 -translate-x-1/2">
             {pomodoroPhase === 'work' ? 'Deep Focus' : 'Rest Phase'}
           </div>
-        )}
-        {timerMode === 'countdown' && (
+        ) : timerMode === 'countdown' ? (
           <div className="absolute bottom-full mb-3.5 landscape:mb-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs sm:text-sm font-bold text-white/90 tracking-[0.25em] uppercase shadow-md whitespace-nowrap left-1/2 -translate-x-1/2">
             Countdown
           </div>
-        )}
+        ) : null}
 
         {/* The Giant Tabular Timer Digits - 100% Dead-Center Aligned */}
         <div
@@ -522,7 +527,12 @@ export function FocusModeModal() {
         {/* Compact Timer Playback Controls (Start / Pause only) positioned right above scene pills */}
         {!isCountdownCompleted && (
           <div className="flex items-center justify-center">
-            {isStudying && !isPaused ? (
+            {isUltraStrict && isStudying ? (
+              <div className="flex items-center gap-1.5 px-4 sm:px-4.5 py-1.5 sm:py-2 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-bold text-xs uppercase tracking-wider backdrop-blur-md shadow-md select-none">
+                <Lock className="w-3.5 h-3.5 animate-pulse" />
+                <span>Ultra Focus • Locked</span>
+              </div>
+            ) : isStudying && !isPaused ? (
               <button
                 type="button"
                 onClick={() => {

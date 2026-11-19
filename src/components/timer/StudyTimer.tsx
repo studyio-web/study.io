@@ -151,6 +151,9 @@ export function StudyTimer() {
     isLoadingSessions,
     isRemoteTransitioning,
     isRemoteSession,
+    isUltraStrict,
+    setIsUltraStrict,
+    syncTimerMode,
   } = useStudy();
 
   const subjectList = Array.isArray(subjects) ? subjects : [];
@@ -184,7 +187,6 @@ export function StudyTimer() {
   // Strict Mode State & Background Enforcement (Strictly Native Android Only)
   const [isAndroid, setIsAndroid] = useState(false);
   const [isStrictMode, setIsStrictMode] = useState(false);
-  const [isUltraStrict, setIsUltraStrict] = useState(false);
   const [isBlockShortsReels, setIsBlockShortsReels] = useState(false);
   const [allowedApps, setAllowedApps] = useState<string[]>([]);
   const [isAllowedAppsModalOpen, setIsAllowedAppsModalOpen] = useState(false);
@@ -330,6 +332,7 @@ export function StudyTimer() {
       setIsStrictMode(true);
       saveStrictModeEnabled(true);
       setTimerMode('countdown');
+      syncTimerMode('countdown', true, countdownTarget);
       try {
         const { granted } = await StrictMode.hasUsagePermission();
         if (!granted) {
@@ -338,17 +341,18 @@ export function StudyTimer() {
       } catch {}
       toast.success('Ultra Strict enabled: Countdown mode only', { icon: '⚡' });
     } else {
+      syncTimerMode(timerMode, false);
       toast('Ultra Strict disabled');
     }
     triggerHaptic('medium');
   };
 
-  // Enforce Countdown mode whenever Ultra Strict is enabled
+  // Enforce Countdown mode whenever Ultra Strict is enabled and timer is idle
   useEffect(() => {
-    if (isUltraStrict && timerMode !== 'countdown') {
+    if (isUltraStrict && timerMode !== 'countdown' && !isStudying) {
       setTimerMode('countdown');
     }
-  }, [isUltraStrict, timerMode, setTimerMode]);
+  }, [isUltraStrict, timerMode, isStudying, setTimerMode]);
 
   const handleRequestPermission = async () => {
     try {
@@ -1425,6 +1429,8 @@ export function StudyTimer() {
   let statusText = 'Ready';
   if (isCountdownCompleted) {
     statusText = 'Completed';
+  } else if (isUltraStrict) {
+    statusText = isStudying ? 'Ultra Focus' : 'Ultra Focus Mode';
   } else if (timerMode === 'pomodoro') {
     if (isPaused) {
       statusText = 'Paused';
@@ -1612,11 +1618,21 @@ export function StudyTimer() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="w-full flex flex-col items-center shrink-0"
         >
+          {/* Ultra Focus Mode Pill Banner */}
+          {isUltraStrict && (
+            <div className="mb-2 flex items-center justify-center animate-in fade-in duration-200">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-hud font-semibold uppercase tracking-wider shadow-[0_0_12px_rgba(16,185,129,0.12)]">
+                <Lock className="w-3.5 h-3.5 animate-pulse" />
+                <span>Ultra Focus Mode</span>
+              </div>
+            </div>
+          )}
+
           {/* 1. Mode selector */}
           <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
             {(isUltraStrict ? (['countdown'] as TimerMode[]) : (['stopwatch', 'countdown', 'pomodoro'] as TimerMode[])).map((mode) => {
               const isActive = timerMode === mode;
-              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? (isUltraStrict ? 'Countdown (Ultra)' : 'Countdown') : 'Pomodoro';
+              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? (isUltraStrict ? 'Ultra Focus Mode' : 'Countdown') : 'Pomodoro';
               return (
                 <button
                   key={mode}
@@ -1624,7 +1640,7 @@ export function StudyTimer() {
                   disabled={isStudying || isCountdownCompleted}
                   onClick={() => {
                     if (!isStudying && !isCountdownCompleted) {
-                      setTimerMode(mode);
+                      syncTimerMode(mode, false);
                       if (mode === 'countdown') {
                         setIsCountdownHalfwayNotified(false);
                         try {
@@ -2006,12 +2022,12 @@ export function StudyTimer() {
                 </button>
               )}
             </div>
-          ) : isUltraStrict && !isRemoteSession ? (
+          ) : isUltraStrict ? (
             /* Ultra Strict Session Running: No Stop, Pause, or Reset buttons until countdown completes */
             <div className="flex items-center justify-center w-[min(280px,85vw)] sm:w-[260px]">
               <div className="w-full h-[52px] rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-hud text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 select-none shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                 <Lock className="w-4 h-4 shrink-0 text-emerald-400 animate-pulse" />
-                <span>Ultra Strict • Locked</span>
+                <span>Ultra Focus • Locked</span>
               </div>
             </div>
           ) : !isPaused ? (
