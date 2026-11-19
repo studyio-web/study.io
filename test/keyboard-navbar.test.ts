@@ -111,3 +111,34 @@ describe('Mobile Bottom Navigation Bar Keyboard Visibility Specification', () =>
     assert.equal(focusedElement, null);
   });
 });
+
+describe('Task Priority Styling Specification', () => {
+  test('guarantees low priority uses white color across selector button, left indicator, and badge', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const todoPath = path.resolve(process.cwd(), 'src/components/todo/DailyTodoList.tsx');
+    const todoContent = fs.readFileSync(todoPath, 'utf8');
+
+    // 1. Selector button uses white for low priority
+    assert.match(
+      todoContent,
+      /bg-white\/10[\s\S]*?border-white\/30[\s\S]*?text-white/,
+      'Selector button must use white background, border and text for low priority'
+    );
+
+    // 2. Left-border indicator includes white for low priority
+    assert.match(
+      todoContent,
+      /item\.priority === 'low' \? \([\s\S]*?bg-white shadow-\[0_0_8px_rgba\(255,255,255,0\.6\)\]/,
+      'Left-border indicator must render white glowing bar for low priority'
+    );
+
+    // 3. Task item badge includes white flag and label for low priority
+    assert.match(
+      todoContent,
+      /item\.priority === 'low' \? \([\s\S]*?text-white font-hud-mono[\s\S]*?<Flag className="w-2\.5 h-2\.5 text-white fill-white\/20" \/> LOW/,
+      'Task card badge must display white flag and LOW text'
+    );
+  });
+});
+
