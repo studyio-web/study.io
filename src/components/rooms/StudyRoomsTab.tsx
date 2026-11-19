@@ -1536,7 +1536,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                     <div className="hidden sm:flex px-4 sm:px-6 py-3 bg-[var(--surface-2)] text-[11px] sm:text-xs text-[var(--text-dim)] font-hud-mono uppercase tracking-wider items-center justify-between border-b border-[var(--border)] select-none">
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                         <span className="w-7 text-center">#</span>
-                        <span>Room // Host</span>
+                        <span>Room</span>
                       </div>
                       <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
                         <span className="w-16 sm:w-24 text-center sm:text-left">Members</span>
@@ -1643,32 +1643,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                                   )}
                                 </div>
 
-                                <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
-                                  {isHost ? (
-                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
-                                      <Crown className="w-2.5 h-2.5" />
-                                      YOU (HOST)
-                                    </span>
-                                  ) : (
-                                    <span className="text-[var(--text-dim)] truncate">
-                                      @{room.host_id ? String(room.host_id).slice(0, 6) : 'host'}
-                                    </span>
-                                  )}
-                                  <span className="text-neutral-600">·</span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleCopyCode(shortCode, room.id, e)}
-                                    className="inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] bg-fg/[0.04] hover:bg-fg/[0.08] px-1.5 py-0.5 rounded border border-[var(--border)] transition-colors cursor-pointer"
-                                    title="Copy room code"
-                                  >
-                                    <span>#{shortCode}</span>
-                                    {copiedCodeId === room.id ? (
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="w-3 h-3 opacity-60" />
-                                    )}
-                                  </button>
-                                </div>
                                 {room.description && (
                                   <p className="text-[11px] text-[var(--text-dim)] line-clamp-1 mt-1 max-w-[200px] sm:max-w-xs md:max-w-md font-sans">
                                     {room.description}
