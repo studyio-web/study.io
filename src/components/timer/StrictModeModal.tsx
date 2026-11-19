@@ -427,19 +427,23 @@ export function StrictCountdownWarningModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] border border-amber-500/30 p-5 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150"
+        className={`relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] p-5 sm:p-6 text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150 ${
+          isUltraStrict
+            ? 'border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
+            : 'border border-amber-500/30 shadow-[0_0_50px_rgba(0,0,0,0.8)]'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Warning Icon Badge */}
         <div
           className={`w-16 h-16 rounded-3xl border flex items-center justify-center mx-auto mb-3 shadow-lg ${
             isUltraStrict
-              ? 'bg-amber-500/15 border-amber-500/40 text-amber-400 shadow-[0_0_24px_rgba(245,158,11,0.25)]'
+              ? 'bg-red-500/15 border-red-500/50 text-red-400 shadow-[0_0_28px_rgba(239,68,68,0.35)]'
               : 'bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.15)]'
           }`}
         >
           {isUltraStrict ? (
-            <AlertTriangle className="w-8 h-8 animate-pulse text-amber-400" />
+            <AlertTriangle className="w-8 h-8 animate-pulse text-red-500" />
           ) : (
             <ShieldAlert className="w-8 h-8 text-amber-400" />
           )}
@@ -447,19 +451,33 @@ export function StrictCountdownWarningModal({
 
         {/* Heading & Badge */}
         <h3 className="font-hud text-lg font-bold text-white tracking-wide">
-          {isUltraStrict ? 'Ultra Strict Lockdown' : 'Strict Mode Warning'}
+          {isUltraStrict ? 'Ultra Strict Warning' : 'Strict Mode Warning'}
         </h3>
         <div className="mt-1 flex items-center justify-center">
-          <span className="text-[10px] font-mono tracking-widest text-amber-400 uppercase bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 rounded-full font-bold">
-            {isUltraStrict ? '⚠️ Full Lockdown Warning' : '⚠️ App Lockdown Warning'}
+          <span
+            className={`text-[10px] font-mono tracking-widest uppercase px-2.5 py-0.5 rounded-full font-bold border ${
+              isUltraStrict
+                ? 'text-red-400 bg-red-500/15 border-red-500/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
+                : 'text-amber-400 bg-amber-500/10 border-amber-500/25'
+            }`}
+          >
+            {isUltraStrict ? '🚨 IRREVERSIBLE LOCKDOWN' : '⚠️ APP LOCKDOWN WARNING'}
           </span>
         </div>
 
         {/* Duration & Subject Summary Card */}
-        <div className="mt-3.5 mb-3 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-left px-4">
+        <div
+          className={`mt-3.5 mb-3 p-3 rounded-2xl border flex items-center justify-between text-left px-4 ${
+            isUltraStrict
+              ? 'bg-red-950/20 border-red-500/25'
+              : 'bg-white/[0.04] border-white/[0.08]'
+          }`}
+        >
           <div>
             <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Countdown</p>
-            <p className="text-sm font-hud font-bold text-white mt-0.5">{formattedDuration}</p>
+            <p className={`text-sm font-hud font-bold mt-0.5 ${isUltraStrict ? 'text-red-400' : 'text-white'}`}>
+              {formattedDuration}
+            </p>
           </div>
           {subjectName && (
             <div className="text-right">
@@ -470,40 +488,65 @@ export function StrictCountdownWarningModal({
         </div>
 
         {/* Big Warning Consequences Box */}
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-left space-y-2">
-          <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
-            <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Strict Enforcement Notice</span>
+        {isUltraStrict ? (
+          <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-3.5 text-left space-y-2">
+            <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider text-[11px]">
+              <AlertOctagon className="w-4 h-4 text-red-500 shrink-0" />
+              <span>Ultra Strict Lockdown Protocol</span>
+            </div>
+            <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>Irreversible Countdown:</strong> You <span className="text-red-300 font-semibold underline decoration-red-400/50">cannot pause, cancel, or stop early</span>. Controls are locked until <span className="font-mono font-bold text-red-300">00:00:00</span>.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>Sealed App Lockdown:</strong> All blocked apps remain sealed with <span className="text-red-300 font-semibold">no early unlock</span>.
+                  {allowedAppsCount > 0 ? (
+                    <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
+                  ) : (
+                    <span className="text-white/60"> No unauthorized apps can be accessed.</span>
+                  )}
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>Anti-Bypass Protection:</strong> Leaving or switching apps triggers an immediate lock and returns you here.
+                </span>
+              </li>
+            </ul>
           </div>
-          <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
-            <li className="flex items-start gap-2">
-              <span className="text-amber-400 font-bold leading-none select-none">•</span>
-              <span>
-                <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> {isUltraStrict ? 'until the timer reaches zero.' : 'until you press stop button.'}
-                {allowedAppsCount > 0 ? (
-                  <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
-                ) : (
-                  <span className="text-white/60"> All non-essential apps will be locked.</span>
-                )}
-              </span>
-            </li>
-            {isUltraStrict ? (
+        ) : (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-left space-y-2">
+            <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
+              <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Strict Enforcement Notice</span>
+            </div>
+            <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold leading-none select-none">•</span>
                 <span>
-                  <strong>No Pausing or Canceling:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot stop or pause early</span>. Timer controls are completely locked until <span className="font-mono font-bold text-amber-300">00:00:00</span>.
+                  <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> until you press stop button.
+                  {allowedAppsCount > 0 ? (
+                    <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
+                  ) : (
+                    <span className="text-white/60"> All non-essential apps will be locked.</span>
+                  )}
                 </span>
               </li>
-            ) : (
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold leading-none select-none">•</span>
                 <span>
                   <strong>Anti-Distraction Shield:</strong> Opening unauthorized apps triggers an instant block and returns you here.
                 </span>
               </li>
-            )}
-          </ul>
-        </div>
+            </ul>
+          </div>
+        )}
 
         {/* Mandatory Acknowledgment Checkbox */}
         <button
@@ -516,14 +559,18 @@ export function StrictCountdownWarningModal({
           }}
           className={`w-full mt-3.5 p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
             hasAcknowledged
-              ? 'bg-amber-500/15 border-amber-500/50 text-white ring-1 ring-amber-500/30'
+              ? isUltraStrict
+                ? 'bg-red-500/15 border-red-500/50 text-white ring-1 ring-red-500/30'
+                : 'bg-amber-500/15 border-amber-500/50 text-white ring-1 ring-amber-500/30'
               : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/[0.07] hover:border-white/20'
           }`}
         >
           <div
             className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center flex-shrink-0 transition-all ${
               hasAcknowledged
-                ? 'bg-amber-400 border-amber-400 text-black shadow-sm'
+                ? isUltraStrict
+                  ? 'bg-red-500 border-red-500 text-white shadow-sm'
+                  : 'bg-amber-400 border-amber-400 text-black shadow-sm'
                 : 'border-white/30 bg-black/40'
             }`}
           >
@@ -531,7 +578,7 @@ export function StrictCountdownWarningModal({
           </div>
           <span className="text-xs leading-snug font-medium select-none text-white/90">
             {isUltraStrict
-              ? 'I understand the consequences. Blocked apps will remain locked and I cannot pause or cancel until the countdown ends.'
+              ? 'I accept the zero-tolerance lockdown: I cannot pause, stop, or cancel, and blocked apps remain sealed until 00:00:00.'
               : 'I understand the consequences. Blocked apps will remain locked until you press stop button.'}
           </span>
         </button>
@@ -548,11 +595,13 @@ export function StrictCountdownWarningModal({
             }}
             className={`w-full py-3.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
               hasAcknowledged
-                ? 'bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.25)] active:scale-95 cursor-pointer'
+                ? isUltraStrict
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_25px_rgba(239,68,68,0.4)] active:scale-95 cursor-pointer'
+                  : 'bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.25)] active:scale-95 cursor-pointer'
                 : 'bg-white/10 text-white/30 border border-white/10 cursor-not-allowed opacity-50'
             }`}
           >
-            <span>Accept &amp; Start Timer</span>
+            <span>{isUltraStrict ? 'Accept & Start Ultra Lockdown' : 'Accept & Start Timer'}</span>
           </button>
           <button
             type="button"
@@ -716,12 +765,20 @@ export function StrictModeConfigModal({
         <div className="mt-5 space-y-3.5">
           {/* Active Session Lock Notice */}
           {isFocusing && (
-            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/15 text-white/90 text-xs flex items-center gap-3">
-              <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Lock className="w-4 h-4 text-emerald-400" />
+            <div className={`p-3.5 rounded-2xl border text-white/90 text-xs flex items-center gap-3 ${
+              isUltraStrict
+                ? 'bg-red-950/30 border-red-500/30'
+                : 'bg-white/[0.04] border-white/15'
+            }`}>
+              <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 border ${
+                isUltraStrict
+                  ? 'bg-red-500/15 border-red-500/35 text-red-400'
+                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+              }`}>
+                <Lock className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-white">
+                <p className={`font-semibold ${isUltraStrict ? 'text-red-300' : 'text-white'}`}>
                   {isUltraStrict ? '⚡ Ultra Strict Lockdown Active' : 'Strict Mode is Locked'}
                 </p>
                 <p className="text-[11px] text-white/50 mt-0.5">
@@ -771,14 +828,14 @@ export function StrictModeConfigModal({
           {/* Ultra Strict Mode Card */}
           <div className={`p-4 rounded-2xl border transition-colors flex items-center justify-between gap-4 text-left ${
             isUltraStrict
-              ? 'bg-emerald-500/[0.06] border-emerald-500/30'
+              ? 'bg-red-500/[0.07] border-red-500/35'
               : 'bg-white/[0.03] border-white/[0.06]'
           }`}>
             <div>
               <div className="flex items-center gap-2">
                 <span className={`text-[11px] font-hud font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
                   isUltraStrict
-                    ? 'text-emerald-300 bg-emerald-500/20 border-emerald-500/40'
+                    ? 'text-red-400 bg-red-500/20 border-red-500/40'
                     : 'text-white/80 bg-white/10 border-white/15'
                 }`}>
                   ⚡ Ultra Strict Mode
@@ -799,9 +856,9 @@ export function StrictModeConfigModal({
               }}
               className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                 isFocusing
-                  ? 'opacity-40 cursor-not-allowed bg-emerald-500/40'
+                  ? 'opacity-40 cursor-not-allowed bg-red-500/40'
                   : isUltraStrict
-                  ? 'cursor-pointer bg-emerald-500'
+                  ? 'cursor-pointer bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
                   : 'cursor-pointer bg-white/20'
               }`}
             >
