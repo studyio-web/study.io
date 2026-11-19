@@ -245,8 +245,51 @@ export function normalizeStudySessions(
 }
 
 export function mergeAndDeduplicateSessions(existing: StudySession[], incoming: StudySession[]): StudySession[] {
-  const incomingSessions = [...existing, ...incoming];
-  const uniqueSessions = Array.from(new Map(incomingSessions.map(s => [s.id, s])).values());
+  const allSessions = [...incoming, ...existing];
+  const seenIds = new Set<string>();
+  const seenClientSessionIds = new Set<string>();
+  const uniqueSessions: StudySession[] = [];
+
+  for (const s of allSessions) {
+    if (!s || !s.id) continue;
+    if (seenIds.has(s.id)) continue;
+
+    // Deduplicate by client_session_id
+    const clientSessId = s.client_session_id || (s as any).clientSessionId;
+    if (clientSessId) {
+      if (seenClientSessionIds.has(clientSessId)) continue;
+      seenClientSessionIds.add(clientSessId);
+    }
+
+    // Near-duplicate detection: same user, same subject, starting within 10s and similar duration
+    const sStart = new Date(s.startTime || (s as any).started_at || 0).getTime();
+    const sSub = ((s.subjectId || '') + '::' + (s.subjectName || (s as any).subject_name || '')).trim().toLowerCase();
+    const sDuration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0);
+
+    const isDuplicate = uniqueSessions.some(existingSession => {
+      const existingStart = new Date(existingSession.startTime || (existingSession as any).started_at || 0).getTime();
+      const existingSub = ((existingSession.subjectId || '') + '::' + (existingSession.subjectName || (existingSession as any).subject_name || '')).trim().toLowerCase();
+      const existingDuration = Number(existingSession.durationSeconds ?? (existingSession as any).duration_seconds ?? 0);
+
+      // Same subject, both non-zero durations, start time within 10 seconds, duration difference <= 10s
+      if (
+        sSub === existingSub &&
+        sDuration > 0 &&
+        existingDuration > 0 &&
+        Math.abs(existingStart - sStart) <= 10000 &&
+        Math.abs(existingDuration - sDuration) <= 10
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (isDuplicate) continue;
+
+    seenIds.add(s.id);
+    uniqueSessions.push(s);
+  }
+
   return uniqueSessions.sort(
     (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
   );
@@ -2541,7 +2584,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             // Update real streak, total study seconds, and evaluate official monthly Season RP
             const realStreak = calculateStreak(merged);
             setCachedStreak(realStreak);
-            const realTotalSeconds = merged.reduce((sum, s) => sum + s.durationSeconds, 0);
+            const realTotalSeconds = calculateNonOverlappingSeconds(merged);
             const liveStats = resolveLiveSeasonStats(userRef.current, merged);
             const currentSeasonRp = liveStats.seasonRp;
             const carryoverRp = liveStats.startingRp;
@@ -2704,7 +2747,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const initialLocal = getStoredSessions(activeUserId, subjects, currentUser);
         if (initialLocal.length > 0) {
           const realStreak = calculateStreak(initialLocal);
-          const realTotalSeconds = initialLocal.reduce((sum, s) => sum + s.durationSeconds, 0);
+          const realTotalSeconds = calculateNonOverlappingSeconds(initialLocal);
           if (currentUser.streakDays !== realStreak || currentUser.totalStudySeconds !== realTotalSeconds) {
             updateProfile({
               streakDays: realStreak,
@@ -2792,7 +2835,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const sessionsToUse = finalMergedSessions.length > 0 ? finalMergedSessions : mappedSessions;
         const realStreak = calculateStreak(sessionsToUse);
         setCachedStreak(realStreak);
-        const realTotalSeconds = sessionsToUse.reduce((sum, s) => sum + (s.durationSeconds || (s as any).duration_seconds || 0), 0);
+        const realTotalSeconds = calculateNonOverlappingSeconds(sessionsToUse);
         const liveStats = resolveLiveSeasonStats(currentUser, sessionsToUse);
         const currentSeasonRp = liveStats.seasonRp;
         const carryoverRp = liveStats.startingRp;
@@ -2829,7 +2872,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           setSessions(prev => (prev.length === 0 ? localData : prev));
           const realStreak = calculateStreak(localData);
           setCachedStreak(realStreak);
-          const realTotalSeconds = localData.reduce((sum, s) => sum + s.durationSeconds, 0);
+          const realTotalSeconds = calculateNonOverlappingSeconds(localData);
           updateProfile({
             streakDays: realStreak,
             totalStudySeconds: realTotalSeconds,
@@ -3272,7 +3315,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
       const realStreak = calculateStreak(updated);
       setCachedStreak(realStreak);
-      const realTotalSeconds = updated.reduce((sum, s) => sum + s.durationSeconds, 0);
+      const realTotalSeconds = calculateNonOverlappingSeconds(updated);
       updateProfile({
         streakDays: realStreak,
         totalStudySeconds: realTotalSeconds,
@@ -3535,12 +3578,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       
       const newSessionIds = new Set(newSessions.map(s => s.id));
       const allSessionsNow = [...newSessions, ...sessions.filter(s => !newSessionIds.has(s.id))];
-      const totalToday = allSessionsNow
-        .filter(s => {
-          const t = new Date(s.startTime).getTime();
-          return t >= todayStart.getTime() && t <= todayEnd.getTime();
-        })
-        .reduce((sum, s) => sum + s.durationSeconds, 0);
+      const todaySessions = allSessionsNow.filter(s => {
+        const t = new Date(s.startTime).getTime();
+        return t >= todayStart.getTime() && t <= todayEnd.getTime();
+      });
+      const totalToday = calculateNonOverlappingSeconds(todaySessions);
 
       const dailyGoalSeconds = (currentUser.dailyGoalHours || 4) * 3600;
       if (totalToday >= dailyGoalSeconds && totalToday - secondsToSave < dailyGoalSeconds) {

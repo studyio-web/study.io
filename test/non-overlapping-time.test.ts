@@ -107,4 +107,30 @@ describe('Anti-Cheat Non-Overlapping Focus Time Engine', () => {
     assert.equal(calculateNonOverlappingSeconds([{ duration_seconds: 0 }]), 0);
     assert.equal(calculateNonOverlappingSeconds([{ durationSeconds: 600 }]), 600);
   });
+
+  it('guarantees double save retries (e.g. internet lag pressing stop twice) do not double Sector focus time', () => {
+    // Exact user scenario: 8m 8s (488s) session clicked twice during network lag
+    const now = new Date('2026-11-19T21:40:00.000Z').getTime();
+    const session1 = {
+      id: 'sess-1',
+      subjectName: 'IoT',
+      startTime: new Date(now - 488 * 1000).toISOString(),
+      endTime: new Date(now).toISOString(),
+      durationSeconds: 488,
+    };
+    const session2 = {
+      id: 'sess-2',
+      subjectName: 'IoT',
+      startTime: new Date(now - 488 * 1000 + 1000).toISOString(), // 1 second later due to retry
+      endTime: new Date(now + 1000).toISOString(),
+      durationSeconds: 488,
+    };
+
+    const sectorSeconds = calculateNonOverlappingSeconds([session1, session2]);
+    assert.equal(
+      sectorSeconds <= 489,
+      true,
+      `Duplicate sessions must be merged to ~488s (~8m), not doubled to 976s (16m). Actual: ${sectorSeconds}s`
+    );
+  });
 });

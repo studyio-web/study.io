@@ -5,7 +5,7 @@ import { useStudy } from '../../context/StudyContext';
 import { useAuth } from '../../context/AuthContext';
 import { usePremium } from '../../context/PremiumContext';
 import toast from 'react-hot-toast';
-import { Subject } from '../../types';
+import { Subject, StudySession } from '../../types';
 import { Skeleton } from '../common/Skeleton';
 import {
   formatDurationWithSeconds,
@@ -283,7 +283,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
   }, [sessions, distRange, distTimeframe, distAnchorDate]);
 
   const distTotalSeconds = useMemo(() => {
-    return distSessions.reduce((sum, s) => sum + Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0), 0);
+    return calculateNonOverlappingSeconds(distSessions);
   }, [distSessions]);
 
   const distSubjectBreakdown = useMemo(() => {
@@ -297,9 +297,8 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       subject_id: string;
       subject_name: string;
       subject_color?: string;
-      seconds: number;
       color: string;
-      sessionCount: number;
+      sessions: StudySession[];
     }> = {};
 
     // Get subjects list with local storage fallback if state hasn't populated yet
@@ -351,8 +350,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       const groupKey = (matchedSubject?.id || subjectLabel).toLowerCase();
 
       if (map[groupKey]) {
-        map[groupKey].seconds += s.durationSeconds;
-        map[groupKey].sessionCount += 1;
+        map[groupKey].sessions.push(s);
         if (matchedSubject?.name) {
           map[groupKey].name = matchedSubject.name;
         }
@@ -367,16 +365,14 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
           subject_id: matchedSubject?.id || sessionSubjectId,
           subject_name: matchedSubject?.name || sessionSubjectName,
           subject_color: rawSessionColor,
-          seconds: s.durationSeconds,
           color: displayColor,
-          sessionCount: 1,
+          sessions: [s],
         };
       }
     });
 
-    // Map each grouped subject to its current active color from user's subjects list
+    // Map each grouped subject to its current active color from user's subjects list and compute strictly non-overlapping focus time
     return Object.values(map)
-      .filter(item => item.seconds > 0)
       .map(item => {
         const matchedSubject = subjectList.find(
           (s) =>
@@ -386,17 +382,24 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
             )
         );
         const displayColor = matchedSubject?.color || item.subject_color || item.color || '#10b981';
+        const seconds = calculateNonOverlappingSeconds(item.sessions);
+        const percentage =
+          distTotalSeconds > 0
+            ? Math.min(100, Math.round((seconds / distTotalSeconds) * 100))
+            : 0;
 
         return {
-          ...item,
           name: matchedSubject?.name || item.name,
+          subject_id: item.subject_id,
+          subject_name: item.subject_name,
+          subject_color: item.subject_color,
+          seconds,
           color: displayColor,
-          percentage:
-            distTotalSeconds > 0
-              ? Math.round((item.seconds / distTotalSeconds) * 100)
-              : 0,
+          sessionCount: item.sessions.length,
+          percentage,
         };
       })
+      .filter(item => item.seconds > 0)
       .sort((a, b) => b.seconds - a.seconds);
   }, [distSessions, distTotalSeconds, subjects, user?.id]);
 
@@ -598,14 +601,13 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
         const startStr = getLocalDateString(startD);
         const endStr = getLocalDateString(endD);
 
-        let sec = 0;
-        sessions.forEach(s => {
+        const weekSessions = sessions.filter(s => {
           const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-          if (!sessionDateStr) return;
+          if (!sessionDateStr) return false;
           const dStr = getLocalDateString(new Date(sessionDateStr));
-          const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0);
-          if (dStr >= startStr && dStr <= endStr) sec += duration;
+          return dStr >= startStr && dStr <= endStr;
         });
+        const sec = calculateNonOverlappingSeconds(weekSessions);
 
         data.push({
           label: `W${w}`,
@@ -620,16 +622,14 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       for (let m = 0; m < 12; m++) {
         const mDate = new Date(year, m, 1);
         const monthShort = mDate.toLocaleDateString('en-US', { month: 'short' });
-        let sec = 0;
-        sessions.forEach(s => {
+        const monthSessions = sessions.filter(s => {
           const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-          if (!sessionDateStr) return;
+          if (!sessionDateStr) return false;
           const d = new Date(sessionDateStr);
-          const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0);
-          if (d.getFullYear() === year && d.getMonth() === m) {
-            sec += duration;
-          }
+          return d.getFullYear() === year && d.getMonth() === m;
         });
+        const sec = calculateNonOverlappingSeconds(monthSessions);
+
         data.push({
           label: monthShort,
           hours: parseFloat((sec / 3600).toFixed(1)),
@@ -641,16 +641,14 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       // Past 5 Years
       const curYear = anchor.getFullYear();
       for (let y = curYear - 4; y <= curYear; y++) {
-        let sec = 0;
-        sessions.forEach(s => {
+        const yearSessions = sessions.filter(s => {
           const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
-          if (!sessionDateStr) return;
+          if (!sessionDateStr) return false;
           const d = new Date(sessionDateStr);
-          const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0);
-          if (d.getFullYear() === y) {
-            sec += duration;
-          }
+          return d.getFullYear() === y;
         });
+        const sec = calculateNonOverlappingSeconds(yearSessions);
+
         data.push({
           label: `${y}`,
           hours: parseFloat((sec / 3600).toFixed(1)),

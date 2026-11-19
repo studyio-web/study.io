@@ -211,6 +211,7 @@ export function StudyTimer() {
     subjectName?: string;
   } | null>(null);
   const hasCountdownCompletedFiredRef = useRef(false);
+  const isSavingRef = useRef(false);
 
   useEffect(() => {
     const handleAlarmChanged = (e: Event) => {
@@ -789,7 +790,12 @@ export function StudyTimer() {
 
   const handleStopAndSave = useCallback(async (durationOverride?: number | React.MouseEvent) => {
     toast.dismiss();
-    if (isSaving) return;
+    if (isSaving || isSavingRef.current) {
+      console.warn('[handleStopAndSave] Save operation already in progress, ignoring duplicate call');
+      return;
+    }
+    isSavingRef.current = true;
+    setIsSaving(true);
 
     // Immediately silence & disarm any active timer alarm
     hasCountdownCompletedFiredRef.current = false;
@@ -803,6 +809,8 @@ export function StudyTimer() {
         id: 'offline-stop-blocked',
         duration: 4000,
       });
+      isSavingRef.current = false;
+      setIsSaving(false);
       return;
     }
 
@@ -839,6 +847,8 @@ export function StudyTimer() {
       alert("Please choose a subject before recording focus time.");
       setSubjectWarning(true);
       setShowDropdown(true);
+      isSavingRef.current = false;
+      setIsSaving(false);
       return;
     }
 
@@ -856,10 +866,10 @@ export function StudyTimer() {
       resetTimer();
       clearPersistedTimer();
       setShowRecoveryBanner(false);
+      isSavingRef.current = false;
+      setIsSaving(false);
       return;
     }
-
-    setIsSaving(true);
 
     try {
       const supabase = getSupabase();
@@ -927,11 +937,33 @@ export function StudyTimer() {
         sessionPayload,
       });
 
-      const currentClientSessionId = clientSessionIdRef?.current;
-      // Pre-flight check: if this session was already saved into sessions list locally
-      if (currentClientSessionId && sessions.some(s => s.client_session_id === currentClientSessionId)) {
+      // Guarantee a stable UUID client_session_id so server and client idempotency can catch duplicates
+      if (!clientSessionIdRef.current || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientSessionIdRef.current)) {
+        clientSessionIdRef.current =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : '00000000-0000-4000-8000-' + Math.random().toString(16).substring(2, 14).padEnd(12, '0');
+      }
+      const currentClientSessionId = clientSessionIdRef.current;
+
+      // Pre-flight check: if this session or an identical session in this exact time window was already saved locally
+      const isAlreadyRecorded =
+        (currentClientSessionId && sessions.some(s => s.client_session_id === currentClientSessionId)) ||
+        sessions.some(s => {
+          const sStart = new Date(s.startTime || (s as any).started_at || 0).getTime();
+          const sSub = ((s.subjectId || '') + '::' + (s.subjectName || '')).trim().toLowerCase();
+          const targetSub = ((selectedSub?.id || '') + '::' + (selectedSub?.name || '')).trim().toLowerCase();
+          const sDuration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? 0);
+          return (
+            sSub === targetSub &&
+            Math.abs(sStart - new Date(startedAt).getTime()) <= 5000 &&
+            Math.abs(sDuration - seconds) <= 5
+          );
+        });
+
+      if (isAlreadyRecorded) {
         console.warn('[handleStopAndSave] Session already recorded in local sessions state:', currentClientSessionId);
-        toast('Session was already saved on another device ✅', { id: 'session-already-saved', duration: 4000 });
+        toast('Session already saved ✅', { id: 'session-already-saved', duration: 4000 });
         resetTimer();
         clearPersistedTimer();
         if (clientSessionIdRef) clientSessionIdRef.current = null;
@@ -1118,12 +1150,11 @@ export function StudyTimer() {
       const todayStart = getLocalStartOfDay(new Date());
       const todayEnd = getLocalEndOfDay(new Date());
       const allSessionsWithNew = [newSession, ...sessions.filter(s => s.id !== newSession.id)];
-      const totalToday = allSessionsWithNew
-        .filter(s => {
-          const t = new Date(s.startTime).getTime();
-          return t >= todayStart.getTime() && t <= todayEnd.getTime();
-        })
-        .reduce((sum, s) => sum + s.durationSeconds, 0);
+      const todaySessions = allSessionsWithNew.filter(s => {
+        const t = new Date(s.startTime).getTime();
+        return t >= todayStart.getTime() && t <= todayEnd.getTime();
+      });
+      const totalToday = calculateNonOverlappingSeconds(todaySessions);
 
       const dailyGoalSeconds = (user?.dailyGoalHours || 2) * 3600;
       if (totalToday >= dailyGoalSeconds && totalToday - finalDurationSeconds < dailyGoalSeconds) {
@@ -1999,7 +2030,7 @@ export function StudyTimer() {
                     setAlarmModalData(null);
                     await handleStopAndSave(countdownTarget);
                   }}
-                  disabled={isSaving || isRemoteTransitioning || !isOnline}
+                  disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
                   className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                     ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
                     : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
@@ -2063,7 +2094,7 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
                   : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm'
@@ -2103,7 +2134,7 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
                 className="px-5 h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text)] font-medium text-sm active:scale-[0.98] transition-transform duration-120 cursor-pointer disabled:opacity-50"
               >
                 <span>Skip</span>
@@ -2212,7 +2243,7 @@ export function StudyTimer() {
               <button
                 type="button"
                 onClick={() => handleStopAndSave()}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
@@ -2251,7 +2282,7 @@ export function StudyTimer() {
               <button
                 type="button"
                 onClick={() => handleStopAndSave()}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
