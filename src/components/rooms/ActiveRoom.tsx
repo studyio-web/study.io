@@ -42,7 +42,6 @@ import {
   AtSign,
   CornerUpLeft,
   Reply,
-  Bell,
   BellOff,
   Flag,
 } from 'lucide-react';
@@ -2909,25 +2908,6 @@ CREATE POLICY "Hosts can update their own study rooms"
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Mute Room Messages Toggle Button */}
-          <button
-            type="button"
-            onClick={handleToggleMuteRoom}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border transition-all flex items-center justify-center cursor-pointer shrink-0 touch-manipulation active:scale-95 shadow-sm ${
-              isRoomMuted
-                ? 'bg-rose-500/15 border-rose-500/35 text-rose-400 hover:bg-rose-500/25 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
-                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-neutral-400 hover:text-white'
-            }`}
-            title={isRoomMuted ? 'Room messages MUTED (click to unmute)' : 'Mute room messages'}
-            aria-label={isRoomMuted ? 'Unmute room messages' : 'Mute room messages'}
-          >
-            {isRoomMuted ? (
-              <BellOff className="w-4 h-4 text-rose-400" />
-            ) : (
-              <Bell className="w-4 h-4 text-neutral-400" />
-            )}
-          </button>
-
           <div className="flex bg-black/60 border border-[var(--border)] p-1 rounded-full shadow-inner backdrop-blur-md gap-0.5 sm:gap-1">
             <button
               type="button"
