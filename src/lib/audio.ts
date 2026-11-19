@@ -913,7 +913,7 @@ class AudioEngine {
 
   /**
    * Start 5-minute repeating timer alarm.
-   * Plays a pleasant harmonic digital chime pattern every 1.5s until stopped or 5 min max.
+   * Plays a warm, melodic acoustic chime progression every 2.8s until stopped or 5 min max.
    */
   public startTimerAlarm(maxDurationSeconds: number = 300) {
     if (typeof window === 'undefined') return;
@@ -922,44 +922,58 @@ class AudioEngine {
     this.isAlarmActive = true;
     this.resumeContext();
 
-    const playBeepBurst = () => {
+    const playChimePhrase = () => {
       if (!this.isAlarmActive) return;
       try {
         const ctx = this.getContext();
         if (!ctx) return;
         const now = ctx.currentTime;
 
-        // Beep pattern: 3 quick twin-harmonic beeps (like a digital timer alarm)
-        const beeps = [0, 0.18, 0.36];
-        beeps.forEach((offset) => {
+        // Ascending harmonic chime notes: C5 (523.25), E5 (659.25), G5 (783.99), C6 (1046.50)
+        const notes = [
+          { freq: 523.25, offset: 0.0 },
+          { freq: 659.25, offset: 0.22 },
+          { freq: 783.99, offset: 0.44 },
+          { freq: 1046.5, offset: 0.66 },
+        ];
+
+        notes.forEach(({ freq, offset }) => {
           const startTime = now + offset;
-          const duration = 0.1;
+          const duration = 0.7;
 
-          // Dual frequency: 987.77 Hz (B5) + 1318.51 Hz (E6) - crisp, attention-grabbing chime
+          // Fundamental resonant chime
           const osc1 = ctx.createOscillator();
-          const osc2 = ctx.createOscillator();
-          const gain = ctx.createGain();
-
+          const gain1 = ctx.createGain();
           osc1.type = 'sine';
-          osc1.frequency.setValueAtTime(987.77, startTime);
+          osc1.frequency.setValueAtTime(freq, startTime);
 
-          osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(1318.51, startTime);
+          gain1.gain.setValueAtTime(0.0001, startTime);
+          gain1.gain.linearRampToValueAtTime(0.22, startTime + 0.015);
+          gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
-          gain.gain.setValueAtTime(0.0001, startTime);
-          gain.gain.linearRampToValueAtTime(0.35, startTime + 0.015);
-          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-          osc1.connect(gain);
-          osc2.connect(gain);
-          gain.connect(ctx.destination);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
 
           osc1.start(startTime);
-          osc1.stop(startTime + duration + 0.02);
-          osc2.start(startTime);
-          osc2.stop(startTime + duration + 0.02);
+          osc1.stop(startTime + duration + 0.05);
 
-          this.alarmNodes.push(osc1, osc2, gain);
+          // Subtle octave overtone for acoustic bell depth
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(freq * 2, startTime);
+
+          gain2.gain.setValueAtTime(0.0001, startTime);
+          gain2.gain.linearRampToValueAtTime(0.05, startTime + 0.015);
+          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.4);
+
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+
+          osc2.start(startTime);
+          osc2.stop(startTime + 0.45);
+
+          this.alarmNodes.push(osc1, osc2, gain1, gain2);
         });
 
         // Clean up finished nodes from alarmNodes
@@ -971,17 +985,17 @@ class AudioEngine {
               return false;
             }
           });
-        }, 600);
+        }, 1600);
       } catch (err) {
-        console.warn('[AudioEngine] startTimerAlarm burst error:', err);
+        console.warn('[AudioEngine] startTimerAlarm chime error:', err);
       }
     };
 
     // Play immediately
-    playBeepBurst();
+    playChimePhrase();
 
-    // Repeat every 1.5 seconds
-    this.alarmInterval = window.setInterval(playBeepBurst, 1500);
+    // Repeat every 2.8 seconds for an unhurried, rich, mindful chime cadence
+    this.alarmInterval = window.setInterval(playChimePhrase, 2800);
 
     // Auto-silence after maxDurationSeconds (default 5 minutes = 300 seconds)
     this.alarmTimeout = window.setTimeout(() => {
