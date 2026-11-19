@@ -31,6 +31,8 @@ import {
   EyeOff,
   Crown,
   BellOff,
+  Bell,
+  MoreVertical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
@@ -114,6 +116,114 @@ export default function StudyRoomsTab({
 
   // Copy code feedback
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+
+  // 3-dots actions menu state
+  const [activeMenu, setActiveMenu] = useState<{
+    roomId: string;
+    room: any;
+    isHost: boolean;
+    shortCode: string;
+    top: number;
+    right: number;
+  } | null>(null);
+
+  // Dismiss 3-dots actions menu on scroll, window resize, or Escape
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const handleDismiss = () => {
+      setActiveMenu(null);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenu(null);
+      }
+    };
+
+    window.addEventListener('scroll', handleDismiss, true);
+    window.addEventListener('resize', handleDismiss);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('scroll', handleDismiss, true);
+      window.removeEventListener('resize', handleDismiss);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeMenu]);
+
+  // Mobile hardware back button dismisses 3-dots actions menu
+  useEffect(() => {
+    if (!activeMenu) return;
+    return registerBackButtonHandler(() => {
+      setActiveMenu(null);
+      return true;
+    });
+  }, [activeMenu]);
+
+  const handleOpenRoomMenu = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>, room: any, isHost: boolean, shortCode: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hapticTick();
+
+      if (activeMenu?.roomId === room.id) {
+        setActiveMenu(null);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dropdownHeight = 220;
+      const opensUp = rect.bottom + dropdownHeight > window.innerHeight;
+      const right = Math.max(12, window.innerWidth - rect.right);
+      const top = opensUp
+        ? Math.max(8, rect.top - dropdownHeight - 4)
+        : Math.min(window.innerHeight - dropdownHeight - 8, rect.bottom + 6);
+
+      setActiveMenu({
+        roomId: room.id,
+        room,
+        isHost,
+        shortCode,
+        top,
+        right,
+      });
+    },
+    [activeMenu]
+  );
+
+  const handleToggleMuteRoom = useCallback(
+    (roomId: string) => {
+      hapticTick();
+      const isCurrentlyMuted = mutedRoomIds.includes(roomId);
+      const nextMuted = !isCurrentlyMuted;
+      const updated = nextMuted
+        ? Array.from(new Set([...mutedRoomIds, roomId]))
+        : mutedRoomIds.filter((id) => id !== roomId);
+
+      setMutedRoomIds(updated);
+      try {
+        localStorage.setItem('studyio_muted_rooms', JSON.stringify(updated));
+      } catch {}
+
+      toast(
+        nextMuted ? 'Room messages muted' : 'Room messages unmuted',
+        {
+          icon: nextMuted ? '🔕' : '🔔',
+          duration: 3000,
+          style: {
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            fontFamily: 'var(--font-hud-mono)',
+            fontSize: '12px',
+          },
+        }
+      );
+      setActiveMenu(null);
+    },
+    [mutedRoomIds]
+  );
 
   // Room Settings Modal State (Host only)
   const [editingRoom, setEditingRoom] = useState<any | null>(null);
@@ -1088,7 +1198,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <span className="w-16 sm:w-24 text-center sm:text-left">Members</span>
                         <span className="w-16 sm:w-20 text-center">Status</span>
                         <span className="w-20 sm:w-28 text-right hidden md:inline">Focus Time</span>
-                        <span className="w-24 sm:w-32 text-right">Action</span>
+                        <span className="w-16 sm:w-20 text-right">Action</span>
                       </div>
                     </div>
 
@@ -1144,14 +1254,16 @@ CREATE POLICY "Hosts can update their own study rooms"
                               {isMember ? (
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveRoomId(room.id);
-                                  }}
-                                  className="px-3.5 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
+                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                                    activeMenu?.roomId === room.id
+                                      ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
+                                      : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
+                                  }`}
+                                  aria-label={`Room actions for ${room.name}`}
+                                  title="Room options"
                                 >
-                                  <span>OPEN</span>
+                                  <MoreVertical className="w-4 h-4" />
                                 </button>
                               ) : (
                                 <button
@@ -1282,14 +1394,16 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 {isMember ? (
                                   <button
                                     type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveRoomId(room.id);
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                    onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
+                                    className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                                      activeMenu?.roomId === room.id
+                                        ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
+                                        : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
+                                    }`}
+                                    aria-label={`Room actions for ${room.name}`}
+                                    title="Room options"
                                   >
-                                    <span>OPEN</span>
+                                    <MoreVertical className="w-4 h-4" />
                                   </button>
                                 ) : (
                                   <button
@@ -1428,7 +1542,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <span className="w-16 sm:w-24 text-center sm:text-left">Members</span>
                         <span className="w-16 sm:w-20 text-center">Status</span>
                         <span className="w-20 sm:w-28 text-right hidden md:inline">Focus Time</span>
-                        <span className="w-24 sm:w-32 text-right">Action</span>
+                        <span className="w-16 sm:w-20 text-right">Action</span>
                       </div>
                     </div>
 
@@ -1478,29 +1592,18 @@ CREATE POLICY "Hosts can update their own study rooms"
 
                             {/* Action on right */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                              {!isHost && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRoomToDelete(room);
-                                  }}
-                                  className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                                  title="Leave Room"
-                                >
-                                  <LogOut className="w-4 h-4" />
-                                </button>
-                              )}
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveRoomId(room.id);
-                                }}
-                                className="px-3.5 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
+                                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                                  activeMenu?.roomId === room.id
+                                    ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
+                                    : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
+                                }`}
+                                aria-label={`Room actions for ${room.name}`}
+                                title="Room options"
                               >
-                                <span>OPEN</span>
+                                <MoreVertical className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -1609,30 +1712,19 @@ CREATE POLICY "Hosts can update their own study rooms"
                               </div>
 
                               {/* Action */}
-                              <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
-                                {!isHost && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRoomToDelete(room);
-                                    }}
-                                    className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                                    title="Leave Room"
-                                  >
-                                    <LogOut className="w-4 h-4" />
-                                  </button>
-                                )}
+                              <div className="w-16 sm:w-20 flex items-center justify-end">
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveRoomId(room.id);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg font-hud-mono text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                                  onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
+                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                                    activeMenu?.roomId === room.id
+                                      ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
+                                      : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
+                                  }`}
+                                  aria-label={`Room actions for ${room.name}`}
+                                  title="Room options"
                                 >
-                                  <span>OPEN</span>
+                                  <MoreVertical className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
@@ -2445,6 +2537,136 @@ CREATE POLICY "Hosts can update their own study rooms"
                 </div>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* 3-DOTS ROOM ACTIONS POPUP MENU                            */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {mounted && typeof document !== 'undefined' && activeMenu && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] select-none"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveMenu(null);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: `${activeMenu.top}px`,
+              right: `${activeMenu.right}px`,
+            }}
+            className="w-56 rounded-2xl bg-[var(--surface-2)]/95 backdrop-blur-xl border border-[var(--border)] p-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-[var(--text)] font-sans"
+          >
+            {/* Room Info Header */}
+            <div className="px-3 py-2 border-b border-[var(--border)] mb-1">
+              <p className="text-xs font-bold text-[var(--text)] truncate">{activeMenu.room.name}</p>
+              <p className="text-[10px] font-mono text-[var(--text-dim)]">#{activeMenu.shortCode}</p>
+            </div>
+
+            <div className="space-y-0.5">
+              {/* Mute / Unmute Room Messages */}
+              <button
+                type="button"
+                onClick={() => handleToggleMuteRoom(activeMenu.room.id)}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium hover:bg-fg/[0.08] active:bg-fg/[0.12] transition-colors cursor-pointer text-left"
+              >
+                {mutedRoomIds.includes(activeMenu.room.id) ? (
+                  <>
+                    <Bell className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-semibold text-emerald-300">Unmute Messages</span>
+                      <span className="text-[10px] text-[var(--text-dim)] truncate">Restore notifications</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-semibold text-[var(--text)]">Mute Messages</span>
+                      <span className="text-[10px] text-[var(--text-dim)] truncate">Silence notifications</span>
+                    </div>
+                  </>
+                )}
+              </button>
+
+              {/* Copy Room Code */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticTick();
+                  navigator.clipboard?.writeText(activeMenu.shortCode);
+                  toast.success(`Copied room code #${activeMenu.shortCode}`, {
+                    style: {
+                      background: 'var(--surface-2)',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      fontFamily: 'var(--font-hud-mono)',
+                      fontSize: '12px',
+                    },
+                  });
+                  setActiveMenu(null);
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium hover:bg-fg/[0.08] active:bg-fg/[0.12] transition-colors cursor-pointer text-left text-[var(--text)]"
+              >
+                <Copy className="w-4 h-4 text-[var(--text-dim)] shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span>Copy Room Code</span>
+                  <span className="text-[10px] text-[var(--text-dim)] font-mono truncate">#{activeMenu.shortCode}</span>
+                </div>
+              </button>
+
+              {/* Room Settings (Host only) */}
+              {activeMenu.isHost && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticTick();
+                    const r = activeMenu.room;
+                    setEditingRoom(r);
+                    setEditRoomName(r.name || '');
+                    setEditDescription(r.description || '');
+                    setEditIsPrivate(Boolean(r.is_private));
+                    setEditPassword(r.password || '');
+                    setShowEditPassword(false);
+                    setEditMaxCapacity(r.max_capacity || 4);
+                    setEditRoomError('');
+                    setActiveMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium hover:bg-fg/[0.08] active:bg-fg/[0.12] transition-colors cursor-pointer text-left text-[var(--text)]"
+                >
+                  <Settings className="w-4 h-4 text-[var(--text-dim)] shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span>Room Settings</span>
+                    <span className="text-[10px] text-[var(--text-dim)] truncate">Manage access & capacity</span>
+                  </div>
+                </button>
+              )}
+
+              {/* Leave Room (Non-host only) */}
+              {!activeMenu.isHost && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticTick();
+                    const r = activeMenu.room;
+                    setActiveMenu(null);
+                    setRoomToDelete(r);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-rose-400 hover:bg-rose-500/10 active:bg-rose-500/15 transition-colors cursor-pointer text-left"
+                >
+                  <LogOut className="w-4 h-4 text-rose-400 shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-semibold">Leave Room</span>
+                    <span className="text-[10px] text-rose-400/70 truncate">Exit this room</span>
+                  </div>
+                </button>
+              )}
+            </div>
           </div>
         </div>,
         document.body

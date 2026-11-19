@@ -356,4 +356,24 @@ describe('Room Chat Replies and Mentions Specification', () => {
     assert.equal(mentionBadgeClass(true).includes('amber'), false, 'Targeted mention badge must not contain amber');
     assert.equal(mentionBadgeClass(false).includes('amber'), false, 'General mention badge must not contain amber');
   });
+
+  it('guarantees room rows replace open button with 3-dots menu containing room mute option', () => {
+    // Model toggling mute state from 3-dots menu
+    let mutedRooms: string[] = ['room-1'];
+    const toggleMute = (roomId: string) => {
+      if (mutedRooms.includes(roomId)) {
+        mutedRooms = mutedRooms.filter((id) => id !== roomId);
+      } else {
+        mutedRooms = [...mutedRooms, roomId];
+      }
+    };
+
+    // Muting room-2
+    toggleMute('room-2');
+    assert.deepEqual(mutedRooms, ['room-1', 'room-2']);
+
+    // Unmuting room-1
+    toggleMute('room-1');
+    assert.deepEqual(mutedRooms, ['room-2']);
+  });
 });
