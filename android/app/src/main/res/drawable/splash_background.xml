@@ -4,8 +4,8 @@
         <color android:color="#050507" />
     </item>
     <item
-        android:width="128dp"
-        android:height="128dp"
+        android:width="288dp"
+        android:height="288dp"
         android:gravity="center"
         android:drawable="@drawable/splash_logo" />
 </layer-list>
