@@ -1,8 +1,10 @@
 package com.studyio.app
 
 import android.app.AppOpsManager
+import android.app.admin.DevicePolicyManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -154,6 +156,7 @@ class StrictModePlugin : Plugin() {
         try {
             val enabled = call.getBoolean("enabled", false) ?: false
             val isUltra = call.getBoolean("isUltraStrict", false) ?: false
+            val uninstallProtection = call.getBoolean("uninstallProtection", true) ?: true
             val packagesArray = call.getArray("allowedPackages")
             val set = mutableSetOf<String>()
             if (packagesArray != null) {
@@ -169,15 +172,102 @@ class StrictModePlugin : Plugin() {
             prefs.edit()
                 .putBoolean("enabled", enabled)
                 .putBoolean("is_ultra", isUltra)
+                .putBoolean("uninstall_protection", uninstallProtection)
                 .putStringSet("allowed_packages", set)
                 .apply()
 
-            TimerForegroundService.updateStrictConfig(context, enabled, set, isUltra)
+            TimerForegroundService.updateStrictConfig(context, enabled, set, isUltra, uninstallProtection)
             call.resolve()
         } catch (e: Exception) {
             Log.e(TAG, "Error syncing strict config", e)
             call.reject("Failed to sync strict config: ${e.message}", e)
         }
+    }
+
+    /**
+     * Check whether study.io is currently an active Device Administrator
+     */
+    @PluginMethod
+    fun isDeviceAdminActive(call: PluginCall) {
+        try {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            val active = dpm?.isAdminActive(comp) ?: false
+            val res = JSObject().apply { put("active", active) }
+            call.resolve(res)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking device admin status", e)
+            val res = JSObject().apply { put("active", false) }
+            call.resolve(res)
+        }
+    }
+
+    /**
+     * Request the user to activate Device Administrator for Uninstall Protection
+     */
+    @PluginMethod
+    fun requestDeviceAdmin(call: PluginCall) {
+        try {
+            val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, comp)
+                putExtra(
+                    DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "Enables Uninstall Protection for Ultra Strict Mode so you cannot delete, uninstall, or force stop study.io during an active study countdown timer."
+                )
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            call.resolve()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening device admin activation screen", e)
+            call.reject("Cannot open device admin settings: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Deactivate Device Administrator (only allowed if NO active Ultra Strict countdown is running)
+     */
+    @PluginMethod
+    fun deactivateDeviceAdmin(call: PluginCall) {
+        try {
+            if (StudyDeviceAdminReceiver.isUltraStrictSessionActive(context)) {
+                call.reject("Cannot deactivate Device Admin while Ultra Strict study session is running!")
+                return
+            }
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            if (dpm != null && dpm.isAdminActive(comp)) {
+                dpm.removeActiveAdmin(comp)
+            }
+            val res = JSObject().apply { put("success", true) }
+            call.resolve(res)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deactivating device admin", e)
+            call.reject("Failed to deactivate device admin: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Check if Uninstall Protection is enabled in preferences
+     */
+    @PluginMethod
+    fun isUninstallProtectionEnabled(call: PluginCall) {
+        val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean("uninstall_protection", true)
+        val res = JSObject().apply { put("enabled", enabled) }
+        call.resolve(res)
+    }
+
+    /**
+     * Set Uninstall Protection enabled preference
+     */
+    @PluginMethod
+    fun setUninstallProtectionEnabled(call: PluginCall) {
+        val enabled = call.getBoolean("enabled", true) ?: true
+        val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("uninstall_protection", enabled).apply()
+        call.resolve()
     }
 
     /**

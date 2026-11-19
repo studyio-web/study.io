@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
   ShieldAlert,
+  ShieldCheck,
   AlertTriangle,
   AlertOctagon,
   Search,
@@ -518,6 +519,12 @@ export function StrictCountdownWarningModal({
                   <strong>Anti-Bypass Protection:</strong> Leaving or switching apps triggers an immediate lock and returns you here.
                 </span>
               </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>Uninstall Protection:</strong> Device Admin &amp; System Shield prevent <span className="text-red-300 font-semibold underline decoration-red-400/50">deleting, uninstalling, or force-stopping</span> study.io until the countdown reaches <span className="font-mono font-bold text-red-300">00:00:00</span>.
+                </span>
+              </li>
             </ul>
           </div>
         ) : (
@@ -700,10 +707,12 @@ interface StrictConfigModalProps {
   isStrictMode: boolean;
   isUltraStrict?: boolean;
   isBlockShortsReels?: boolean;
+  isDeviceAdminActive?: boolean;
   isFocusing: boolean;
   onToggleStrictMode: () => void;
   onToggleUltraStrict?: () => void;
   onToggleBlockShortsReels?: () => void;
+  onRequestDeviceAdmin?: () => void;
   allowedAppsCount: number;
   onOpenAllowedApps: () => void;
   hasUsagePermission: boolean;
@@ -720,10 +729,12 @@ export function StrictModeConfigModal({
   isStrictMode,
   isUltraStrict = false,
   isBlockShortsReels = false,
+  isDeviceAdminActive = false,
   isFocusing,
   onToggleStrictMode,
   onToggleUltraStrict,
   onToggleBlockShortsReels,
+  onRequestDeviceAdmin,
   allowedAppsCount,
   onOpenAllowedApps,
   hasUsagePermission,
@@ -826,48 +837,83 @@ export function StrictModeConfigModal({
           </div>
 
           {/* Ultra Strict Mode Card */}
-          <div className={`p-4 rounded-2xl border transition-colors flex items-center justify-between gap-4 text-left ${
+          <div className={`p-4 rounded-2xl border transition-colors flex flex-col gap-3 text-left ${
             isUltraStrict
               ? 'bg-red-500/[0.07] border-red-500/35'
               : 'bg-white/[0.03] border-white/[0.06]'
           }`}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[11px] font-hud font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                  isUltraStrict
-                    ? 'text-red-400 bg-red-500/20 border-red-500/40'
-                    : 'text-white/80 bg-white/10 border-white/15'
-                }`}>
-                  ⚡ Ultra Strict Mode
-                </span>
-                {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-hud font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                    isUltraStrict
+                      ? 'text-red-400 bg-red-500/20 border-red-500/40'
+                      : 'text-white/80 bg-white/10 border-white/15'
+                  }`}>
+                    ⚡ Ultra Strict Mode
+                  </span>
+                  {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
+                </div>
+                <p className="text-[11px] text-white/50 mt-1 leading-snug">
+                  Countdown only. No stop/save button. Blocked apps locked until timer ends.
+                </p>
               </div>
-              <p className="text-[11px] text-white/50 mt-1 leading-snug">
-                Countdown only. No stop/save button. Blocked apps locked until timer ends.
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled={isFocusing}
-              onClick={() => {
-                if (isFocusing) return;
-                triggerHaptic('medium');
-                onToggleUltraStrict?.();
-              }}
-              className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isFocusing
-                  ? 'opacity-40 cursor-not-allowed bg-red-500/40'
-                  : isUltraStrict
-                  ? 'cursor-pointer bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-                  : 'cursor-pointer bg-white/20'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                  isUltraStrict ? 'translate-x-5' : 'translate-x-0'
+              <button
+                type="button"
+                disabled={isFocusing}
+                onClick={() => {
+                  if (isFocusing) return;
+                  triggerHaptic('medium');
+                  onToggleUltraStrict?.();
+                }}
+                className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isFocusing
+                    ? 'opacity-40 cursor-not-allowed bg-red-500/40'
+                    : isUltraStrict
+                    ? 'cursor-pointer bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                    : 'cursor-pointer bg-white/20'
                 }`}
-              />
-            </button>
+              >
+                <span
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    isUltraStrict ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Uninstall Protection Sub-Section inside Ultra Strict */}
+            {isUltraStrict && (
+              <div className="pt-2.5 border-t border-red-500/20 flex items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-red-400 shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-semibold text-white/90">🛡️ Uninstall Protection</p>
+                    <p className="text-[10px] text-white/50">
+                      {isDeviceAdminActive
+                        ? 'Device Admin active. App deletion & force-stop locked.'
+                        : 'Activate Device Admin to prevent deleting app during timer.'}
+                    </p>
+                  </div>
+                </div>
+                {!isDeviceAdminActive ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('medium');
+                      onRequestDeviceAdmin?.();
+                    }}
+                    className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white cursor-pointer transition-colors shadow-sm shrink-0"
+                  >
+                    Activate
+                  </button>
+                ) : (
+                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                    ACTIVE
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Block Reels & Shorts Card */}

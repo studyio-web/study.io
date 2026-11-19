@@ -125,18 +125,19 @@ class TimerForegroundService : Service() {
             }
         }
 
-        fun updateStrictConfig(context: Context, enabled: Boolean, allowedPackages: Set<String>, isUltra: Boolean = false) {
+        fun updateStrictConfig(context: Context, enabled: Boolean, allowedPackages: Set<String>, isUltra: Boolean = false, uninstallProtection: Boolean = true) {
             val inst = instance
             if (inst != null) {
                 inst.isStrictActive = enabled
                 inst.isUltraStrict = isUltra
+                inst.isUninstallProtection = uninstallProtection
                 inst.strictAllowedPackages = allowedPackages
                 if (enabled && (inst.isRunning || inst.isPaused)) {
                     inst.startStrictMonitoring()
-                } else {
+                } else if (!enabled) {
                     inst.stopStrictMonitoring()
                 }
-                Log.d(TAG, "updateStrictConfig live: enabled=$enabled, ultra=$isUltra, allowedCount=${allowedPackages.size}")
+                Log.d(TAG, "updateStrictConfig live: enabled=$enabled, ultra=$isUltra, uninstallProt=$uninstallProtection, allowedCount=${allowedPackages.size}")
             }
         }
 
@@ -180,6 +181,8 @@ class TimerForegroundService : Service() {
     @Volatile
     private var isUltraStrict: Boolean = false
     @Volatile
+    private var isUninstallProtection: Boolean = true
+    @Volatile
     private var strictAllowedPackages: Set<String> = emptySet()
     private val strictHandler = Handler(Looper.getMainLooper())
     private var isStrictMonitoringRunning = false
@@ -201,8 +204,9 @@ class TimerForegroundService : Service() {
             val strictPrefs = getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
             isStrictActive = strictPrefs.getBoolean("enabled", false)
             isUltraStrict = strictPrefs.getBoolean("is_ultra", false)
+            isUninstallProtection = strictPrefs.getBoolean("uninstall_protection", true)
             strictAllowedPackages = strictPrefs.getStringSet("allowed_packages", emptySet()) ?: emptySet()
-            Log.d(TAG, "Reloaded strict config: enabled=$isStrictActive, ultra=$isUltraStrict, allowedCount=${strictAllowedPackages.size}")
+            Log.d(TAG, "Reloaded strict config: enabled=$isStrictActive, ultra=$isUltraStrict, uninstallProt=$isUninstallProtection, allowedCount=${strictAllowedPackages.size}")
         } catch (e: Exception) {
             Log.w(TAG, "Failed reading studyio_strict_prefs", e)
         }
@@ -267,26 +271,34 @@ class TimerForegroundService : Service() {
         if (currentPkg == null) return
         if (currentPkg == packageName || isLauncherOrSystem(currentPkg)) return
 
-        val isBlocked = !strictAllowedPackages.contains(currentPkg)
+        // UNINSTALL & TURN-OFF PROTECTION in Ultra Strict Mode:
+        // When in Ultra Strict Mode, Settings, Package Installers, Play Store, and OEM Safecenters
+        // are NEVER permitted even if somehow whitelisted!
+        val isUninstallShieldViolation = isUltraStrict && isUninstallProtection && isSettingsOrAppManager(currentPkg)
+        val isBlocked = isUninstallShieldViolation || !strictAllowedPackages.contains(currentPkg)
 
         if (isBlocked) {
             val now = System.currentTimeMillis()
             if (now - lastBlockedLaunchTime < 450) return
             lastBlockedLaunchTime = now
 
-            val appName = try {
-                val pm = packageManager
-                val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    pm.getApplicationInfo(currentPkg, PackageManager.ApplicationInfoFlags.of(0))
-                } else {
-                    pm.getApplicationInfo(currentPkg, 0)
+            val appName = if (isUninstallShieldViolation) {
+                "Settings & App Management"
+            } else {
+                try {
+                    val pm = packageManager
+                    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getApplicationInfo(currentPkg, PackageManager.ApplicationInfoFlags.of(0))
+                    } else {
+                        pm.getApplicationInfo(currentPkg, 0)
+                    }
+                    pm.getApplicationLabel(info).toString()
+                } catch (e: Exception) {
+                    currentPkg
                 }
-                pm.getApplicationLabel(info).toString()
-            } catch (e: Exception) {
-                currentPkg
             }
 
-            Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName), ultra=$isUltraStrict")
+            Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName), ultra=$isUltraStrict, uninstallShield=$isUninstallShieldViolation")
 
             val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -297,6 +309,7 @@ class TimerForegroundService : Service() {
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, currentPkg)
                 putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, appName)
                 putExtra(BlockedAppActivity.EXTRA_IS_ULTRA, isUltraStrict)
+                putExtra(BlockedAppActivity.EXTRA_IS_SETTINGS_OR_UNINSTALL, isUninstallShieldViolation)
             }
 
             try {
@@ -358,6 +371,16 @@ class TimerForegroundService : Service() {
                 lower.contains("huawei.android.launcher") ||
                 lower.contains("oppo.launcher") ||
                 lower.contains("oneplus.launcher")
+    }
+
+    private fun isSettingsOrAppManager(pkgName: String): Boolean {
+        val lower = pkgName.lowercase()
+        return lower == "com.android.settings" ||
+                lower == "com.android.vending" ||
+                lower.contains("packageinstaller") ||
+                lower.contains("safecenter") ||
+                lower.contains("securitycenter") ||
+                lower.contains("systemmanager")
     }
 
     private fun acquireWakeLock() {

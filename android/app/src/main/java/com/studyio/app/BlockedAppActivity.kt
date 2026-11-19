@@ -22,6 +22,7 @@ class BlockedAppActivity : AppCompatActivity() {
         const val EXTRA_BLOCKED_PACKAGE = "blocked_package"
         const val EXTRA_BLOCKED_NAME = "blocked_name"
         const val EXTRA_IS_ULTRA = "is_ultra"
+        const val EXTRA_IS_SETTINGS_OR_UNINSTALL = "is_settings_or_uninstall"
         @Volatile
         var isVisible = false
     }
@@ -41,6 +42,7 @@ class BlockedAppActivity : AppCompatActivity() {
 
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
         val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
+        val isUninstallShield = intent.getBooleanExtra(EXTRA_IS_SETTINGS_OR_UNINSTALL, false)
 
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -74,8 +76,16 @@ class BlockedAppActivity : AppCompatActivity() {
 
         // Top Pill Badge
         badgeView = TextView(this).apply {
-            text = if (isUltra) "⚡ ULTRA STRICT LOCKDOWN" else "STRICT MODE ACTIVE"
-            setTextColor(if (isUltra) Color.parseColor("#34D399") else Color.parseColor("#E4E4E7"))
+            text = when {
+                isUninstallShield -> "🛡️ UNINSTALL PROTECTION ACTIVE"
+                isUltra -> "⚡ ULTRA STRICT LOCKDOWN"
+                else -> "STRICT MODE ACTIVE"
+            }
+            setTextColor(when {
+                isUninstallShield -> Color.parseColor("#FCA5A5")
+                isUltra -> Color.parseColor("#F87171")
+                else -> Color.parseColor("#E4E4E7")
+            })
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -83,9 +93,17 @@ class BlockedAppActivity : AppCompatActivity() {
             val bPadV = dpToPx(4)
             setPadding(bPadH, bPadV, bPadH, bPadV)
             val badgeBg = GradientDrawable().apply {
-                setColor(if (isUltra) Color.parseColor("#064E3B") else Color.parseColor("#27272A"))
+                setColor(when {
+                    isUninstallShield -> Color.parseColor("#7F1D1D")
+                    isUltra -> Color.parseColor("#450A0A")
+                    else -> Color.parseColor("#27272A")
+                })
                 cornerRadius = dpToPx(16).toFloat()
-                setStroke(dpToPx(1), if (isUltra) Color.parseColor("#059669") else Color.parseColor("#3F3F46"))
+                setStroke(dpToPx(1), when {
+                    isUninstallShield -> Color.parseColor("#EF4444")
+                    isUltra -> Color.parseColor("#DC2626")
+                    else -> Color.parseColor("#3F3F46")
+                })
             }
             background = badgeBg
             val lp = LinearLayout.LayoutParams(
@@ -109,9 +127,9 @@ class BlockedAppActivity : AppCompatActivity() {
         }
         card.addView(iconView)
 
-        // Title: "Blocked by Study.io"
+        // Title: "Blocked by Study.io" or "Settings & Deletion Locked"
         val titleView = TextView(this).apply {
-            text = "Blocked by Study.io"
+            text = if (isUninstallShield) "Settings & Deletion Locked" else "Blocked by Study.io"
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -127,7 +145,7 @@ class BlockedAppActivity : AppCompatActivity() {
 
         // Subtitle: "[App Name] is blocked"
         subtitleView = TextView(this).apply {
-            text = "$blockedName is blocked"
+            text = if (isUninstallShield) "Uninstall Protection Active" else "$blockedName is blocked"
             setTextColor(Color.parseColor("#F87171"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -143,10 +161,10 @@ class BlockedAppActivity : AppCompatActivity() {
 
         // Description Body
         descView = TextView(this).apply {
-            text = if (isUltra) {
-                "Ultra Strict Mode is active. This app is blocked until your countdown timer finishes."
-            } else {
-                "Strict Mode is keeping you focused. You cannot open this app during your study session."
+            text = when {
+                isUninstallShield -> "Ultra Strict Mode is active. You cannot uninstall, force stop, or turn off study.io until your countdown timer reaches 00:00:00."
+                isUltra -> "Ultra Strict Mode is active. This app is blocked until your countdown timer finishes."
+                else -> "Strict Mode is keeping you focused. You cannot open this app during your study session."
             }
             setTextColor(Color.parseColor("#A1A1AA"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -243,10 +261,16 @@ class BlockedAppActivity : AppCompatActivity() {
         setIntent(intent)
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
         val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
-        subtitleView.text = "$blockedName is blocked"
-        if (isUltra) {
+        val isUninstallShield = intent.getBooleanExtra(EXTRA_IS_SETTINGS_OR_UNINSTALL, false)
+
+        subtitleView.text = if (isUninstallShield) "Uninstall Protection Active" else "$blockedName is blocked"
+        if (isUninstallShield) {
+            badgeView.text = "🛡️ UNINSTALL PROTECTION ACTIVE"
+            badgeView.setTextColor(Color.parseColor("#FCA5A5"))
+            descView.text = "Ultra Strict Mode is active. You cannot uninstall, force stop, or turn off study.io until your countdown timer reaches 00:00:00."
+        } else if (isUltra) {
             badgeView.text = "⚡ ULTRA STRICT LOCKDOWN"
-            badgeView.setTextColor(Color.parseColor("#34D399"))
+            badgeView.setTextColor(Color.parseColor("#F87171"))
             descView.text = "Ultra Strict Mode is active. This app is blocked until your countdown timer finishes."
         } else {
             badgeView.text = "STRICT MODE ACTIVE"

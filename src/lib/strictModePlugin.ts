@@ -19,10 +19,16 @@ export interface StrictModePlugin {
   requestOverlayPermission(): Promise<void>;
   getInstalledApps(): Promise<{ apps: InstalledApp[] }>;
   getForegroundApp(): Promise<ForegroundAppInfo>;
+  isDeviceAdminActive(): Promise<{ active: boolean }>;
+  requestDeviceAdmin(): Promise<void>;
+  deactivateDeviceAdmin(): Promise<{ success: boolean }>;
+  isUninstallProtectionEnabled(): Promise<{ enabled: boolean }>;
+  setUninstallProtectionEnabled(options: { enabled: boolean }): Promise<void>;
   syncStrictConfig(options: {
     enabled: boolean;
     allowedPackages: string[];
     isUltraStrict?: boolean;
+    uninstallProtection?: boolean;
   }): Promise<void>;
   blockAppDirect(options: {
     packageName: string;
@@ -43,6 +49,11 @@ const NativeStrictMode = registerPlugin<StrictModePlugin>('StrictMode', {
       name: null,
       isSystemOrLauncher: false,
     }),
+    isDeviceAdminActive: async () => ({ active: false }),
+    requestDeviceAdmin: async () => {},
+    deactivateDeviceAdmin: async () => ({ success: true }),
+    isUninstallProtectionEnabled: async () => ({ enabled: true }),
+    setUninstallProtectionEnabled: async () => {},
     syncStrictConfig: async () => {},
     blockAppDirect: async () => {},
   },
@@ -61,6 +72,7 @@ export function isStrictModeSupported(): boolean {
 
 const STRICT_MODE_STORAGE_KEY = 'studyio_strict_mode_enabled';
 const ULTRA_STRICT_STORAGE_KEY = 'studyio_ultra_strict_enabled';
+const UNINSTALL_PROTECTION_STORAGE_KEY = 'studyio_uninstall_protection_enabled';
 const ALLOWED_APPS_STORAGE_KEY = 'studyio_strict_mode_allowed_apps';
 
 export function loadStrictModeEnabled(): boolean {
@@ -92,6 +104,23 @@ export function saveUltraStrictEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(ULTRA_STRICT_STORAGE_KEY, enabled ? 'true' : 'false');
+  } catch {}
+}
+
+export function loadUninstallProtectionEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const val = localStorage.getItem(UNINSTALL_PROTECTION_STORAGE_KEY);
+    return val === null ? true : val === 'true';
+  } catch {
+    return true;
+  }
+}
+
+export function saveUninstallProtectionEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(UNINSTALL_PROTECTION_STORAGE_KEY, enabled ? 'true' : 'false');
   } catch {}
 }
 

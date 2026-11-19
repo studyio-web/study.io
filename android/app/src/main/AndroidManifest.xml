@@ -80,6 +80,23 @@
                 <action android:name="com.studyio.app.ACTION_TIMER_EXACT_FINISH" />
             </intent-filter>
         </receiver>
+
+        <!-- Device Admin Receiver for Uninstall Protection in Ultra Strict Mode -->
+        <receiver
+            android:name=".StudyDeviceAdminReceiver"
+            android:label="@string/device_admin_label"
+            android:description="@string/device_admin_description"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLED" />
+            </intent-filter>
+        </receiver>
         <!-- Activity launched when user opens a blocked app during Strict Mode -->
         <activity
             android:name=".BlockedAppActivity"

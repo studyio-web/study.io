@@ -4,6 +4,8 @@
     <string name="title_activity_main">study.io</string>
     <string name="package_name">com.studyio.app</string>
     <string name="custom_url_scheme">com.studyio.app</string>
-    <string name="accessibility_service_label">study.io Focus Blocker</string>
-    <string name="accessibility_service_description">Blocks Instagram Reels and YouTube Shorts during active study sessions to help you maintain deep focus.</string>
+    <string name="accessibility_service_label">study.io Focus &amp; Blocker</string>
+    <string name="accessibility_service_description">Blocks Instagram Reels, YouTube Shorts, and enforces Uninstall Protection during active study sessions.</string>
+    <string name="device_admin_label">study.io Uninstall Protection</string>
+    <string name="device_admin_description">Prevents deleting, uninstalling, or force stopping study.io while an Ultra Strict study countdown session is in progress.</string>
 </resources>

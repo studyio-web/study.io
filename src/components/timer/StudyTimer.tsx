@@ -200,6 +200,7 @@ export function StudyTimer() {
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
   const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState(false);
+  const [isDeviceAdminActive, setIsDeviceAdminActive] = useState(false);
 
   // Optional Timer Alarm state for Countdown, Ultra Strict & Pomodoro modes
   const [isAlarmEnabled, setIsAlarmEnabled] = useState<boolean>(() => loadTimerAlarmEnabled());
@@ -259,10 +260,12 @@ export function StudyTimer() {
       StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => { });
       StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => { });
       AccessibilityBlocker.isServiceEnabled().then((enabled) => setHasAccessibilityPerm(enabled)).catch(() => { });
+      StrictMode.isDeviceAdminActive().then(({ active }) => setIsDeviceAdminActive(active)).catch(() => { });
       StrictMode.syncStrictConfig({
         enabled: isStrictMode && !isRemoteSession,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict && !isRemoteSession,
+        uninstallProtection: true,
       }).catch(() => { });
     }
   }, [isAndroid, isStrictMode, allowedApps, isUltraStrict, isRemoteSession]);
@@ -433,6 +436,15 @@ export function StudyTimer() {
     }
   };
 
+  const handleRequestDeviceAdmin = async () => {
+    if (!isAndroid) return;
+    try {
+      await StrictMode.requestDeviceAdmin();
+    } catch (e) {
+      console.warn('Failed to open device admin settings:', e);
+    }
+  };
+
   // Re-verify permission on window focus if permission modal was waiting
   useEffect(() => {
     if (!isAndroid) return;
@@ -444,6 +456,8 @@ export function StudyTimer() {
         setHasOverlayPerm(overlayGranted);
         const accessibilityEnabled = await AccessibilityBlocker.isServiceEnabled();
         setHasAccessibilityPerm(accessibilityEnabled);
+        const { active: adminActive } = await StrictMode.isDeviceAdminActive();
+        setIsDeviceAdminActive(adminActive);
 
         if (!isStrictModeRef.current && usageGranted && isPermissionModalOpen) {
           setIsPermissionModalOpen(false);
@@ -625,6 +639,7 @@ export function StudyTimer() {
         enabled: isStrictMode,
         allowedPackages: allowedApps,
         isUltraStrict: false,
+        uninstallProtection: false,
       }).catch(() => { });
     }
   }, [isCountdownCompleted, isAndroid, isUltraStrict, isStrictMode, allowedApps]);
@@ -726,6 +741,7 @@ export function StudyTimer() {
         enabled: isStrictMode,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict,
+        uninstallProtection: true,
       }).catch(() => { });
     }
     startTimer(activeSub.id);
@@ -749,6 +765,7 @@ export function StudyTimer() {
         enabled: isStrictMode,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict,
+        uninstallProtection: true,
       }).catch(() => { });
     }
     hapticMedium();
@@ -2545,9 +2562,11 @@ export function StudyTimer() {
           hasUsagePermission={hasUsagePerm}
           hasOverlayPermission={hasOverlayPerm}
           hasAccessibilityPermission={hasAccessibilityPerm}
+          isDeviceAdminActive={isDeviceAdminActive}
           onRequestUsagePermission={handleRequestPermission}
           onRequestOverlayPermission={handleRequestOverlayPermission}
           onRequestAccessibilityPermission={handleRequestAccessibilityPermission}
+          onRequestDeviceAdmin={handleRequestDeviceAdmin}
           isFocusing={isStudying}
         />
       )}

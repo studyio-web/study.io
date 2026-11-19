@@ -2,6 +2,7 @@ package com.studyio.app
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
@@ -66,29 +67,149 @@ class ShortsReelsBlockerService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
-        // 1. Verify blocking mode is toggled ON from study.io timer component
-        if (!isBlockerEnabled(this)) return
-
         val packageName = event.packageName?.toString() ?: return
-        if (packageName != PKG_INSTAGRAM && packageName != PKG_YOUTUBE) return
 
-        when (event.eventType) {
-            // Block clicking dedicated Reels or Shorts bottom navigation bar tabs
-            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
-                handleViewClicked(event, packageName)
+        // 1. Instagram Reels & YouTube Shorts Blocker
+        if (packageName == PKG_INSTAGRAM || packageName == PKG_YOUTUBE) {
+            if (!isBlockerEnabled(this)) return
+            when (event.eventType) {
+                // Block clicking dedicated Reels or Shorts bottom navigation bar tabs
+                AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                    handleViewClicked(event, packageName)
+                }
+
+                // Anti-Doomscrolling: Block scrolling away from a single reel to the next video
+                AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                    handleViewScrolled(event, packageName)
+                }
+
+                // Detect window transitions (entering reel viewer, or startup redirect)
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                    handleWindowStateChanged(event, packageName)
+                }
             }
+            return
+        }
 
-            // Anti-Doomscrolling: Block scrolling away from a single reel to the next video
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                handleViewScrolled(event, packageName)
+        // 2. Ultra Strict Uninstall & Turn-Off Protection
+        if (StudyDeviceAdminReceiver.isUltraStrictSessionActive(this)) {
+            handleUninstallProtectionEvent(event, packageName)
+        }
+    }
+
+    private var lastUninstallBlockTime = 0L
+
+    private fun handleUninstallProtectionEvent(event: AccessibilityEvent, packageName: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastUninstallBlockTime < 600L) return
+
+        val lowerPkg = packageName.lowercase()
+        val isTargetPkg = lowerPkg == "com.android.settings" ||
+                lowerPkg.contains("packageinstaller") ||
+                lowerPkg.contains("safecenter") ||
+                lowerPkg.contains("securitycenter") ||
+                lowerPkg.contains("systemmanager") ||
+                lowerPkg == "com.android.vending"
+
+        if (!isTargetPkg) return
+
+        var shouldBlock = false
+
+        if (lowerPkg.contains("packageinstaller")) {
+            shouldBlock = true
+        } else if (lowerPkg == "com.android.settings") {
+            val root = rootInActiveWindow
+            if (root != null) {
+                try {
+                    shouldBlock = inspectNodeForSettingsBypass(root)
+                } finally {
+                    root.recycle()
+                }
+            } else {
+                shouldBlock = true
             }
+        } else if (lowerPkg == "com.android.vending") {
+            val root = rootInActiveWindow
+            if (root != null) {
+                try {
+                    shouldBlock = inspectNodeForPlayStoreBypass(root)
+                } finally {
+                    root.recycle()
+                }
+            }
+        } else {
+            shouldBlock = true
+        }
 
-            // Detect window transitions (entering reel viewer, or startup redirect)
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                handleWindowStateChanged(event, packageName)
+        if (shouldBlock) {
+            lastUninstallBlockTime = now
+            Log.w(TAG, "Ultra Strict Uninstall Protection triggered in Accessibility for $packageName. Blocking.")
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            try {
+                val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(BlockedAppActivity.EXTRA_BLOCKED_PACKAGE, packageName)
+                    putExtra(BlockedAppActivity.EXTRA_BLOCKED_NAME, "Settings & App Management")
+                    putExtra(BlockedAppActivity.EXTRA_IS_ULTRA, true)
+                    putExtra(BlockedAppActivity.EXTRA_IS_SETTINGS_OR_UNINSTALL, true)
+                }
+                startActivity(blockIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start BlockedAppActivity from accessibility", e)
             }
         }
+    }
+
+    private fun inspectNodeForSettingsBypass(node: AccessibilityNodeInfo): Boolean {
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val combined = "$text $desc"
+
+        if (combined.contains("study.io") ||
+            combined.contains("com.studyio.app") ||
+            combined.contains("uninstall") ||
+            combined.contains("force stop") ||
+            combined.contains("clear storage") ||
+            combined.contains("clear data") ||
+            combined.contains("device admin") ||
+            combined.contains("accessibility")) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            try {
+                if (inspectNodeForSettingsBypass(child)) return true
+            } finally {
+                child.recycle()
+            }
+        }
+        return false
+    }
+
+    private fun inspectNodeForPlayStoreBypass(node: AccessibilityNodeInfo): Boolean {
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val combined = "$text $desc"
+
+        if ((combined.contains("study.io") || combined.contains("com.studyio.app")) &&
+            (combined.contains("uninstall") || combined.contains("open"))) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            try {
+                if (inspectNodeForPlayStoreBypass(child)) return true
+            } finally {
+                child.recycle()
+            }
+        }
+        return false
     }
 
     override fun onInterrupt() {

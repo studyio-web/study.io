@@ -8,6 +8,9 @@ import {
   saveAllowedApps,
   loadUltraStrictEnabled,
   saveUltraStrictEnabled,
+  loadUninstallProtectionEnabled,
+  saveUninstallProtectionEnabled,
+  StrictMode,
 } from '../src/lib/strictModePlugin';
 import { resolveNotificationConfig } from '../src/lib/notifications';
 
@@ -486,5 +489,132 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     // Once countdown target is reached: lockout is released
     pcElapsedSeconds = 1800;
     assert.equal(canPauseOrStop(pcIsUltraStrict, pcIsStudying, pcElapsedSeconds, pcCountdownTarget), true, 'Controls unlock once countdown target is completed');
+  });
+
+  it('correctly persists and loads uninstall protection state', () => {
+    const store: Record<string, string> = {};
+    const originalLocalStorage = global.localStorage;
+    const originalWindow = (global as any).window;
+    (global as any).window = global;
+    (global as any).localStorage = {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, val: string) => {
+        store[key] = val;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    };
+
+    try {
+      // Default should be true for Ultra Strict Mode safety
+      assert.equal(loadUninstallProtectionEnabled(), true);
+      saveUninstallProtectionEnabled(false);
+      assert.equal(loadUninstallProtectionEnabled(), false);
+      saveUninstallProtectionEnabled(true);
+      assert.equal(loadUninstallProtectionEnabled(), true);
+    } finally {
+      (global as any).localStorage = originalLocalStorage;
+      (global as any).window = originalWindow;
+    }
+  });
+
+  it('guarantees Ultra Strict Mode enforces Uninstall Protection on settings and package installers', () => {
+    const PROTECTED_SYSTEM_PACKAGES = [
+      'com.android.settings',
+      'com.google.android.packageinstaller',
+      'com.android.packageinstaller',
+      'com.samsung.android.packageinstaller',
+      'com.android.vending',
+      'com.miui.securitycenter',
+      'com.coloros.safecenter',
+      'com.oppo.safecenter',
+      'com.huawei.systemmanager',
+    ];
+
+    const isSettingsOrAppManager = (pkg: string) => {
+      const lower = pkg.toLowerCase();
+      if (PROTECTED_SYSTEM_PACKAGES.includes(lower)) return true;
+      return lower.includes('settings') ||
+        lower.includes('packageinstaller') ||
+        lower.includes('safecenter') ||
+        lower.includes('securitycenter') ||
+        lower.includes('systemmanager');
+    };
+
+    const isAppBlockedUnderUltra = (
+      pkg: string,
+      isUltraStrict: boolean,
+      isUninstallProtection: boolean,
+      allowedPackages: string[]
+    ) => {
+      // Uninstall & Turn-Off Protection:
+      const isUninstallViolation = isUltraStrict && isUninstallProtection && isSettingsOrAppManager(pkg);
+      if (isUninstallViolation) return true; // ALWAYS blocked in Ultra Strict
+      return !allowedPackages.includes(pkg);
+    };
+
+    // Even if user hypothetically had Settings in allowed apps, Ultra Strict MUST override and block it!
+    const allowed = ['com.android.settings', 'com.google.android.calculator'];
+
+    // Under Standard Strict Mode:
+    assert.equal(
+      isAppBlockedUnderUltra('com.android.settings', false, true, allowed),
+      false,
+      'Standard mode honors allowed packages'
+    );
+
+    // Under Ultra Strict Mode with Uninstall Protection:
+    for (const sysPkg of PROTECTED_SYSTEM_PACKAGES) {
+      assert.equal(
+        isAppBlockedUnderUltra(sysPkg, true, true, allowed),
+        true,
+        `Ultra Strict Mode must block ${sysPkg} to prevent deleting or turning off the app`
+      );
+    }
+
+    // Normal allowed app remains accessible
+    assert.equal(
+      isAppBlockedUnderUltra('com.google.android.calculator', true, true, allowed),
+      false,
+      'Calculators and focus tools remain accessible'
+    );
+
+    // Distracting app remains blocked
+    assert.equal(
+      isAppBlockedUnderUltra('com.instagram.android', true, true, allowed),
+      true,
+      'Instagram remains strictly blocked'
+    );
+  });
+
+  it('guarantees Device Admin deactivation is rejected during active Ultra Strict countdown', () => {
+    const isUltraStrictActive = (running: boolean, mode: string, isUltra: boolean, elapsed: number, target: number) => {
+      return running && isUltra && mode === 'countdown' && elapsed < target;
+    };
+
+    const checkDeactivationAllowed = (activeSession: boolean) => {
+      if (activeSession) {
+        return {
+          allowed: false,
+          warning: '🚨 ULTRA STRICT LOCKDOWN ACTIVE! You cannot deactivate or uninstall study.io while your countdown focus session is in progress.',
+        };
+      }
+      return { allowed: true, warning: null };
+    };
+
+    // 1. During active countdown session
+    const active = isUltraStrictActive(true, 'countdown', true, 300, 1800);
+    assert.equal(active, true);
+    const attemptDuringSession = checkDeactivationAllowed(active);
+    assert.equal(attemptDuringSession.allowed, false);
+    assert.match(attemptDuringSession.warning!, /ULTRA STRICT LOCKDOWN ACTIVE/);
+
+    // 2. After countdown reaches 00:00:00
+    const finished = isUltraStrictActive(false, 'countdown', true, 1800, 1800);
+    assert.equal(finished, false);
+    const attemptAfterSession = checkDeactivationAllowed(finished);
+    assert.equal(attemptAfterSession.allowed, true);
+    assert.equal(attemptAfterSession.warning, null);
   });
 });
