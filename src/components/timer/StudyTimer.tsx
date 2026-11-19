@@ -150,6 +150,7 @@ export function StudyTimer() {
     hasHydrated,
     isLoadingSessions,
     isRemoteTransitioning,
+    isRemoteSession,
   } = useStudy();
 
   const subjectList = Array.isArray(subjects) ? subjects : [];
@@ -197,6 +198,8 @@ export function StudyTimer() {
 
   const isStudyingRef = useRef(isStudying);
   isStudyingRef.current = isStudying;
+  const isRemoteSessionRef = useRef(isRemoteSession);
+  isRemoteSessionRef.current = isRemoteSession;
   const isStrictModeRef = useRef(isStrictMode);
   isStrictModeRef.current = isStrictMode;
   const isUltraStrictRef = useRef(isUltraStrict);
@@ -222,18 +225,19 @@ export function StudyTimer() {
   }, []);
 
   // Sync state to native SharedPreferences and live Foreground Service
+  // When a session is running remotely from desktop (isRemoteSession), Strict Mode is safely bypassed on the phone!
   useEffect(() => {
     if (isAndroid) {
       StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => { });
       StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => { });
       AccessibilityBlocker.isServiceEnabled().then((enabled) => setHasAccessibilityPerm(enabled)).catch(() => { });
       StrictMode.syncStrictConfig({
-        enabled: isStrictMode,
+        enabled: isStrictMode && !isRemoteSession,
         allowedPackages: allowedApps,
-        isUltraStrict: isUltraStrict,
+        isUltraStrict: isUltraStrict && !isRemoteSession,
       }).catch(() => { });
     }
-  }, [isAndroid, isStrictMode, allowedApps, isUltraStrict]);
+  }, [isAndroid, isStrictMode, allowedApps, isUltraStrict, isRemoteSession]);
 
   // Hardware Android Back Button: dismiss any open timer modal before leaving tab or exiting app
   useEffect(() => {
@@ -426,14 +430,15 @@ export function StudyTimer() {
   }, [isAndroid, isPermissionModalOpen]);
 
   // Enable / disable Accessibility Reels & Shorts Blocker based on active study session
+  // Bypassed when the session was started remotely from PC/desktop
   useEffect(() => {
     if (!isAndroid) return;
-    if (isStudying && isBlockShortsReels) {
+    if (isStudying && isBlockShortsReels && !isRemoteSession) {
       AccessibilityBlocker.enable().catch(() => {});
     } else {
       AccessibilityBlocker.disable().catch(() => {});
     }
-  }, [isStudying, isBlockShortsReels, isAndroid]);
+  }, [isStudying, isBlockShortsReels, isAndroid, isRemoteSession]);
 
   // Background app monitoring via Capacitor App listener
   useEffect(() => {
@@ -442,7 +447,7 @@ export function StudyTimer() {
     let appListenerHandle: { remove: () => Promise<void> } | null = null;
 
     const checkForegroundViolation = async () => {
-      if (!isStudyingRef.current || !isStrictModeRef.current) return;
+      if (!isStudyingRef.current || !isStrictModeRef.current || isRemoteSessionRef.current) return;
       try {
         const fg = await StrictMode.getForegroundApp();
         if (
@@ -469,7 +474,7 @@ export function StudyTimer() {
     };
 
     App.addListener('appStateChange', ({ isActive }) => {
-      if (!isActive && isStudyingRef.current && isStrictModeRef.current) {
+      if (!isActive && isStudyingRef.current && isStrictModeRef.current && !isRemoteSessionRef.current) {
         // App went to background: check after 400ms & 800ms
         setTimeout(checkForegroundViolation, 400);
         setTimeout(checkForegroundViolation, 800);
@@ -2001,7 +2006,7 @@ export function StudyTimer() {
                 </button>
               )}
             </div>
-          ) : isUltraStrict ? (
+          ) : isUltraStrict && !isRemoteSession ? (
             /* Ultra Strict Session Running: No Stop, Pause, or Reset buttons until countdown completes */
             <div className="flex items-center justify-center w-[min(280px,85vw)] sm:w-[260px]">
               <div className="w-full h-[52px] rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-hud text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 select-none shadow-[0_0_15px_rgba(16,185,129,0.15)]">
@@ -2219,19 +2224,25 @@ export function StudyTimer() {
                 triggerHaptic('light');
                 setIsStrictConfigOpen(true);
               }}
-              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isStrictMode || isBlockShortsReels
+              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isRemoteSession
+                ? 'border-sky-500/30 bg-sky-500/10 text-sky-400 font-medium'
+                : isStrictMode || isBlockShortsReels
                 ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
                 : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
                 }`}
               title={
-                isStudying && (isStrictMode || isBlockShortsReels)
+                isRemoteSession
+                  ? 'Remote session active from desktop (Strict Mode bypassed on phone)'
+                  : isStudying && (isStrictMode || isBlockShortsReels)
                   ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict / Blocker is active and locked during study')
                   : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode & Reels Blocker')
               }
             >
-              <Shield className={`w-3.5 h-3.5 shrink-0 ${isStrictMode || isBlockShortsReels ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
+              <Shield className={`w-3.5 h-3.5 shrink-0 ${isRemoteSession ? 'text-sky-400' : isStrictMode || isBlockShortsReels ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
               <span>
-                {isUltraStrict && isStrictMode
+                {isRemoteSession
+                  ? 'Remote Focus'
+                  : isUltraStrict && isStrictMode
                   ? 'Ultra: ON'
                   : isStrictMode
                   ? 'Strict: ON'
@@ -2239,7 +2250,7 @@ export function StudyTimer() {
                   ? 'Reels: Block'
                   : 'Strict: OFF'}
               </span>
-              {(isStrictMode || isBlockShortsReels) && (
+              {!isRemoteSession && (isStrictMode || isBlockShortsReels) && (
                 <span className="inline-flex items-center gap-1 ml-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                   {isStudying ? (

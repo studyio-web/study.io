@@ -59,6 +59,7 @@ interface StudyContextType {
   realtimeEventsCount: number;
   refetchActiveSession: () => Promise<void>;
   isRemoteTransitioning: boolean;
+  isRemoteSession: boolean;
   lastRemoteSyncTime: number | null;
   hasHydrated: boolean;
   isLoadingSessions: boolean;
@@ -996,6 +997,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   });
   const [realtimeEventsCount, setRealtimeEventsCount] = useState<number>(0);
   const [isRemoteTransitioning, setIsRemoteTransitioning] = useState<boolean>(false);
+  const [isRemoteSession, setIsRemoteSession] = useState<boolean>(false);
+  const isRemoteSessionRef = useRef<boolean>(false);
   const [lastRemoteSyncTime, setLastRemoteSyncTime] = useState<number | null>(null);
   const lastClickTimeRef = useRef<number>(0);
 
@@ -1807,6 +1810,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setElapsedSeconds(0);
       setIsStudying(false);
       setIsPaused(false);
+      setIsRemoteSession(false);
+      isRemoteSessionRef.current = false;
       setPomodoroCompletedPhase(null);
       clearPersistedTimer();
 
@@ -1834,6 +1839,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setIsRemoteTransitioning(true);
       setTimeout(() => setIsRemoteTransitioning(false), 300);
       setLastRemoteSyncTime(Date.now());
+      setIsRemoteSession(true);
+      isRemoteSessionRef.current = true;
+    } else {
+      setIsRemoteSession(false);
+      isRemoteSessionRef.current = false;
     }
 
     const {
@@ -1859,6 +1869,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return prev;
     });
 
+    if (effectiveMode === 'countdown' && Number(target_duration) > 0) {
+      setCountdownTarget(Number(target_duration));
+    }
+
     if (pomodoro_phase) {
       if (pomodoro_phase === 'focus' || pomodoro_phase === 'work') {
         setPomodoroPhase('work');
@@ -1880,9 +1894,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const targetDuration = Number(pomodoro_duration_seconds ?? target_duration ?? 0);
 
     if (status === 'running') {
+      const startedAtMs = started_at ? new Date(started_at).getTime() : Date.now();
+      const runningSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+      const calculatedElapsed = baseAccumulated + runningSeconds;
+
       if (timerIntervalRef.current !== null) {
-        // We are already running locally. Ignore redundant running syncs (like from HTTP polling)
-        // to prevent the timer from jittering and resetting its high-precision start time.
+        // We are already running locally.
+        // If drift is significant (> 3s), gently re-anchor local timer anchor
+        if (Math.abs(calculatedElapsed - (accumulatedSecondsRef.current || elapsedSeconds)) > 3) {
+          accumulatedSecondsRef.current = baseAccumulated;
+          startTimeRef.current = Date.now() - (calculatedElapsed * 1000);
+          setElapsedSeconds(calculatedElapsed);
+        }
         return;
       }
 
@@ -1891,10 +1914,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         console.warn('[StudyContext] Ignoring remote running state from this device because local state is explicitly paused (ghost session).');
         return;
       }
-
-      const startedAtMs = started_at ? new Date(started_at).getTime() : Date.now();
-      const runningSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
-      const calculatedElapsed = baseAccumulated + runningSeconds;
 
       if (effectiveMode === 'pomodoro' && targetDuration > 0 && calculatedElapsed >= targetDuration) {
         if (timerIntervalRef.current) {
@@ -2002,7 +2021,63 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     runPoll();
 
-    // Listen on study_rooms_realtime_hub for pings from room members
+    // 1. Dedicated cross-device sync channel (Desktop <-> Phone)
+    const userChannel = supabase
+      .channel(`user_active_session_${userId}`, {
+        config: { broadcast: { ack: true } },
+      })
+      .on(
+        'broadcast',
+        { event: 'active_session_sync' },
+        (payload: any) => {
+          realtimeEventCountRef.current++;
+          setRealtimeEventsCount(realtimeEventCountRef.current);
+          console.log(`[Realtime Broadcast #${realtimeEventCountRef.current}] active_session_sync:`, payload);
+          if (payload?.payload && handleRemoteSyncRef.current) {
+            handleRemoteSyncRef.current(payload.payload);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_sessions',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload: any) => {
+          realtimeEventCountRef.current++;
+          setRealtimeEventsCount(realtimeEventCountRef.current);
+          console.log(`[Realtime PostgresChange #${realtimeEventCountRef.current}] active_sessions:`, payload?.eventType);
+          if (payload?.eventType === 'DELETE') {
+            if (handleRemoteSyncRef.current) {
+              handleRemoteSyncRef.current({ status: 'stopped', device_id: 'remote' });
+            }
+          } else if (payload?.new) {
+            if (handleRemoteSyncRef.current) {
+              handleRemoteSyncRef.current(payload.new);
+            }
+          }
+        }
+      )
+      .subscribe((status: string) => {
+        console.log(`[Realtime active_session channel status for ${userId}]:`, status);
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('SUBSCRIBED');
+          setIsSyncConnected(true);
+          setIsUsingPollingFallback(false);
+          isUsingPollingFallbackRef.current = false;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setRealtimeStatus('HTTP_POLLING');
+          setIsUsingPollingFallback(true);
+          isUsingPollingFallbackRef.current = true;
+        }
+      });
+
+    activeChannelRef.current = userChannel;
+
+    // 2. Listen on study_rooms_realtime_hub for pings from room members
     const hub = supabase.channel('study_rooms_realtime_hub');
     hub.on('broadcast', { event: 'ping_focus_status' }, () => {
       if (isStudying && !isPaused && startTimeRef.current !== null) {
@@ -2040,6 +2115,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval);
+      if (activeChannelRef.current) {
+        supabase.removeChannel(activeChannelRef.current);
+        activeChannelRef.current = null;
+      }
       supabase.removeChannel(hub);
       document.removeEventListener('visibilitychange', handleFocus);
       window.removeEventListener('focus', handleFocus);
@@ -2804,6 +2883,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     sessionStartTimeRef.current = new Date(nowAnchor);
     setIsStudying(true);
     setIsPaused(false);
+    setIsRemoteSession(false);
+    isRemoteSessionRef.current = false;
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('timer-is-active', 'true');
@@ -3443,6 +3524,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     accumulatedSecondsRef.current = 0;
     setIsStudying(false);
     setIsPaused(false);
+    setIsRemoteSession(false);
+    isRemoteSessionRef.current = false;
     soundFx.pauseAmbient();
     setElapsedSeconds(0);
     setActiveTaskId(null);
@@ -3587,6 +3670,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setElapsedSeconds(0);
     setIsStudying(true);
     setIsPaused(false);
+    setIsRemoteSession(false);
+    isRemoteSessionRef.current = false;
     setPomodoroCompletedPhase(null);
     soundFx.playStartChime();
     updateProfile({ status: 'resting' });
@@ -3979,6 +4064,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         realtimeEventsCount,
         refetchActiveSession,
         isRemoteTransitioning,
+        isRemoteSession,
         lastRemoteSyncTime,
         hasHydrated,
         isLoadingSessions,

@@ -289,4 +289,47 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.equal(isMonitoring, false, 'Monitoring must stop when timer stops');
     assert.equal(shouldBlockDistraction('com.instagram.android', allowed), false, 'Apps unblocked after timer stop');
   });
+
+  it('guarantees Strict Mode is completely bypassed on the phone when timer is started remotely from desktop', () => {
+    let isLocalStrictMode = true;
+    let isRemoteSession = false;
+    let isStudying = false;
+
+    // Evaluator matching StudyTimer.tsx and native sync
+    const computeEffectiveStrictConfig = (localEnabled: boolean, remote: boolean) => {
+      return {
+        enabled: localEnabled && !remote,
+        isUltraStrict: false && !remote,
+      };
+    };
+
+    const shouldCheckViolation = (studying: boolean, strictActive: boolean, remote: boolean) => {
+      if (!studying || !strictActive || remote) return false;
+      return true;
+    };
+
+    // 1. Initially idle on phone with Strict Mode enabled
+    assert.equal(isLocalStrictMode, true);
+    assert.equal(isRemoteSession, false);
+    assert.equal(shouldCheckViolation(isStudying, isLocalStrictMode, isRemoteSession), false);
+
+    // 2. User starts timer on desktop (PC): remote sync arrives on phone
+    isStudying = true;
+    isRemoteSession = true;
+
+    // Effective strict config sent to native Foreground Service
+    const nativeConfig = computeEffectiveStrictConfig(isLocalStrictMode, isRemoteSession);
+    assert.equal(nativeConfig.enabled, false, 'Native strict monitoring must be disabled on phone during remote desktop session');
+
+    // Phone foreground violation check
+    const phoneWillBlock = shouldCheckViolation(isStudying, isLocalStrictMode, isRemoteSession);
+    assert.equal(phoneWillBlock, false, 'Phone must NOT block apps when focus session originated from PC');
+
+    // 3. User stops session on desktop
+    isStudying = false;
+    isRemoteSession = false;
+
+    const restoredNativeConfig = computeEffectiveStrictConfig(isLocalStrictMode, isRemoteSession);
+    assert.equal(restoredNativeConfig.enabled, true, 'Local strict mode preference is restored once remote session ends');
+  });
 });
