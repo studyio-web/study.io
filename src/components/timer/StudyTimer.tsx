@@ -790,6 +790,7 @@ export function StudyTimer() {
   }, [resetTimer, clearPersistedTimer]);
 
   const handleStopAndSave = useCallback(async (durationOverride?: number | React.MouseEvent) => {
+    toast.dismiss();
     if (isSaving) return;
 
     // Strict offline gate: User cannot stop and save when network is disconnected
@@ -1371,7 +1372,6 @@ export function StudyTimer() {
       if (isNativeAndroid()) {
         TimerNotification.stop().catch(() => {});
       }
-      toast.success('Countdown completed! Click Save session to record your progress 🎉', { duration: 6000 });
       if (!isNativeAndroid()) {
         notify('countdown_completed', {
           body: 'Your timer is up! Click Save session to record your progress.',
@@ -1909,6 +1909,7 @@ export function StudyTimer() {
                 <button
                   type="button"
                   onClick={async () => {
+                    toast.dismiss();
                     if (!isOnline) {
                       toast.error('Network connection required to save session. Please reconnect.', {
                         id: 'offline-stop-blocked',
