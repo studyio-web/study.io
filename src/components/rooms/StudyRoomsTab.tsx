@@ -40,24 +40,6 @@ import ActiveRoom from './ActiveRoom';
 import { hapticMedium, hapticTick } from '@/lib/haptics';
 import { registerBackButtonHandler } from '@/lib/native-feel';
 
-function parseHoursMinutes(totalSeconds: number) {
-  const safe = Math.max(0, Math.round(totalSeconds || 0));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  return {
-    h: String(hours),
-    m: String(minutes).padStart(2, '0'),
-    hNum: hours,
-    mNum: minutes,
-  };
-}
-
-function formatRoomFocusTime(seconds?: number | null) {
-  if (!seconds || seconds <= 0) return null;
-  const { h, m } = parseHoursMinutes(seconds);
-  return `${h}h ${m}m`;
-}
-
 interface StudyRoomsTabProps {
   onBackToDashboard: () => void;
   isActiveTab?: boolean;
@@ -1197,7 +1179,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                       <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
                         <span className="w-16 sm:w-24 text-center sm:text-left">Members</span>
                         <span className="w-16 sm:w-20 text-center">Status</span>
-                        <span className="w-20 sm:w-28 text-right hidden md:inline">Focus Time</span>
                         <span className="w-16 sm:w-20 text-right">Action</span>
                       </div>
                     </div>
@@ -1209,7 +1190,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                       const shortCode = room.short_code || room.id.slice(0, 6).toUpperCase();
                       const memberCount = room.room_members?.[0]?.count || 1;
                       const initial = (room.name || 'R').trim().charAt(0).toUpperCase();
-                      const formattedTime = formatRoomFocusTime(room.total_focus_time);
 
                       return (
                         <div
@@ -1380,15 +1360,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 )}
                               </div>
 
-                              {/* Focus Time */}
-                              <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
-                                {formattedTime ? (
-                                  <span>{formattedTime}</span>
-                                ) : (
-                                  <span className="text-neutral-600 font-mono">--</span>
-                                )}
-                              </div>
-
                               {/* Action */}
                               <div className="w-24 sm:w-32 flex items-center justify-end gap-1.5">
                                 {isMember ? (
@@ -1541,7 +1512,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                       <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
                         <span className="w-16 sm:w-24 text-center sm:text-left">Members</span>
                         <span className="w-16 sm:w-20 text-center">Status</span>
-                        <span className="w-20 sm:w-28 text-right hidden md:inline">Focus Time</span>
                         <span className="w-16 sm:w-20 text-right">Action</span>
                       </div>
                     </div>
@@ -1552,7 +1522,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                       const shortCode = room.short_code || room.id.slice(0, 6).toUpperCase();
                       const memberCount = room.room_members?.[0]?.count || 1;
                       const initial = (room.name || 'R').trim().charAt(0).toUpperCase();
-                      const formattedTime = formatRoomFocusTime(room.total_focus_time);
 
                       return (
                         <div
@@ -1673,15 +1642,6 @@ CREATE POLICY "Hosts can update their own study rooms"
                                     <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
                                     <span className="text-neutral-500">IDLE</span>
                                   </>
-                                )}
-                              </div>
-
-                              {/* Focus Time */}
-                              <div className="w-20 sm:w-28 text-right hidden md:block font-hud-mono text-xs sm:text-sm text-neutral-200 tabular-nums">
-                                {formattedTime ? (
-                                  <span>{formattedTime}</span>
-                                ) : (
-                                  <span className="text-neutral-600 font-mono">--</span>
                                 )}
                               </div>
 
