@@ -364,7 +364,7 @@ export async function notify(
           ? '#F59E0B'
           : (type === 'room_reply' || type === 'reply')
           ? '#3B82F6'
-          : '#10B981';
+          : '#0F172A';
 
       await LocalNotifications.schedule({
         notifications: [
@@ -374,6 +374,7 @@ export async function notify(
             id: notifId,
             channelId,
             smallIcon: 'ic_stat_studyio',
+            largeIcon: 'ic_launcher',
             iconColor,
             ongoing: channelId === 'timer_running' || payload.extra?.ongoing === true,
             autoCancel: channelId !== 'timer_running' && !payload.extra?.ongoing,

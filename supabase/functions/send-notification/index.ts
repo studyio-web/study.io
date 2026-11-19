@@ -383,13 +383,13 @@ Deno.serve(async (req: Request) => {
       let recipientBody = `${cleanUsername}: "${cleanMsg}"`;
       // Use "social_nudges" as the base channel since it is guaranteed to exist natively with IMPORTANCE_HIGH on all installed APKs
       let recipientChannel = "social_nudges";
-      let notificationColor = "#10B981";
+      let notificationColor = "#0F172A";
 
       if (type === "nudge") {
         recipientType = "nudge";
         recipientTitle = "New Nudge!";
         recipientBody = `@${cleanUsername} nudged you to focus!`;
-        notificationColor = "#10B981";
+        notificationColor = "#0F172A";
       } else {
         const recipientUsernameLower = recipient.username ? recipient.username.replace(/^@/, '').toLowerCase() : "";
         const isRepliedTo = Boolean(
@@ -425,7 +425,7 @@ Deno.serve(async (req: Request) => {
           recipientType = "chat";
           recipientTitle = resolvedRoomName;
           recipientBody = `${cleanUsername}: "${cleanMsg}"`;
-          notificationColor = "#10B981";
+          notificationColor = "#0F172A";
         }
       }
 

@@ -294,6 +294,7 @@ class TimerForegroundService : Service() {
                     )
                     val notif = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
                         .setSmallIcon(R.drawable.ic_stat_studyio)
+                        .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
                         .setContentTitle("Blocked by Study.io")
                         .setContentText("$appName is blocked during Strict Mode")
                         .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -649,7 +650,7 @@ class TimerForegroundService : Service() {
         val isTimerActivelyRunning = isRunning && !isPaused
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_RUNNING)
             .setSmallIcon(R.drawable.ic_stat_studyio)
-            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary))
+            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
             .setContentTitle(title)
             .setOngoing(isRunning || isPaused)
             .setAutoCancel(false)
@@ -663,6 +664,13 @@ class TimerForegroundService : Service() {
         if (subject.isNotBlank()) {
             builder.setSubText(subject)
         }
+
+        try {
+            val largeIcon = android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+            if (largeIcon != null) {
+                builder.setLargeIcon(largeIcon)
+            }
+        } catch (_: Exception) {}
 
         // Tap content intent -> opens MainActivity on timer tab
         val contentIntent = createContentPendingIntent()
@@ -938,13 +946,20 @@ class TimerForegroundService : Service() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_studyio)
-            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary))
+            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(createContentPendingIntent())
+
+        try {
+            val largeIcon = android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+            if (largeIcon != null) {
+                builder.setLargeIcon(largeIcon)
+            }
+        } catch (_: Exception) {}
 
         val notificationManager = NotificationManagerCompat.from(this)
         try {

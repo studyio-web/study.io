@@ -179,7 +179,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
               ? '#FF8A00'
               : notifType === 'reply' || notifType === 'room_reply'
               ? '#3B82F6'
-              : '#10B981';
+              : '#0F172A';
 
           await LocalNotifications.schedule({
             notifications: [
@@ -189,6 +189,7 @@ export async function initPushNotifications(userId?: string): Promise<void> {
                 id: Math.floor(Date.now() % 100000) + 1000,
                 channelId,
                 smallIcon: 'ic_stat_studyio',
+                largeIcon: 'ic_launcher',
                 iconColor,
                 sound: 'default',
                 extra: {
