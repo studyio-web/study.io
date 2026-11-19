@@ -210,6 +210,7 @@ export function StudyTimer() {
     isUltraStrict?: boolean;
     subjectName?: string;
   } | null>(null);
+  const hasCountdownCompletedFiredRef = useRef(false);
 
   useEffect(() => {
     const handleAlarmChanged = (e: Event) => {
@@ -684,6 +685,7 @@ export function StudyTimer() {
 
   // Streamlined control handlers cleanly controlling synchronized StudyContext timer engine
   const handleStartSession = useCallback(() => {
+    hasCountdownCompletedFiredRef.current = false;
     setIsCountdownCompleted(false);
     setIsCountdownHalfwayNotified(false);
     try {
@@ -769,6 +771,10 @@ export function StudyTimer() {
   }, [resumeTimer]);
 
   const handleReset = useCallback(() => {
+    hasCountdownCompletedFiredRef.current = false;
+    soundFx.stopTimerAlarm();
+    setIsAlarmRinging(false);
+    setAlarmModalData(null);
     hapticMedium();
     setIsCountdownCompleted(false);
     setIsCountdownHalfwayNotified(false);
@@ -784,6 +790,12 @@ export function StudyTimer() {
   const handleStopAndSave = useCallback(async (durationOverride?: number | React.MouseEvent) => {
     toast.dismiss();
     if (isSaving) return;
+
+    // Immediately silence & disarm any active timer alarm
+    hasCountdownCompletedFiredRef.current = false;
+    soundFx.stopTimerAlarm();
+    setIsAlarmRinging(false);
+    setAlarmModalData(null);
 
     // Strict offline gate: User cannot stop and save when network is disconnected
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -1420,7 +1432,14 @@ export function StudyTimer() {
 
   // Handle Countdown Completion
   useEffect(() => {
-    if (timerMode === 'countdown' && isStudying && elapsedSeconds >= countdownTarget && !isCountdownCompleted) {
+    if (
+      timerMode === 'countdown' &&
+      isStudying &&
+      elapsedSeconds >= countdownTarget &&
+      !isCountdownCompleted &&
+      !hasCountdownCompletedFiredRef.current
+    ) {
+      hasCountdownCompletedFiredRef.current = true;
       setIsCountdownCompleted(true);
       hapticSuccess();
       try {
@@ -1974,12 +1993,10 @@ export function StudyTimer() {
                       });
                       return;
                     }
-                    setIsCountdownCompleted(false);
-                    setIsCountdownHalfwayNotified(false);
-                    try {
-                      localStorage.removeItem('studyio_timer_countdown_completed');
-                      localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                    } catch { }
+                    // Immediately silence & disarm alarm so save proceeds unhindered
+                    soundFx.stopTimerAlarm();
+                    setIsAlarmRinging(false);
+                    setAlarmModalData(null);
                     await handleStopAndSave(countdownTarget);
                   }}
                   disabled={isSaving || isRemoteTransitioning || !isOnline}
