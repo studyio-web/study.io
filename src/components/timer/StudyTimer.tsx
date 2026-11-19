@@ -521,33 +521,6 @@ export function StudyTimer() {
 
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Auto-open Focus Mode on mobile landscape rotation or native Android sensor rotation
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleOpenFocus = () => {
-      setIsFocusModeOpen(true);
-    };
-
-    window.addEventListener('studyio:open-focus-mode', handleOpenFocus);
-
-    const mql = window.matchMedia('(orientation: landscape)');
-    const handleOrientation = (e: MediaQueryListEvent) => {
-      if (e.matches && window.innerWidth < 1024) {
-        setIsFocusModeOpen(true);
-      }
-    };
-    // Add event listener
-    if (mql.addEventListener) mql.addEventListener('change', handleOrientation);
-    else mql.addListener(handleOrientation); // fallback for older Safari
-
-    return () => {
-      window.removeEventListener('studyio:open-focus-mode', handleOpenFocus);
-      if (mql.removeEventListener) mql.removeEventListener('change', handleOrientation);
-      else mql.removeListener(handleOrientation);
-    };
-  }, [setIsFocusModeOpen]);
-
   // Client-Side Background Sync (Anti-Tamper & Sleep Reconcile):
   // When mobile WebView or browser tab awakens from sleep/background, fetch authoritative
   // server time from Supabase/API and immediately reconcile the timer instead of relying on paused setInterval.

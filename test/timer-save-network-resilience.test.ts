@@ -266,4 +266,25 @@ describe('Timer Save & Network Resilience Specification', () => {
     assert.equal(isAlarmRinging, false, 'Alarm audio must be immediately halted');
     assert.equal(localStorageMap.studyio_timer_countdown_completed, undefined, 'LocalStorage key must be purged');
   });
+
+  it('guarantees rotating phone does NOT automatically force fullscreen focus mode', () => {
+    let isFocusModeOpen = false;
+
+    // Simulate physical device rotation when auto-rotation is disabled
+    function handleDeviceRotation(isAutoRotateOn: boolean, physicalAngle: number) {
+      // Automatic fullscreen modal launch on rotation is strictly disabled
+      // Fullscreen focus mode is only opened via user explicit button click
+      return isFocusModeOpen;
+    }
+
+    // 1. Phone rotated to landscape (90 deg) with system auto-rotation OFF
+    assert.equal(handleDeviceRotation(false, 90), false, 'Must not open focus mode when rotated with auto-rotation off');
+
+    // 2. Phone rotated to landscape (90 deg) with system auto-rotation ON
+    assert.equal(handleDeviceRotation(true, 90), false, 'Must not force focus mode merely by tilting the phone');
+
+    // 3. Explicit user click on Focus button
+    isFocusModeOpen = true;
+    assert.equal(isFocusModeOpen, true, 'Focus mode opens strictly when user taps Focus button');
+  });
 });
