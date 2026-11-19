@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <group
+        android:scaleX="3.2"
+        android:scaleY="3.2"
+        android:translateX="41.6"
+        android:translateY="53.6">
+        <!-- Pure Book Pages: Crisp high-contrast off-white with zero container or extra borders -->
+        <path
+            android:pathData="M32,20C27,16 19,16.5 16,18V44C19,42.5 27,42 32,46C37,42 45,42.5 48,44V18C45,16.5 37,16 32,20Z"
+            android:strokeColor="#F1F5F9"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Emerald Spine Line -->
+        <path
+            android:pathData="M32,20 L32,46"
+            android:strokeColor="#10B981"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round" />
+        <!-- Emerald Scholar Dot -->
+        <path
+            android:pathData="M 32, 14 m -3.5, 0 a 3.5,3.5 0 1,0 7,0 a 3.5,3.5 0 1,0 -7,0"
+            android:fillColor="#10B981" />
+    </group>
+</vector>

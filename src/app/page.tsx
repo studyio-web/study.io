@@ -388,7 +388,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
         <div className="flex flex-col items-center justify-center animate-pulse">
-          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
+          <Logo className="w-20 h-20 drop-shadow-[0_0_28px_rgba(16,185,129,0.35)]" />
         </div>
       </div>
     );
@@ -399,7 +399,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050507]">
         <div className="flex flex-col items-center justify-center animate-pulse">
-          <Logo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(16,185,129,0.35)]" />
+          <Logo className="w-20 h-20 drop-shadow-[0_0_28px_rgba(16,185,129,0.35)]" />
         </div>
       </div>
     );
