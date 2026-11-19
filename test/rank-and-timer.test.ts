@@ -458,3 +458,63 @@ describe('Offline Anti-Tamper & Deduplication Specification', () => {
     assert.equal(deduplicated[1].id, 'sess-4');
   });
 });
+
+describe('Desktop & Mobile Timer Layout Specification', () => {
+  it('guarantees SwipeTabContainer separates mobile dock clearance from desktop without inline override', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const swipeTabPath = path.resolve(process.cwd(), 'src/components/common/SwipeTabContainer.tsx');
+    const swipeTabContent = fs.readFileSync(swipeTabPath, 'utf8');
+
+    // 1. Must use tab-pane-timer and tab-pane-content classes
+    assert.match(swipeTabContent, /tab-pane-timer/, 'Must use .tab-pane-timer class for responsive padding');
+    assert.match(swipeTabContent, /tab-pane-content/, 'Must use .tab-pane-content class for responsive padding');
+
+    // 2. Must not hardcode paddingBottom inline in style prop
+    assert.doesNotMatch(
+      swipeTabContent,
+      /paddingBottom:\s*tabPaddingBottom/,
+      'Must NOT hardcode paddingBottom inline which blocks responsive desktop clearance'
+    );
+  });
+
+  it('guarantees globals.css defines distinct mobile and desktop clearance rules', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const globalsPath = path.resolve(process.cwd(), 'src/app/globals.css');
+    const globalsContent = fs.readFileSync(globalsPath, 'utf8');
+
+    // 1. Mobile padding rules (< 768px)
+    assert.match(globalsContent, /@media\s*\(max-width:\s*767px\)[\s\S]*?\.tab-pane-timer/);
+    assert.match(globalsContent, /padding-bottom:\s*calc\(5\.5rem\s*\+\s*env\(safe-area-inset-bottom/);
+
+    // 2. Desktop padding rules (>= 768px)
+    assert.match(globalsContent, /@media\s*\(min-width:\s*768px\)[\s\S]*?\.tab-pane-timer/);
+
+    // 3. Dial container and digits responsive rules
+    assert.match(globalsContent, /\.timer-dial-container/);
+    assert.match(globalsContent, /\.timer-dial-digits/);
+  });
+
+  it('guarantees TimerDial and StudyTimer prevent collision and redundant labels', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const dialPath = path.resolve(process.cwd(), 'src/components/timer/TimerDial.tsx');
+    const dialContent = fs.readFileSync(dialPath, 'utf8');
+
+    const timerPath = path.resolve(process.cwd(), 'src/components/timer/StudyTimer.tsx');
+    const timerContent = fs.readFileSync(timerPath, 'utf8');
+
+    // 1. TimerDial uses .timer-dial-container and .timer-dial-digits
+    assert.match(dialContent, /className="timer-dial-container/);
+    assert.match(dialContent, /timer-dial-digits/);
+
+    // 2. StudyTimer motion.div has h-full min-h-0 to constrain dial within flex bounds
+    assert.match(timerContent, /className="w-full h-full min-h-0 flex items-center justify-center"/);
+
+    // 3. Duplicate subject name in dial is eliminated
+    assert.match(timerContent, /subjectName=\{undefined\}/);
+  });
+});
+

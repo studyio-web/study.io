@@ -320,14 +320,11 @@ export function SwipeTabContainer({
           const shouldRender = isActive || visitedIndices.has(idx);
 
           // Dedicated per-tab layout and padding: stays stable across all swipes
-          let tabPaddingClasses = 'overflow-y-auto pt-3.5 px-3 sm:px-4 md:px-0 pb-36 md:pb-12';
-          let tabPaddingBottom = 'calc(8.5rem + env(safe-area-inset-bottom, 24px))';
+          let tabPaddingClasses = 'tab-pane-content overflow-y-auto pt-3.5 px-3 sm:px-4 md:px-0';
           if (tab === 'timer') {
-            tabPaddingClasses = 'overflow-hidden justify-center pt-1 md:pt-2 px-3 sm:px-4 md:px-0 pb-20 md:pb-2';
-            tabPaddingBottom = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+            tabPaddingClasses = 'tab-pane-timer overflow-hidden justify-center pt-1 md:pt-2 px-3 sm:px-4 md:px-0';
           } else if (tab === 'rooms') {
             tabPaddingClasses = 'overflow-hidden pt-0 px-0 pb-0';
-            tabPaddingBottom = '0px';
           }
 
           return (
@@ -341,7 +338,6 @@ export function SwipeTabContainer({
                 visibility: isNeighbor ? 'visible' : 'hidden',
                 WebkitOverflowScrolling: 'touch',
                 contain: 'content',
-                paddingBottom: tabPaddingBottom,
               }}
             >
               <div className={`w-full ${tab === 'timer' || tab === 'rooms' ? 'h-full flex-1 min-h-0' : 'min-h-full flex-1'} flex flex-col items-center`}>

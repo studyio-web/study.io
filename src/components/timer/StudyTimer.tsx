@@ -1757,14 +1757,14 @@ export function StudyTimer() {
           initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: shouldReduceMotion ? 0 : 0.08, ease: 'easeOut' }}
-          className="w-full flex items-center justify-center"
+          className="w-full h-full min-h-0 flex items-center justify-center"
         >
           <TimerDial
             displayTime={displayTime}
             ringPercent={ringPercent}
             litCount={litCount}
             statusText={statusText}
-            subjectName={isFocus ? undefined : selectedSubject?.name}
+            subjectName={undefined}
             isRunning={isRunning}
             isPaused={isPaused}
             isStudying={isStudying}
