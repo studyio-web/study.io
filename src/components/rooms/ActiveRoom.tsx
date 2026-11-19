@@ -3159,39 +3159,21 @@ CREATE POLICY "Hosts can update their own study rooms"
                           </span>
                         </div>
 
-                        {/* Translucent Icon-Only Control Buttons */}
-                        <div className="flex items-center gap-2 pl-1 border-l border-white/15">
-                          {/* START / RESUME */}
+                        {/* Single Toggle Control Button (Start / Pause / Resume) */}
+                        <div className="flex items-center pl-1 border-l border-white/15">
                           <button
                             type="button"
-                            onClick={handleStartOrResume}
-                            disabled={isRunning}
-                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
-                              isRunning
-                                ? 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
-                                : 'bg-[var(--accent)] hover:brightness-110 active:brightness-95 text-[var(--accent-contrast)] border border-amber-300/40 shadow-[0_0_16px_var(--glow)]'
-                            }`}
-                            style={!isRunning ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
-                            title={isRunning ? 'Timer is currently running' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
-                            aria-label={isPaused ? 'Resume timer' : 'Start timer'}
+                            onClick={isRunning ? handlePauseTimer : handleStartOrResume}
+                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 hover:brightness-110 active:brightness-95 shadow-[0_0_16px_var(--glow)]"
+                            style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                            title={isRunning ? 'Pause focus timer' : isPaused ? 'Resume focus timer' : 'Start focus timer'}
+                            aria-label={isRunning ? 'Pause timer' : isPaused ? 'Resume timer' : 'Start timer'}
                           >
-                            <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current ml-0.5" />
-                          </button>
-
-                          {/* PAUSE */}
-                          <button
-                            type="button"
-                            onClick={handlePauseTimer}
-                            disabled={!isRunning}
-                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer touch-manipulation select-none active:scale-95 ${
-                              isRunning
-                                ? 'bg-amber-500/25 hover:bg-amber-500/35 active:bg-amber-500/45 text-amber-300 border border-amber-400/50 backdrop-blur-sm shadow-[0_0_16px_rgba(245,158,11,0.35)]'
-                                : 'opacity-20 cursor-not-allowed bg-white/[0.02] text-slate-600 border border-white/5'
-                            }`}
-                            title={isRunning ? 'Pause focus timer' : 'Timer is not running'}
-                            aria-label="Pause timer"
-                          >
-                            <Pause className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current" />
+                            {isRunning ? (
+                              <Pause className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current" />
+                            ) : (
+                              <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-current ml-0.5" />
+                            )}
                           </button>
                         </div>
                       </div>
