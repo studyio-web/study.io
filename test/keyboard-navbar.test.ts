@@ -172,4 +172,27 @@ describe('Scholar Profile Modal Specification', () => {
   });
 });
 
+describe('Mobile Todo Input Keyboard Retention Specification', () => {
+  test('guarantees input retains focus after adding a task without blurring on mobile', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const todoPath = path.resolve(process.cwd(), 'src/components/todo/DailyTodoList.tsx');
+    const todoContent = fs.readFileSync(todoPath, 'utf8');
+
+    // 1. Must NOT blur input on mobile after adding a task
+    assert.doesNotMatch(
+      todoContent,
+      /inputRef\.current\?\.blur\(\)/,
+      'inputRef must NOT be blurred when adding a task'
+    );
+
+    // 2. Must retain focus on inputRef
+    assert.match(
+      todoContent,
+      /inputRef\.current\?\.focus\(\)/,
+      'inputRef must retain focus so the virtual keyboard stays open'
+    );
+  });
+});
+
 

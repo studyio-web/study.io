@@ -290,6 +290,9 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
     setTaskInput('');
     hapticMedium();
     soundFx.playReactionPop();
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 10);
 
     // Show temporary feedback indicator
     setBulkAddFeedback({
@@ -421,11 +424,11 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
 
     hapticMedium();
     setTaskInput('');
-    if (typeof window !== 'undefined' && window.innerWidth >= 768 && !('ontouchstart' in window)) {
-      setTimeout(() => inputRef.current?.focus(), 20);
-    } else {
-      inputRef.current?.blur();
-    }
+    // Retain input focus across mobile and desktop so the keyboard remains open
+    // for rapid entry until the user explicitly dismisses it or presses the back button.
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 10);
 
     const supabase = getSupabase();
     if (!supabase) {
@@ -945,6 +948,10 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
           <button
             type="submit"
             disabled={!taskInput.trim()}
+            onMouseDown={(e) => {
+              // Prevent mouse/touch event from stealing focus from the input field
+              e.preventDefault();
+            }}
             className="ml-auto sm:ml-2 px-4 py-1.5 text-xs font-hud-mono font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95 hover:brightness-110 shadow-sm"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
           >
