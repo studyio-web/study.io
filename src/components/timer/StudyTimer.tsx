@@ -1631,21 +1631,11 @@ export function StudyTimer() {
             </div>
           )}
 
-          {/* Ultra Focus Mode Pill Banner */}
-          {isUltraStrict && (
-            <div className="mb-2 flex items-center justify-center animate-in fade-in duration-200">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-hud font-semibold uppercase tracking-wider shadow-[0_0_12px_rgba(16,185,129,0.12)]">
-                <Lock className="w-3.5 h-3.5 animate-pulse" />
-                <span>Ultra Focus Mode</span>
-              </div>
-            </div>
-          )}
-
           {/* 1. Mode selector */}
           <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
-            {(isUltraStrict ? (['countdown'] as TimerMode[]) : (['stopwatch', 'countdown', 'pomodoro'] as TimerMode[])).map((mode) => {
+            {(['stopwatch', 'countdown', 'pomodoro'] as TimerMode[]).map((mode) => {
               const isActive = timerMode === mode;
-              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? (isUltraStrict ? 'Ultra Focus Mode' : 'Countdown') : 'Pomodoro';
+              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? 'Countdown' : 'Pomodoro';
               return (
                 <button
                   key={mode}
