@@ -479,7 +479,7 @@ export function StrictCountdownWarningModal({
             <li className="flex items-start gap-2">
               <span className="text-amber-400 font-bold leading-none select-none">•</span>
               <span>
-                <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> until the timer reaches zero.
+                <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> {isUltraStrict ? 'until the timer reaches zero.' : 'until you press stop button.'}
                 {allowedAppsCount > 0 ? (
                   <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
                 ) : (
@@ -532,7 +532,7 @@ export function StrictCountdownWarningModal({
           <span className="text-xs leading-snug font-medium select-none text-white/90">
             {isUltraStrict
               ? 'I understand the consequences. Blocked apps will remain locked and I cannot pause or cancel until the countdown ends.'
-              : 'I understand the consequences. Blocked apps will remain locked until the timer ends.'}
+              : 'I understand the consequences. Blocked apps will remain locked until you press stop button.'}
           </span>
         </button>
 
