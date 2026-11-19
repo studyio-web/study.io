@@ -1794,4 +1794,58 @@ html.light ::selection,
   }
 }
 
+.timer-dial-center-digits {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
+.timer-dial-bottom-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: calc(clamp(1.1rem, 2.5vw, 1.875rem) + 0.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  padding: 0 1rem;
+}
+
+@supports (margin-top: 1cqi) {
+  .timer-dial-bottom-info {
+    margin-top: calc(clamp(1rem, 7.5cqi, 1.875rem) + 0.5rem);
+  }
+}
+
+.timer-dial-top-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 50%;
+  margin-bottom: calc(clamp(1.1rem, 2.5vw, 1.875rem) + 0.4rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  padding: 0 1rem;
+}
+
+@supports (margin-bottom: 1cqi) {
+  .timer-dial-top-info {
+    margin-bottom: calc(clamp(1rem, 7.5cqi, 1.875rem) + 0.4rem);
+  }
+}
+
+
 

@@ -506,9 +506,11 @@ describe('Desktop & Mobile Timer Layout Specification', () => {
     const timerPath = path.resolve(process.cwd(), 'src/components/timer/StudyTimer.tsx');
     const timerContent = fs.readFileSync(timerPath, 'utf8');
 
-    // 1. TimerDial uses .timer-dial-container and .timer-dial-digits
+    // 1. TimerDial uses .timer-dial-container, .timer-dial-center-digits, and .timer-dial-digits
     assert.match(dialContent, /className="timer-dial-container/);
+    assert.match(dialContent, /timer-dial-center-digits/);
     assert.match(dialContent, /timer-dial-digits/);
+    assert.match(dialContent, /timer-dial-bottom-info/);
 
     // 2. StudyTimer motion.div has h-full min-h-0 to constrain dial within flex bounds
     assert.match(timerContent, /className="w-full h-full min-h-0 flex items-center justify-center"/);

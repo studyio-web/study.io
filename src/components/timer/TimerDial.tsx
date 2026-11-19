@@ -162,20 +162,9 @@ export const TimerDial = React.memo(function TimerDial({
         )}
       </svg>
 
-      {/* Centre Stack */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center px-4 max-w-[75%]">
-        {/* Small subject name above (text-dim at 13px) */}
-        {subjectName ? (
-          <span
-            className="text-[13px] font-mono text-[var(--text-dim)] truncate max-w-[200px] mb-1 min-h-[16px] tracking-tight"
-            title={subjectName}
-          >
-            {subjectName}
-          </span>
-        ) : null}
-
-        {/* Digits in display font with tabular numerals at about 22% of dial width */}
-        <div className="timer-dial-digits font-mono tabular-nums font-bold text-[var(--text)] tracking-tight leading-none text-center select-none py-0.5 sm:py-1">
+      {/* 1. Centre Timer Digits: Locked to exact dead-center of the dial circle */}
+      <div className="timer-dial-center-digits">
+        <div className="timer-dial-digits font-mono tabular-nums font-bold text-[var(--text)] tracking-tight leading-none text-center select-none">
           {timerMode === 'countdown' && !isStudying ? (
             <button
               type="button"
@@ -189,10 +178,25 @@ export const TimerDial = React.memo(function TimerDial({
             <span className="font-mono tabular-nums inline-block text-center">{displayTime}</span>
           )}
         </div>
+      </div>
 
+      {/* 2. Top Info Stack: Subject name above center (if provided) */}
+      {subjectName ? (
+        <div className="timer-dial-top-info">
+          <span
+            className="text-[13px] font-mono text-[var(--text-dim)] truncate max-w-[200px] min-h-[16px] tracking-tight pointer-events-auto"
+            title={subjectName}
+          >
+            {subjectName}
+          </span>
+        </div>
+      ) : null}
+
+      {/* 3. Bottom Info Stack: Status & Presets below center */}
+      <div className="timer-dial-bottom-info">
         {/* Pomodoro Presets inside the Dial (clean, zero layout shift) */}
         {timerMode === 'pomodoro' && !isStudying && (
-          <div className="inline-flex items-center p-0.5 mt-2 rounded-full bg-fg/[0.05] border border-fg/[0.1] shadow-xs pointer-events-auto z-20">
+          <div className="inline-flex items-center p-0.5 mb-1.5 rounded-full bg-fg/[0.05] border border-fg/[0.1] shadow-xs pointer-events-auto z-20">
             {(['25/5', '50/10'] as const).map((preset) => {
               const isActive = pomodoroPreset === preset;
               return (
@@ -214,7 +218,7 @@ export const TimerDial = React.memo(function TimerDial({
         )}
 
         {/* Status Line in sentence case with small dot */}
-        <div className="flex items-center justify-center gap-1.5 mt-2">
+        <div className="flex items-center justify-center gap-1.5">
           <span
             className={`w-1.5 h-1.5 rounded-full ${
               statusText === 'Completed'
