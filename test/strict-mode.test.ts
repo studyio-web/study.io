@@ -199,13 +199,45 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     warningPromptOpen = false;
     assert.equal(timerStarted, false, 'Timer must remain off if user cancels');
 
-    // 3. User accepts: timer turns on
-    const onUserAccept = () => {
+    // 3. Mandatory acknowledgment checkmark contract
+    let hasAcknowledged = false;
+    const canStart = () => warningPromptOpen && hasAcknowledged;
+    
+    warningPromptOpen = true;
+    assert.equal(canStart(), false, 'Accept & Start Timer must be disabled when unacknowledged');
+
+    // Trying to confirm without checking acknowledgment must not start the timer
+    const onAttemptConfirm = (confirmed: () => void) => {
+      if (!hasAcknowledged) return false;
+      confirmed();
+      return true;
+    };
+
+    const confirmSuccessBeforeAck = onAttemptConfirm(() => {
       warningPromptOpen = false;
       timerStarted = true;
+    });
+    assert.equal(confirmSuccessBeforeAck, false);
+    assert.equal(timerStarted, false, 'Timer must NOT start without ticking acknowledgment checkbox');
+
+    // User checks the consequence acknowledgment box
+    hasAcknowledged = true;
+    assert.equal(canStart(), true, 'Accept & Start Timer is enabled when acknowledgment is checked');
+
+    const confirmSuccessAfterAck = onAttemptConfirm(() => {
+      warningPromptOpen = false;
+      timerStarted = true;
+    });
+    assert.equal(confirmSuccessAfterAck, true);
+    assert.equal(timerStarted, true, 'Timer turns on after user acknowledges consequences and accepts');
+
+    // Re-opening the modal must reset acknowledgment to false
+    const onReopen = () => {
+      hasAcknowledged = false;
+      warningPromptOpen = true;
     };
-    onUserAccept();
-    assert.equal(timerStarted, true, 'Timer must turn on only when user accepts');
+    onReopen();
+    assert.equal(hasAcknowledged, false, 'Acknowledgment must reset to false each time modal opens');
   });
 
   it('guarantees Strict Mode app blocking stays active while timer is paused and only stops on timer stop', () => {

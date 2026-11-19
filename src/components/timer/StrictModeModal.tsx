@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
   ShieldAlert,
+  AlertTriangle,
+  AlertOctagon,
   Search,
   Check,
   X,
@@ -396,6 +398,14 @@ export function StrictCountdownWarningModal({
   onConfirm,
   onCancel,
 }: StrictCountdownWarningModalProps) {
+  const [hasAcknowledged, setHasAcknowledged] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasAcknowledged(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const formattedDuration = (() => {
@@ -417,27 +427,36 @@ export function StrictCountdownWarningModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 shadow-2xl text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] border border-amber-500/30 p-5 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Icon */}
+        {/* Warning Icon Badge */}
         <div
-          className={`w-14 h-14 rounded-3xl border flex items-center justify-center mx-auto mb-3.5 ${
+          className={`w-16 h-16 rounded-3xl border flex items-center justify-center mx-auto mb-3 shadow-lg ${
             isUltraStrict
-              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-              : 'bg-white/10 border-white/15 text-white'
+              ? 'bg-amber-500/15 border-amber-500/40 text-amber-400 shadow-[0_0_24px_rgba(245,158,11,0.25)]'
+              : 'bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.15)]'
           }`}
         >
-          <ShieldAlert className="w-7 h-7" />
+          {isUltraStrict ? (
+            <AlertTriangle className="w-8 h-8 animate-pulse text-amber-400" />
+          ) : (
+            <ShieldAlert className="w-8 h-8 text-amber-400" />
+          )}
         </div>
 
-        {/* Heading */}
+        {/* Heading & Badge */}
         <h3 className="font-hud text-lg font-bold text-white tracking-wide">
           {isUltraStrict ? 'Ultra Strict Lockdown' : 'Strict Mode Warning'}
         </h3>
+        <div className="mt-1 flex items-center justify-center">
+          <span className="text-[10px] font-mono tracking-widest text-amber-400 uppercase bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 rounded-full font-bold">
+            {isUltraStrict ? '⚠️ Full Lockdown Warning' : '⚠️ App Lockdown Warning'}
+          </span>
+        </div>
 
         {/* Duration & Subject Summary Card */}
-        <div className="mt-3.5 mb-4 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-left px-4">
+        <div className="mt-3.5 mb-3 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-left px-4">
           <div>
             <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Countdown</p>
             <p className="text-sm font-hud font-bold text-white mt-0.5">{formattedDuration}</p>
@@ -445,42 +464,93 @@ export function StrictCountdownWarningModal({
           {subjectName && (
             <div className="text-right">
               <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Subject</p>
-              <p className="text-sm font-semibold text-white/90 truncate max-w-[120px] mt-0.5">{subjectName}</p>
+              <p className="text-sm font-semibold text-white/90 truncate max-w-[130px] mt-0.5">{subjectName}</p>
             </div>
           )}
         </div>
 
-        {/* Notice text */}
-        <div className="text-xs text-white/70 leading-relaxed text-center px-1">
-          {isUltraStrict ? (
-            <p>
-              You <strong>cannot open any blocked apps</strong> and <strong>cannot stop or pause early</strong> until your countdown reaches <span className="font-mono font-semibold text-emerald-400">00:00:00</span>.
-            </p>
-          ) : (
-            <p>
-              You <strong>cannot open any blocked apps</strong> until your countdown timer ends.
-              {allowedAppsCount > 0 ? (
-                <span className="block mt-1 text-[11px] text-white/50">
-                  Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.
+        {/* Big Warning Consequences Box */}
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-left space-y-2">
+          <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
+            <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Strict Enforcement Notice</span>
+          </div>
+          <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
+            <li className="flex items-start gap-2">
+              <span className="text-amber-400 font-bold leading-none select-none">•</span>
+              <span>
+                <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> until the timer reaches zero.
+                {allowedAppsCount > 0 ? (
+                  <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
+                ) : (
+                  <span className="text-white/60"> All non-essential apps will be locked.</span>
+                )}
+              </span>
+            </li>
+            {isUltraStrict ? (
+              <li className="flex items-start gap-2">
+                <span className="text-amber-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>No Pausing or Canceling:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot stop or pause early</span>. Timer controls are completely locked until <span className="font-mono font-bold text-amber-300">00:00:00</span>.
                 </span>
-              ) : (
-                <span className="block mt-1 text-[11px] text-white/50">
-                  All non-system apps will be locked.
+              </li>
+            ) : (
+              <li className="flex items-start gap-2">
+                <span className="text-amber-400 font-bold leading-none select-none">•</span>
+                <span>
+                  <strong>Anti-Distraction Shield:</strong> Opening unauthorized apps triggers an instant block and returns you here.
                 </span>
-              )}
-            </p>
-          )}
+              </li>
+            )}
+          </ul>
         </div>
 
-        {/* Buttons */}
-        <div className="mt-6 flex flex-col gap-2.5">
+        {/* Mandatory Acknowledgment Checkbox */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={hasAcknowledged}
+          onClick={() => {
+            triggerHaptic('light');
+            setHasAcknowledged((prev) => !prev);
+          }}
+          className={`w-full mt-3.5 p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+            hasAcknowledged
+              ? 'bg-amber-500/15 border-amber-500/50 text-white ring-1 ring-amber-500/30'
+              : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/[0.07] hover:border-white/20'
+          }`}
+        >
+          <div
+            className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center flex-shrink-0 transition-all ${
+              hasAcknowledged
+                ? 'bg-amber-400 border-amber-400 text-black shadow-sm'
+                : 'border-white/30 bg-black/40'
+            }`}
+          >
+            {hasAcknowledged && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </div>
+          <span className="text-xs leading-snug font-medium select-none text-white/90">
+            {isUltraStrict
+              ? 'I understand the consequences. Blocked apps will remain locked and I cannot pause or cancel until the countdown ends.'
+              : 'I understand the consequences. Blocked apps will remain locked until the timer ends.'}
+          </span>
+        </button>
+
+        {/* Action Buttons */}
+        <div className="mt-4 flex flex-col gap-2.5">
           <button
             type="button"
+            disabled={!hasAcknowledged}
             onClick={() => {
+              if (!hasAcknowledged) return;
               triggerHaptic('heavy');
               onConfirm();
             }}
-            className="w-full py-3.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white hover:bg-zinc-200 text-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+            className={`w-full py-3.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              hasAcknowledged
+                ? 'bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.25)] active:scale-95 cursor-pointer'
+                : 'bg-white/10 text-white/30 border border-white/10 cursor-not-allowed opacity-50'
+            }`}
           >
             <span>Accept &amp; Start Timer</span>
           </button>
