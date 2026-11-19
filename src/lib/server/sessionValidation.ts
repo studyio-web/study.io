@@ -18,6 +18,7 @@ export interface SessionValidationInput {
 export interface SessionValidationResult {
   success: boolean;
   discarded?: boolean;
+  isDuplicate?: boolean;
   reason?: string;
   error?: string;
   session?: {
@@ -102,6 +103,7 @@ export async function validateAndSaveSession(
         if (!checkError && existingSession) {
           return {
             success: true,
+            isDuplicate: true,
             session: existingSession,
             calculatedSeconds: Number(existingSession.duration_seconds || 0),
             reason: 'Session already recorded (idempotent duplicate request ignored).',
@@ -286,6 +288,7 @@ export async function validateAndSaveSession(
           if (dup) {
             return {
               success: true,
+              isDuplicate: true,
               session: dup,
               calculatedSeconds: Number(dup.duration_seconds || 0),
               reason: 'Session already recorded (idempotent constraint hit).',

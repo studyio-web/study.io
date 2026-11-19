@@ -1276,7 +1276,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               accumulatedSecondsRef.current = target;
               setElapsedSeconds(target);
               startTimeRef.current = null;
-    clientSessionIdRef.current = null;
               setIsPaused(true);
               setPomodoroCompletedPhase('work');
               hapticSuccess();
@@ -1436,6 +1435,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       targetDuration?: number | null;
       pomodoroPhase?: PomodoroPhase;
       isUltraStrict?: boolean;
+      client_session_id?: string | null;
+      action?: string;
     }
   ) => {
     const supabase = getSupabase();
@@ -1499,12 +1500,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         }
 
         // 2. Instant peer broadcast over WebSocket (<50ms latency across windows/devices)
+        const sessIdToBroadcast = extra?.client_session_id !== undefined ? extra.client_session_id : (clientSessionIdRef.current || null);
         try {
           activeChannelRef.current?.send({
             type: 'broadcast',
             event: 'active_session_sync',
             payload: {
               status: 'stopped',
+              action: extra?.action || 'session_saved',
+              client_session_id: sessIdToBroadcast,
               device_id: deviceId,
               user_id: uid,
               accumulated_seconds: 0,
@@ -1525,7 +1529,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             ? extra.isUltraStrict
             : (effectiveMode === 'countdown' && isUltraStrictRef.current)
         );
-        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}`;
+        const effectiveClientSessionId = extra?.client_session_id !== undefined ? extra.client_session_id : (clientSessionIdRef.current || null);
+        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}${effectiveClientSessionId ? `#sess:${effectiveClientSessionId}` : ''}`;
         const dbMode = effectiveMode === 'pomodoro' ? 'pomodoro' : 'stopwatch';
         
         const effectivePhase = extra?.pomodoroPhase || pomodoroPhase;
@@ -1581,6 +1586,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               status: 'paused',
               device_id: finalDeviceId,
               user_id: uid,
+              client_session_id: effectiveClientSessionId,
               accumulated_seconds: effectiveAccumulated,
               mode: effectiveMode,
               timer_mode: effectiveMode,
@@ -1603,7 +1609,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             ? extra.isUltraStrict
             : (effectiveMode === 'countdown' && isUltraStrictRef.current)
         );
-        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}`;
+        const effectiveClientSessionId = extra?.client_session_id !== undefined ? extra.client_session_id : (clientSessionIdRef.current || null);
+        const finalDeviceId = `${deviceId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}${effectiveClientSessionId ? `#sess:${effectiveClientSessionId}` : ''}`;
         const dbMode = effectiveMode === 'pomodoro' ? 'pomodoro' : 'stopwatch';
         const effectivePhase = extra?.pomodoroPhase || pomodoroPhase;
         
@@ -1651,6 +1658,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               status: 'running',
               device_id: finalDeviceId,
               user_id: uid,
+              client_session_id: effectiveClientSessionId,
               started_at: startedAtIso,
               accumulated_seconds: effectiveAccumulated,
               mode: effectiveMode,
@@ -1784,7 +1792,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           accumulatedSecondsRef.current = target;
           setElapsedSeconds(target);
           startTimeRef.current = null;
-          clientSessionIdRef.current = null;
           setIsPaused(true);
           setPomodoroCompletedPhase('work');
           hapticSuccess();
@@ -1905,6 +1912,25 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setPomodoroCompletedPhase(null);
       clearPersistedTimer();
 
+      // Stop any ringing alarm on this device
+      soundFx.stopTimerAlarm();
+
+      // Dismiss countdown completion flags and notify peer components
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('studyio_timer_countdown_completed');
+          localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+        } catch {}
+        window.dispatchEvent(
+          new CustomEvent('studyio_remote_session_saved', {
+            detail: {
+              client_session_id: remoteSession?.client_session_id || null,
+              action: remoteSession?.action || 'session_saved',
+            },
+          })
+        );
+      }
+
       const rawStopDevId = String(remoteSession?.device_id || '');
       const baseStopDevId = rawStopDevId.split('#')[0];
       if (baseStopDevId && baseStopDevId !== myDeviceId) {
@@ -1925,6 +1951,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const rawDeviceId = String(remoteSession.device_id || '');
     const baseDeviceId = rawDeviceId.split('#')[0];
     const isRemoteDevice = Boolean(baseDeviceId && baseDeviceId !== myDeviceId);
+
+    // Sync client_session_id across devices so session saving is idempotent
+    const sessMatch = rawDeviceId.match(/#sess:([a-f0-9-]+)/i);
+    const syncedSessionId = remoteSession.client_session_id || (sessMatch ? sessMatch[1] : null);
+    if (syncedSessionId) {
+      clientSessionIdRef.current = syncedSessionId;
+    }
 
     // Ignore immediate echo of local action from this same tab
     if (
@@ -2063,7 +2096,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           timerIntervalRef.current = null;
         }
         startTimeRef.current = null;
-    clientSessionIdRef.current = null;
         accumulatedSecondsRef.current = targetDuration;
         setElapsedSeconds(targetDuration);
         setIsStudying(true);
@@ -2085,7 +2117,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
       accumulatedSecondsRef.current = baseAccumulated;
       startTimeRef.current = null;
-    clientSessionIdRef.current = null;
       setElapsedSeconds(baseAccumulated);
       setIsStudying(true);
       setIsPaused(true);
@@ -3111,7 +3142,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       mode: timerMode,
     });
     startTimeRef.current = null;
-    clientSessionIdRef.current = null;
+    // CRITICAL: Preserve clientSessionIdRef.current across pauses so countdown / pause sessions
+    // retain their deterministic session ID across all devices for idempotent saves
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -3126,6 +3158,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       elapsedBeforePause: actualElapsed,
       mode: timerMode,
       pomodoroPhase,
+      client_session_id: clientSessionIdRef.current,
     });
   }, [checkDebounce, updateProfile, syncActiveSessionToDb, timerMode, pomodoroPhase]);
 
@@ -3406,12 +3439,21 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             client_session_id: payload.client_session_id,
           });
           if (saveRes.success && saveRes.session?.id) {
+            if (saveRes.isDuplicate || saveRes.reason?.toLowerCase().includes('already recorded')) {
+              console.warn('[StudyContext]: Duplicate session detected, skipping duplicate save/award.');
+              continue;
+            }
             insertedRecordIds.push(saveRes.session.id);
             isServerValidated = true;
             if (typeof saveRes.calculatedSeconds === 'number') {
               payload.duration_seconds = saveRes.calculatedSeconds;
             }
           }
+        }
+
+        if (insertedRecordIds.length === 0 && sessionPayloads.length > 0) {
+          console.warn('[StudyContext]: All payloads were duplicate sessions already saved on another device.');
+          return false;
         }
 
         // Direct client fallback if validated save did not produce records
@@ -3879,6 +3921,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       toast('Ultra Focus Mode is locked until countdown completes', { icon: '🔒' });
       return;
     }
+    const previousSessionId = clientSessionIdRef.current;
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -3896,8 +3939,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setActiveTaskId(null);
     clearPersistedTimer();
     updateProfile({ status: 'resting', activeSessionStartTime: undefined });
-    syncActiveSessionToDb('stopped');
-  }, [clearPersistedTimer, updateProfile, syncActiveSessionToDb]);
+    syncActiveSessionToDb('stopped', { client_session_id: previousSessionId, action: 'session_saved' });
+  }, [clearPersistedTimer, updateProfile, syncActiveSessionToDb, isStudying, elapsedSeconds]);
 
   const dismissRankSettlement = useCallback(() => {
     setSettlementData(null);

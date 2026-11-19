@@ -656,6 +656,32 @@ export function StudyTimer() {
     }
   }, [isCountdownCompleted, isAndroid, isUltraStrict, isStrictMode, allowedApps]);
 
+  // Cross-device synchronization: when session is saved on another device, dismiss countdown complete & alarms
+  useEffect(() => {
+    const handleRemoteSessionSaved = () => {
+      setIsCountdownCompleted(false);
+      setIsCountdownHalfwayNotified(false);
+      try {
+        localStorage.removeItem('studyio_timer_countdown_completed');
+        localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+      } catch { }
+      soundFx.stopTimerAlarm();
+      setIsAlarmRinging(false);
+      setAlarmModalData(null);
+      refetchSessions();
+      toast('Session saved on another device ✅', {
+        id: 'remote-session-saved',
+        duration: 4000,
+        icon: '✅',
+      });
+    };
+
+    window.addEventListener('studyio_remote_session_saved', handleRemoteSessionSaved);
+    return () => {
+      window.removeEventListener('studyio_remote_session_saved', handleRemoteSessionSaved);
+    };
+  }, [refetchSessions]);
+
   // Safe handler to open Subject Manager / Add Subject
   const handleOpenSubjectManager = useCallback((e?: React.MouseEvent) => {
     if (e) {
@@ -923,6 +949,27 @@ export function StudyTimer() {
         sessionPayload,
       });
 
+      const currentClientSessionId = clientSessionIdRef?.current;
+      // Pre-flight check: if this session was already saved into sessions list locally
+      if (currentClientSessionId && sessions.some(s => s.client_session_id === currentClientSessionId)) {
+        console.warn('[handleStopAndSave] Session already recorded in local sessions state:', currentClientSessionId);
+        toast('Session was already saved on another device ✅', { id: 'session-already-saved', duration: 4000 });
+        resetTimer();
+        clearPersistedTimer();
+        if (clientSessionIdRef) clientSessionIdRef.current = null;
+        setIsCountdownCompleted(false);
+        setIsCountdownHalfwayNotified(false);
+        try {
+          localStorage.removeItem('studyio_timer_countdown_completed');
+          localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+        } catch { }
+        soundFx.stopTimerAlarm();
+        setIsAlarmRinging(false);
+        setAlarmModalData(null);
+        await refetchSessions();
+        return;
+      }
+
       // 3. Save via server-side validation to enforce server-calculated duration and 12h/24h caps
       let insertedRecordId: string | null = null;
       let isServerValidated = false;
@@ -944,10 +991,31 @@ export function StudyTimer() {
             notes: notesToSave,
             mode: currentMode,
             planned_duration_seconds: plannedDuration,
-            client_session_id: clientSessionIdRef?.current || undefined,
+            client_session_id: currentClientSessionId || undefined,
           });
 
           if (saveResult.success) {
+            // Anti-Exploit: Check for idempotent duplicate save across multiple devices or retry
+            if (saveResult.isDuplicate || saveResult.reason?.toLowerCase().includes('already recorded')) {
+              console.warn('[handleStopAndSave] Duplicate session detected by server idempotency:', saveResult);
+              toast('Session was already saved on another device ✅', { id: 'session-already-saved', duration: 4000 });
+              resetTimer();
+              clearPersistedTimer();
+              if (clientSessionIdRef) clientSessionIdRef.current = null;
+              setIsCountdownCompleted(false);
+              setIsCountdownHalfwayNotified(false);
+              try {
+                localStorage.removeItem('studyio_timer_countdown_completed');
+                localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+              } catch { }
+              setShowRecoveryBanner(false);
+              soundFx.stopTimerAlarm();
+              setIsAlarmRinging(false);
+              setAlarmModalData(null);
+              await refetchSessions();
+              return;
+            }
+
             isServerValidated = true;
             insertedRecordId = saveResult.session?.id || null;
             if (typeof saveResult.calculatedSeconds === 'number') {
@@ -973,6 +1041,7 @@ export function StudyTimer() {
                   ended_at: finalEndedAt,
                   notes: notesToSave,
                   mode: currentMode,
+                  client_session_id: currentClientSessionId || undefined,
                 }])
                 .select()
                 .single();
@@ -983,6 +1052,24 @@ export function StudyTimer() {
                 console.log('Session saved via StudyTimer direct Supabase fallback:', directData);
               } else if (directError) {
                 console.error('StudyTimer direct Supabase insert error:', directError);
+                if (directError.code === '23505' || directError.message?.toLowerCase().includes('duplicate key')) {
+                  toast('Session was already saved on another device ✅', { id: 'session-already-saved', duration: 4000 });
+                  resetTimer();
+                  clearPersistedTimer();
+                  if (clientSessionIdRef) clientSessionIdRef.current = null;
+                  setIsCountdownCompleted(false);
+                  setIsCountdownHalfwayNotified(false);
+                  try {
+                    localStorage.removeItem('studyio_timer_countdown_completed');
+                    localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+                  } catch { }
+                  setShowRecoveryBanner(false);
+                  soundFx.stopTimerAlarm();
+                  setIsAlarmRinging(false);
+                  setAlarmModalData(null);
+                  await refetchSessions();
+                  return;
+                }
               }
             }
           }
@@ -1000,6 +1087,7 @@ export function StudyTimer() {
                   ended_at: finalEndedAt,
                   notes: notesToSave,
                   mode: currentMode,
+                  client_session_id: currentClientSessionId || undefined,
                 }])
                 .select()
                 .single();
@@ -1016,6 +1104,7 @@ export function StudyTimer() {
       // 4. Immediately append the new session to local state so Project Time Distribution and stats update in real time
       const newSession: StudySession = {
         id: insertedRecordId || `sess-${Date.now()}`,
+        client_session_id: currentClientSessionId || undefined,
         userId: sessionPayload.user_id || 'guest',
         userName: user?.displayName || 'Scholar',
         userAvatar: user?.avatarUrl,
@@ -1167,6 +1256,9 @@ export function StudyTimer() {
       if (clientSessionIdRef) clientSessionIdRef.current = null;
       setIsCountdownCompleted(false);
       setIsCountdownHalfwayNotified(false);
+      soundFx.stopTimerAlarm();
+      setIsAlarmRinging(false);
+      setAlarmModalData(null);
       try {
         localStorage.removeItem('studyio_timer_countdown_completed');
         localStorage.removeItem('studyio_timer_countdown_halfway_notified');
