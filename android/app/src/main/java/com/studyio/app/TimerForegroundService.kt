@@ -231,6 +231,14 @@ class TimerForegroundService : Service() {
     private fun checkAndEnforceStrictMode() {
         if ((!isRunning && !isPaused) || !isStrictActive) return
         if (BlockedAppActivity.isVisible) return
+
+        // 1. If Study.io is currently in the foreground or was foregrounded within the last 2.5 seconds,
+        // do not check or block anything. This gives UsageStatsManager enough time to catch up
+        // and eliminates cold-start or app-switch false positives where the previous app's event is still current.
+        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2500L)) {
+            return
+        }
+
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
 
         val endTime = System.currentTimeMillis()
@@ -262,7 +270,7 @@ class TimerForegroundService : Service() {
 
         if (currentPkg == null) {
             val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-            val recent = stats?.filter { it.packageName != packageName }?.maxByOrNull { it.lastTimeUsed }
+            val recent = stats?.maxByOrNull { it.lastTimeUsed }
             if (recent != null && (endTime - recent.lastTimeUsed) < 8000) {
                 currentPkg = recent.packageName
             }

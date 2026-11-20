@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
   // If navigating to /mobile-restricted while in the native app, immediately redirect to /dashboard
   if (pathname === '/mobile-restricted') {
     if (isNativeApp) {
-      return NextResponse.redirect('https://studyio-web.vercel.app/dashboard');
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     return NextResponse.next();
   }
@@ -68,7 +68,7 @@ export async function proxy(request: NextRequest) {
   // 3. Mobile web restriction check:
   // Standard mobile web browsers without 'StudyIoNativeApp' are blocked and redirected to /mobile-restricted
   if (isMobile && !isNativeApp) {
-    return NextResponse.redirect('https://studyio-web.vercel.app/mobile-restricted');
+    return NextResponse.redirect(new URL('/mobile-restricted', request.url));
   }
 
   // 4. Normal web / native app auth session flow
@@ -114,7 +114,7 @@ export async function proxy(request: NextRequest) {
   // If unauthenticated user tries to directly access /dashboard, redirect to /login
   // Never redirect while on /auth/callback, /login, or /
   if (!user && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect('https://studyio-web.vercel.app/login');
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return response;

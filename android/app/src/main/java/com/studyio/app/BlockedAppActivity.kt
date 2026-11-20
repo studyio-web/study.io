@@ -33,6 +33,11 @@ class BlockedAppActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2000L)) {
+            finish()
+            return
+        }
+
         // Make window fullscreen over any app
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
@@ -220,6 +225,10 @@ class BlockedAppActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2000L)) {
+            finish()
+            return
+        }
         setIntent(intent)
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
         val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)

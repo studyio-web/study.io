@@ -890,7 +890,7 @@ export function StudyTimer() {
           if (!localStorage.getItem('studyio_alarm_setup_checked')) {
             setIsAlarmSetupOpen(true);
           }
-        } catch {}
+        } catch { }
       }
     }
     startTimer(activeSub.id);

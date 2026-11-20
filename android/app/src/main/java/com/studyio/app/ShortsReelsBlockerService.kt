@@ -93,6 +93,9 @@ class ShortsReelsBlockerService : AccessibilityService() {
 
         // 2. Ultra Strict Uninstall & Turn-Off Protection
         if (StudyDeviceAdminReceiver.isUltraStrictSessionActive(this)) {
+            if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2500L)) {
+                return
+            }
             handleUninstallProtectionEvent(event, packageName)
         }
     }

@@ -21,6 +21,9 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    public static volatile boolean isAppInForeground = false;
+    public static volatile long lastForegroundTime = 0L;
+
     private boolean isImmersiveFullscreen = false;
     private boolean hasManuallyExitedFullscreen = false;
     private OrientationEventListener orientationEventListener;
@@ -29,6 +32,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        isAppInForeground = true;
+        lastForegroundTime = System.currentTimeMillis();
         appLaunchTime = System.currentTimeMillis();
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setKeepOnScreenCondition(() -> {
@@ -239,7 +244,35 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+        isAppInForeground = true;
+        lastForegroundTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        isAppInForeground = true;
+        lastForegroundTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        isAppInForeground = false;
+        lastForegroundTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        isAppInForeground = false;
+    }
+
+    @Override
     public void onDestroy() {
+        isAppInForeground = false;
         if (orientationEventListener != null) {
             orientationEventListener.disable();
         }
