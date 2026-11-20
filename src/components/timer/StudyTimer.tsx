@@ -1584,41 +1584,107 @@ export function StudyTimer() {
     }
   }, [isSaving, isStudying, elapsedSeconds, isPaused, selectedSubject, selectedSubjectId, timerMode, countdownTarget, pomodoroPhase]);
 
-  // 2. On Component Mount / Page Load: Check localStorage and recover session in Paused state
+  // 2. On Component Mount / Page Load: Check native service or localStorage and recover session
   useEffect(() => {
-    try {
-      const savedSecondsStr = localStorage.getItem('studyio_timer_seconds');
-      if (savedSecondsStr) {
-        const savedSeconds = parseInt(savedSecondsStr, 10);
-        if (!isNaN(savedSeconds) && savedSeconds > 0) {
-          const savedSubject = localStorage.getItem('studyio_timer_subject') || undefined;
-          const savedMode = localStorage.getItem('studyio_timer_mode') as TimerMode | null;
-          const validatedMode = savedMode === 'pomodoro' || savedMode === 'stopwatch' || savedMode === 'countdown' ? savedMode : undefined;
+    let isCancelled = false;
 
-          if (validatedMode === 'countdown') {
-            const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
-            if (savedTargetStr) {
-              const savedTarget = parseInt(savedTargetStr, 10);
-              if (!isNaN(savedTarget) && savedTarget > 0) {
-                setCountdownTarget(savedTarget);
-              }
-            }
-          } else if (validatedMode === 'pomodoro') {
-            const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
-            if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
-              setPomodoroPhase(savedPhase);
-            }
-          }
+    const restoreSession = async () => {
+      try {
+        if (isNativeAndroid()) {
+          const serviceState = await TimerNotification.getServiceTimerState().catch(() => null);
+          if (serviceState && serviceState.isServiceActive && !isCancelled) {
+            const {
+              isRunning: serviceRunning,
+              isPaused: servicePaused,
+              mode: serviceMode,
+              phase: servicePhase,
+              startTime: serviceStartTime,
+              elapsedSeconds: serviceElapsed,
+              targetSeconds: serviceTarget,
+              subject: serviceSubject,
+            } = serviceState;
+            const validatedMode = (serviceMode === 'pomodoro' || serviceMode === 'stopwatch' || serviceMode === 'countdown' ? serviceMode : 'stopwatch') as TimerMode;
 
-          restoreTimerSession(savedSeconds, validatedMode, savedSubject);
-          if (localStorage.getItem('studyio_timer_countdown_completed') !== 'true') {
-            setShowRecoveryBanner(true);
+            if (validatedMode === 'countdown' && serviceTarget > 0) {
+              setCountdownTarget(serviceTarget);
+            } else if (validatedMode === 'pomodoro' && servicePhase) {
+              setPomodoroPhase(servicePhase as any);
+            }
+
+            const now = Date.now();
+            let currentElapsed = serviceElapsed;
+            if (serviceRunning && serviceStartTime > 0) {
+              currentElapsed = serviceElapsed + Math.max(0, Math.floor((now - serviceStartTime) / 1000));
+            }
+
+            // Check if countdown target was completed while away
+            if (validatedMode === 'countdown' && serviceTarget > 0 && currentElapsed >= serviceTarget) {
+              currentElapsed = serviceTarget;
+              restoreTimerSession(serviceTarget, validatedMode, serviceSubject, false);
+              setIsCountdownCompleted(true);
+              return;
+            }
+
+            if (serviceRunning) {
+              const startAnchorMs = now - (currentElapsed * 1000);
+              restoreTimerSession(currentElapsed, validatedMode, serviceSubject, true, startAnchorMs);
+              return;
+            } else if (servicePaused && currentElapsed > 0) {
+              restoreTimerSession(currentElapsed, validatedMode, serviceSubject, false);
+              setShowRecoveryBanner(true);
+              return;
+            }
           }
         }
+
+        if (isCancelled) return;
+
+        // Web or native fallback from localStorage
+        const savedSecondsStr = localStorage.getItem('studyio_timer_seconds');
+        if (savedSecondsStr) {
+          const savedSeconds = parseInt(savedSecondsStr, 10);
+          if (!isNaN(savedSeconds) && savedSeconds > 0) {
+            const savedSubject = localStorage.getItem('studyio_timer_subject') || undefined;
+            const savedMode = localStorage.getItem('studyio_timer_mode') as TimerMode | null;
+            const validatedMode = savedMode === 'pomodoro' || savedMode === 'stopwatch' || savedMode === 'countdown' ? savedMode : undefined;
+
+            if (validatedMode === 'countdown') {
+              const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
+              if (savedTargetStr) {
+                const savedTarget = parseInt(savedTargetStr, 10);
+                if (!isNaN(savedTarget) && savedTarget > 0) {
+                  setCountdownTarget(savedTarget);
+                }
+              }
+            } else if (validatedMode === 'pomodoro') {
+              const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
+              if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
+                setPomodoroPhase(savedPhase);
+              }
+            }
+
+            const wasActive = localStorage.getItem('timer-is-active') === 'true';
+            const savedStartTime = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
+            if (wasActive && savedStartTime > 0) {
+              const liveElapsed = Math.max(savedSeconds, Math.floor((Date.now() - savedStartTime) / 1000));
+              restoreTimerSession(liveElapsed, validatedMode, savedSubject, true, savedStartTime);
+            } else {
+              restoreTimerSession(savedSeconds, validatedMode, savedSubject, false);
+              if (localStorage.getItem('studyio_timer_countdown_completed') !== 'true') {
+                setShowRecoveryBanner(true);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore timer:', e);
       }
-    } catch (e) {
-      console.warn('Failed to restore timer from localStorage:', e);
-    }
+    };
+
+    restoreSession();
+    return () => {
+      isCancelled = true;
+    };
   }, [restoreTimerSession]);
 
   // Auto-dismiss recovery banner after 8 seconds

@@ -677,7 +677,7 @@ class TimerForegroundService : Service() {
     }
 
     fun reanchorNotification() {
-        if (!isRunning || isPaused) return
+        if (!isRunning && !isPaused) return
         val notification = buildTimerNotification()
         startInForeground(notification)
         try {
@@ -1182,12 +1182,22 @@ class TimerForegroundService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         Log.d(TAG, "onTaskRemoved: app closed from recent menu.")
-        // If Strict Mode is actively running, DO NOT kill the service!
-        // Keep the foreground service alive so users cannot bypass Strict Mode by swiping the app away.
-        if (isStrictActive && (isRunning || isPaused)) {
-            Log.i(TAG, "Strict Mode is active: keeping TimerForegroundService alive in background")
-            acquireWakeLock()
-            startStrictMonitoring()
+        val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+        val wasPersistedRunning = prefs.getBoolean("is_running", false)
+
+        // If a timer is currently active (running or paused), DO NOT stop the service or remove the notification!
+        // The timer must continue running seamlessly in the background and the notification must remain visible.
+        if (isRunning || isPaused || wasPersistedRunning) {
+            Log.i(TAG, "Timer is actively running or paused: keeping TimerForegroundService and live notification running in background")
+            savePersistedState()
+            if (!isPaused) {
+                acquireWakeLock()
+                scheduleFinishCheckIfNeeded()
+            }
+            if (isStrictActive) {
+                startStrictMonitoring()
+            }
+            reanchorNotification()
         } else {
             handleStop()
         }

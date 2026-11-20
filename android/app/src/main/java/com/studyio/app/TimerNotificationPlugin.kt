@@ -177,6 +177,39 @@ class TimerNotificationPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun getServiceTimerState(call: PluginCall) {
+        try {
+            val prefs = context.getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            val wasRunning = prefs.getBoolean("is_running", false)
+            val isPaused = prefs.getBoolean("is_paused", false)
+            val mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
+            val phase = prefs.getString("phase", "work") ?: "work"
+            val startTime = prefs.getLong("start_time", 0L)
+            val elapsedSeconds = prefs.getInt("elapsed_seconds", 0)
+            val targetSeconds = prefs.getInt("target_seconds", 0)
+            val subject = prefs.getString("subject", "") ?: ""
+
+            val isServiceActive = (TimerForegroundService.isServiceRunning || wasRunning) && (wasRunning || isPaused)
+
+            val ret = JSObject().apply {
+                put("isServiceActive", isServiceActive)
+                put("isRunning", wasRunning && !isPaused)
+                put("isPaused", isPaused)
+                put("mode", mode)
+                put("phase", phase)
+                put("startTime", startTime.toDouble())
+                put("elapsedSeconds", elapsedSeconds)
+                put("targetSeconds", targetSeconds)
+                put("subject", subject)
+            }
+            call.resolve(ret)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting service timer state", e)
+            call.reject("Failed to get service timer state: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
     fun isBatteryOptimized(call: PluginCall) {
         try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager

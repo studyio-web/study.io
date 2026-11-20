@@ -144,7 +144,7 @@ interface StudyContextType {
     mode?: TimerMode;
   }) => Promise<boolean>;
   resetTimer: () => void;
-  restoreTimerSession: (seconds: number, mode?: TimerMode, subjectIdOrName?: string) => void;
+  restoreTimerSession: (seconds: number, mode?: TimerMode, subjectIdOrName?: string, startAsRunning?: boolean, startAnchorMs?: number) => void;
   clearPersistedTimer: () => void;
   addSubject: (subject: Omit<Subject, 'id' | 'createdAt'>) => Promise<void>;
   updateSubject: (id: string, updates: Partial<Subject>) => Promise<void>;
@@ -3332,18 +3332,28 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [isStudying, isPaused]);
 
   // Restore recovered timer session in paused state
-  const restoreTimerSession = useCallback((seconds: number, mode?: TimerMode, subjectIdOrName?: string) => {
-    if (seconds <= 0) return;
+  const restoreTimerSession = useCallback((
+    seconds: number,
+    mode?: TimerMode,
+    subjectIdOrName?: string,
+    startAsRunning: boolean = false,
+    startAnchorMs?: number
+  ) => {
+    if (seconds < 0) return;
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
     accumulatedSecondsRef.current = seconds;
-    startTimeRef.current = null;
+    const anchor = startAnchorMs ?? (Date.now() - (seconds * 1000));
+    startTimeRef.current = startAsRunning ? anchor : null;
+    if (startAsRunning) {
+      sessionStartTimeRef.current = new Date(anchor);
+    }
     clientSessionIdRef.current = null;
     setElapsedSeconds(seconds);
     setIsStudying(true);
-    setIsPaused(true);
+    setIsPaused(!startAsRunning);
     if (mode && (mode === 'stopwatch' || mode === 'pomodoro' || mode === 'countdown')) {
       setTimerMode(mode);
     }
@@ -3358,7 +3368,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setSelectedSubjectId(subjectIdOrName.trim());
       }
     }
-    updateProfile({ status: 'resting' });
+    updateProfile({ status: startAsRunning ? 'studying' : 'resting' });
   }, [subjects, updateProfile]);
 
   // Instantly add a session and sync metrics, Daily Overview, and Analytics

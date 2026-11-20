@@ -38,6 +38,18 @@ export interface AlarmPermissionsResult {
   batteryOptimized: boolean;
 }
 
+export interface ServiceTimerState {
+  isServiceActive: boolean;
+  isRunning: boolean;
+  isPaused: boolean;
+  mode: string;
+  phase: string;
+  startTime: number;
+  elapsedSeconds: number;
+  targetSeconds: number;
+  subject: string;
+}
+
 export interface TimerNotificationPlugin {
   start(options: TimerStartOptions): Promise<void>;
   pause(): Promise<void>;
@@ -45,6 +57,7 @@ export interface TimerNotificationPlugin {
   stop(): Promise<void>;
   update(options: TimerUpdateOptions): Promise<void>;
   isServiceRunning(): Promise<{ isRunning: boolean }>;
+  getServiceTimerState(): Promise<ServiceTimerState>;
   isBatteryOptimized(): Promise<{ isIgnoringBatteryOptimizations: boolean }>;
   requestIgnoreBatteryOptimization(): Promise<void>;
 
@@ -77,6 +90,17 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
     stop: async () => {},
     update: async () => {},
     isServiceRunning: async () => ({ isRunning: false }),
+    getServiceTimerState: async () => ({
+      isServiceActive: false,
+      isRunning: false,
+      isPaused: false,
+      mode: 'stopwatch',
+      phase: 'work',
+      startTime: 0,
+      elapsedSeconds: 0,
+      targetSeconds: 0,
+      subject: '',
+    }),
     isBatteryOptimized: async () => ({ isIgnoringBatteryOptimizations: true }),
     requestIgnoreBatteryOptimization: async () => {},
     scheduleAlarm: async () => ({ success: true }),
