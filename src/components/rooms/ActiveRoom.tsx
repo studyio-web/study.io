@@ -157,6 +157,8 @@ interface ActiveRoomProps {
   roomId: string;
   onBack: () => void;
   initialTab?: 'home' | 'chat' | 'settings';
+  initialRoom?: any;
+  initialMembers?: RoomMemberInfo[];
 }
 
 interface RoomDetails {
@@ -170,7 +172,7 @@ interface RoomDetails {
   short_code?: string;
 }
 
-interface RoomMemberInfo {
+export interface RoomMemberInfo {
   user_id: string;
   username: string;
   avatar_url: string | null;
@@ -277,6 +279,35 @@ export function getCachedRoomMembers(roomId: string): RoomMemberInfo[] {
 
 export function cacheRoomMembers(roomId: string, members: RoomMemberInfo[]) {
   if (!roomId || !Array.isArray(members) || members.length === 0) return;
+  const existing = memoryRoomMembersCache.get(roomId);
+  if (existing && existing.length > 0) {
+    const existingMap = new Map(existing.map((m) => [m.user_id, m]));
+    const merged = members.map((m) => {
+      const ex = existingMap.get(m.user_id);
+      if (ex) {
+        return {
+          ...m,
+          username: m.username || ex.username,
+          avatar_url: m.avatar_url || ex.avatar_url,
+          is_studying: ex.is_studying ?? m.is_studying,
+          timer_start_at: ex.timer_start_at ?? m.timer_start_at,
+          accumulated_seconds: ex.accumulated_seconds ?? m.accumulated_seconds,
+          base_today_seconds: ex.base_today_seconds ?? m.base_today_seconds,
+          today_seconds: ex.today_seconds ?? m.today_seconds,
+          is_online: ex.is_online ?? m.is_online,
+        };
+      }
+      return m;
+    });
+    memoryRoomMembersCache.set(roomId, merged);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`studyio_room_members_${roomId}`, JSON.stringify(merged));
+      }
+    } catch {}
+    return;
+  }
+
   memoryRoomMembersCache.set(roomId, members);
   try {
     if (typeof window !== 'undefined') {
@@ -285,9 +316,87 @@ export function cacheRoomMembers(roomId: string, members: RoomMemberInfo[]) {
   } catch {}
 }
 
+/**
+ * Pre-fetches and pre-caches members of rooms in a single fast batch query.
+ * Eliminates the 1-second delay when clicking into any room.
+ */
+export async function prefetchRoomsMembers(rooms: any[]) {
+  if (!rooms || rooms.length === 0) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const validRooms = rooms.filter((r) => r && r.id);
+  if (validRooms.length === 0) return;
+
+  const roomIds = validRooms.map((r) => r.id);
+  const hostIds = validRooms.map((r) => r.host_id).filter(Boolean);
+
+  try {
+    const { data: membersData } = await supabase
+      .from('room_members')
+      .select('room_id, user_id')
+      .in('room_id', roomIds);
+
+    const memberUserIds = (membersData || []).map((m: any) => m.user_id);
+    const allUserIds = Array.from(new Set([...memberUserIds, ...hostIds])).filter(Boolean);
+
+    if (allUserIds.length === 0) return;
+
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, username, name, avatar_url')
+      .in('id', allUserIds);
+
+    if (profilesData && profilesData.length > 0) {
+      cacheMemberProfiles(profilesData);
+    }
+
+    const profilesMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+
+    for (const room of validRooms) {
+      const roomMemberRows = (membersData || []).filter((m: any) => m.room_id === room.id);
+      const roomUserIds = Array.from(
+        new Set([
+          ...roomMemberRows.map((m: any) => m.user_id),
+          ...(room.host_id ? [room.host_id] : []),
+        ])
+      ).filter(Boolean);
+
+      if (roomUserIds.length === 0) continue;
+
+      const membersList: RoomMemberInfo[] = roomUserIds.map((uid) => {
+        const prof = profilesMap.get(uid);
+        const cached = getCachedMemberProfile(uid);
+        return {
+          user_id: uid,
+          username: prof?.username || prof?.name || cached?.username || 'Scholar',
+          avatar_url: prof?.avatar_url || cached?.avatar_url || null,
+          is_host: uid === room.host_id,
+          is_studying: false,
+          timer_start_at: null,
+          accumulated_seconds: 0,
+          base_today_seconds: 0,
+          today_seconds: 0,
+          is_online: false,
+        };
+      });
+
+      cacheRoomMembers(room.id, membersList);
+    }
+  } catch (err) {
+    console.warn('[prefetchRoomsMembers] Error prefetching room members:', err);
+  }
+}
+
 import { usePremium } from '../../context/PremiumContext';
 
-export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomProps) {
+export default function ActiveRoom({
+  roomId,
+  onBack,
+  initialTab,
+  initialRoom,
+  initialMembers,
+}: ActiveRoomProps) {
   const { user } = useAuth();
   const { isPremium, openPremiumModal } = usePremium();
   const {
@@ -323,13 +432,13 @@ export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomPro
   const activeSubjectName = selectedSubject?.name || (subjects && subjects.length > 0 ? subjects[0]?.name : 'Focus');
   const activeSubjectColor = selectedSubject?.color || (subjects && subjects.length > 0 ? subjects[0]?.color : '#10B981');
 
-  const [roomName, setRoomName] = useState<string>('Loading...');
+  const [roomName, setRoomName] = useState<string>(() => initialRoom?.name || 'Loading...');
   const [roomTab, setRoomTab] = useState<'home' | 'chat' | 'settings'>(initialTab || 'home');
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const roomTabRef = useRef(roomTab);
 
   // Room details & Host configuration
-  const [roomInfo, setRoomInfo] = useState<RoomDetails | null>(null);
+  const [roomInfo, setRoomInfo] = useState<RoomDetails | null>(() => initialRoom || null);
   const isHost = Boolean(user?.id && roomInfo?.host_id === user.id);
 
   // Dynamic tabs available in current room
@@ -1044,8 +1153,14 @@ CREATE POLICY "Hosts can update their own study rooms"
     }
   }, [roomTab]);
 
-  const [dbMembers, setDbMembers] = useState<RoomMemberInfo[]>(() => getCachedRoomMembers(roomId));
-  const [isInitialMembersLoading, setIsInitialMembersLoading] = useState<boolean>(() => getCachedRoomMembers(roomId).length === 0);
+  const [dbMembers, setDbMembers] = useState<RoomMemberInfo[]>(() => {
+    if (initialMembers && initialMembers.length > 0) return initialMembers;
+    return getCachedRoomMembers(roomId);
+  });
+  const [isInitialMembersLoading, setIsInitialMembersLoading] = useState<boolean>(() => {
+    const cached = initialMembers && initialMembers.length > 0 ? initialMembers : getCachedRoomMembers(roomId);
+    return cached.length === 0;
+  });
   const [presentUsers, setPresentUsers] = useState<any[]>([]);
   const [nowTick, setNowTick] = useState<number>(Date.now());
 
@@ -1426,7 +1541,7 @@ CREATE POLICY "Hosts can update their own study rooms"
         }
       }
 
-      const hostId = roomData?.host_id;
+      const hostId = roomData?.host_id || (initialRoom as any)?.host_id;
       const allUserIds = Array.from(
         new Set([
           ...(membersData?.map((m: any) => m.user_id) || []),
@@ -1439,12 +1554,31 @@ CREATE POLICY "Hosts can update their own study rooms"
         return;
       }
 
-      // 3, 4, 5. Fetch profiles, active sessions, and today's sessions simultaneously in parallel
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const queryIso = new Date(startOfDay.getTime() - 12 * 3600 * 1000).toISOString();
+      // Stage 1 (Instant): If dbMembers is not populated yet, build immediate member list from cached profiles
+      const immediateList: RoomMemberInfo[] = allUserIds.map((uid) => {
+        const cached = getCachedMemberProfile(uid);
+        return {
+          user_id: uid,
+          username:
+            cached?.username ||
+            (uid === user?.id ? (profileRef.current?.username || user?.displayName || 'Scholar') : 'Scholar'),
+          avatar_url:
+            cached?.avatar_url ||
+            (uid === user?.id ? (profileRef.current?.avatar_url || user?.avatarUrl) : null),
+          is_host: uid === hostId,
+          is_studying: false,
+          timer_start_at: null,
+          accumulated_seconds: 0,
+          base_today_seconds: 0,
+          today_seconds: 0,
+          is_online: false,
+        };
+      });
+      setDbMembers((prev) => (prev.length > 0 ? prev : immediateList));
+      setIsInitialMembersLoading(false);
 
-      const [profilesRes, activeSessionsRes, todaySessionsRes] = await Promise.all([
+      // Stage 2: Fetch latest member profiles and active sessions in parallel
+      const [profilesRes, activeSessionsRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, username, name, avatar_url')
@@ -1453,29 +1587,14 @@ CREATE POLICY "Hosts can update their own study rooms"
           .from('active_sessions')
           .select('user_id, status, started_at, accumulated_seconds')
           .in('user_id', allUserIds),
-        supabase
-          .from('study_sessions')
-          .select('user_id, duration_seconds, started_at')
-          .in('user_id', allUserIds)
-          .gte('started_at', queryIso),
       ]);
 
       const profilesData = profilesRes.data;
       const activeSessionsData = activeSessionsRes.data;
-      const todaySessionsData = todaySessionsRes.data;
 
       if (profilesData && profilesData.length > 0) {
         cacheMemberProfiles(profilesData);
       }
-
-      const userTodayMap = new Map<string, number>();
-      (todaySessionsData || []).forEach((s: any) => {
-        const time = new Date(s.started_at).getTime();
-        if (time >= startOfDay.getTime()) {
-          const sec = Number(s.duration_seconds || 0);
-          userTodayMap.set(s.user_id, (userTodayMap.get(s.user_id) || 0) + sec);
-        }
-      });
 
       const profilesMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
       const sessionsMap = new Map((activeSessionsData || []).map((s: any) => [s.user_id, s]));
@@ -1487,8 +1606,6 @@ CREATE POLICY "Hosts can update their own study rooms"
         const isHost = uid === hostId;
         const isSessionRunning = sess?.status === 'running';
         const startTime = sess?.started_at ? new Date(sess.started_at).getTime() : null;
-
-        const baseToday = userTodayMap.get(uid) || 0;
 
         const resolvedUsername =
           prof?.username ||
@@ -1509,15 +1626,60 @@ CREATE POLICY "Hosts can update their own study rooms"
           is_studying: isSessionRunning,
           timer_start_at: startTime,
           accumulated_seconds: Number(sess?.accumulated_seconds || 0),
-          base_today_seconds: baseToday,
-          today_seconds: baseToday,
+          base_today_seconds: 0,
+          today_seconds: 0,
           is_online: false,
         };
       });
 
-      setDbMembers(membersList);
+      setDbMembers((prev) => {
+        const prevMap = new Map(prev.map((m) => [m.user_id, m]));
+        return membersList.map((m) => {
+          const p = prevMap.get(m.user_id);
+          return {
+            ...m,
+            base_today_seconds: p?.base_today_seconds || 0,
+            today_seconds: p?.today_seconds || 0,
+          };
+        });
+      });
       cacheRoomMembers(roomId, membersList);
       setIsInitialMembersLoading(false);
+
+      // Stage 3 (Non-blocking): Fetch today's study sessions asynchronously to compute cumulative study time
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const queryIso = new Date(startOfDay.getTime() - 12 * 3600 * 1000).toISOString();
+
+      (async () => {
+        try {
+          const { data: todaySessionsData } = await supabase
+            .from('study_sessions')
+            .select('user_id, duration_seconds, started_at')
+            .in('user_id', allUserIds)
+            .gte('started_at', queryIso);
+
+          if (!todaySessionsData) return;
+          const userTodayMap = new Map<string, number>();
+          todaySessionsData.forEach((s: any) => {
+            const time = new Date(s.started_at).getTime();
+            if (time >= startOfDay.getTime()) {
+              const sec = Number(s.duration_seconds || 0);
+              userTodayMap.set(s.user_id, (userTodayMap.get(s.user_id) || 0) + sec);
+            }
+          });
+          setDbMembers((prev) =>
+            prev.map((m) => {
+              const sec = userTodayMap.get(m.user_id) || m.base_today_seconds || 0;
+              return {
+                ...m,
+                base_today_seconds: sec,
+                today_seconds: sec,
+              };
+            })
+          );
+        } catch {}
+      })();
 
       // Seed liveFocusMap with active session members from DB if no fresher telemetry exists
       const nowTs = Date.now();

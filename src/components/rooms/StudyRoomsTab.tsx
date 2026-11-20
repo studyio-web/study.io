@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
-import ActiveRoom from './ActiveRoom';
+import ActiveRoom, { getCachedRoomMembers, prefetchRoomsMembers } from './ActiveRoom';
 import { hapticMedium, hapticTick } from '@/lib/haptics';
 import { registerBackButtonHandler } from '@/lib/native-feel';
 
@@ -423,6 +423,8 @@ CREATE POLICY "Hosts can update their own study rooms"
       // Deduplicate by room id
       const uniqueRooms = Array.from(new Map(combined.map((item: any) => [item.id, item])).values());
       setMyGroups(uniqueRooms);
+      // Immediately prefetch members for all user's rooms in the background to eliminate 1s lag on click
+      prefetchRoomsMembers(uniqueRooms);
     } catch (err) {
       console.error('fetchMyGroups error:', err);
     } finally {
@@ -448,6 +450,8 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       if (!error && data) {
         setExplorerRooms(data);
+        // Pre-cache members for the first 15 explorer rooms
+        prefetchRoomsMembers(data.slice(0, 15));
       } else if (error) {
         console.warn('Error fetching explorer rooms:', error);
       }
@@ -994,10 +998,17 @@ CREATE POLICY "Hosts can update their own study rooms"
   });
 
   if (activeRoomId) {
+    const selectedRoom =
+      myGroups.find((r) => r.id === activeRoomId) ||
+      explorerRooms.find((r) => r.id === activeRoomId);
+    const cachedMembers = getCachedRoomMembers(activeRoomId);
+
     return (
       <ActiveRoom
         roomId={activeRoomId}
         initialTab={activeRoomInitialTab}
+        initialRoom={selectedRoom}
+        initialMembers={cachedMembers}
         onBack={() => {
           setActiveRoomId(null);
           setActiveRoomInitialTab('home');
@@ -1195,6 +1206,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <div
                           key={room.id}
                           onClick={() => handleJoinClick(room)}
+                          onPointerDown={() => prefetchRoomsMembers([room])}
                           className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
                             isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
@@ -1527,6 +1539,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                         <div
                           key={room.id}
                           onClick={() => setActiveRoomId(room.id)}
+                          onPointerDown={() => prefetchRoomsMembers([room])}
                           className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
                             isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
