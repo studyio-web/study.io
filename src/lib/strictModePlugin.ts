@@ -20,7 +20,7 @@ export interface StrictModePlugin {
   getInstalledApps(): Promise<{ apps: InstalledApp[] }>;
   getForegroundApp(): Promise<ForegroundAppInfo>;
   isDeviceAdminActive(): Promise<{ active: boolean }>;
-  requestDeviceAdmin(): Promise<void>;
+  requestDeviceAdmin(): Promise<{ active?: boolean; launched?: boolean } | void>;
   deactivateDeviceAdmin(): Promise<{ success: boolean }>;
   isUninstallProtectionEnabled(): Promise<{ enabled: boolean }>;
   setUninstallProtectionEnabled(options: { enabled: boolean }): Promise<void>;

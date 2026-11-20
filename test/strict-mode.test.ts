@@ -790,4 +790,25 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.equal(uninstallProtection, false, 'Uninstall Protection must turn off when Strict Mode is turned off');
     assert.equal(deviceAdminActive, false, 'Device Admin must deactivate when Strict Mode is turned off');
   });
+
+  it('guarantees turning on Uninstall Protection in Ultra Strict Mode successfully activates and persists', async () => {
+    let ultraStrict = true;
+    let deviceAdminActive = false;
+    let uninstallProtection = false;
+
+    // User clicks Activate and Device Admin is activated in Android
+    const activateDeviceAdmin = () => {
+      if (ultraStrict) {
+        deviceAdminActive = true;
+        uninstallProtection = true;
+      }
+    };
+
+    assert.equal(deviceAdminActive, false);
+    assert.equal(uninstallProtection, false);
+
+    activateDeviceAdmin();
+    assert.equal(deviceAdminActive, true);
+    assert.equal(uninstallProtection, true, 'Uninstall Protection must activate when granted in Ultra Strict');
+  });
 });

@@ -18,11 +18,13 @@ import android.os.Process
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
@@ -178,15 +180,15 @@ class StrictModePlugin : Plugin() {
 
             TimerForegroundService.updateStrictConfig(context, enabled, set, isUltra, uninstallProtection)
 
-            // If Ultra Strict or Uninstall Protection is disabled, automatically release active Device Admin if no countdown session is active
-            if (!isUltra || !uninstallProtection) {
+            // If Ultra Strict is disabled, automatically release active Device Admin if no countdown session is active
+            if (!isUltra) {
                 if (!StudyDeviceAdminReceiver.isUltraStrictSessionActive(context)) {
                     try {
                         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
                         val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
                         if (dpm != null && dpm.isAdminActive(comp)) {
                             dpm.removeActiveAdmin(comp)
-                            Log.i(TAG, "Device Admin automatically deactivated: Ultra Strict / Uninstall Protection disabled.")
+                            Log.i(TAG, "Device Admin automatically deactivated: Ultra Strict disabled.")
                         }
                     } catch (eAdmin: Exception) {
                         Log.w(TAG, "Could not automatically remove active admin in syncStrictConfig", eAdmin)
@@ -209,12 +211,13 @@ class StrictModePlugin : Plugin() {
         try {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
             val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            val dpmActive = dpm?.isAdminActive(comp) ?: false
+
             val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
             val isUltra = prefs.getBoolean("is_ultra", false)
-            val uninstallProtection = prefs.getBoolean("uninstall_protection", false)
 
-            if ((!isUltra || !uninstallProtection) && !StudyDeviceAdminReceiver.isUltraStrictSessionActive(context)) {
-                if (dpm != null && dpm.isAdminActive(comp)) {
+            if (!isUltra && !StudyDeviceAdminReceiver.isUltraStrictSessionActive(context)) {
+                if (dpmActive && dpm != null) {
                     try {
                         dpm.removeActiveAdmin(comp)
                         Log.i(TAG, "Device Admin removed on isDeviceAdminActive check because Ultra Strict is disabled")
@@ -222,9 +225,17 @@ class StrictModePlugin : Plugin() {
                         Log.w(TAG, "Could not remove active admin in isDeviceAdminActive", eRemove)
                     }
                 }
+                prefs.edit().putBoolean("uninstall_protection", false).apply()
+                val res = JSObject().apply { put("active", false) }
+                call.resolve(res)
+                return
             }
 
-            val active = (dpm?.isAdminActive(comp) ?: false) && isUltra && uninstallProtection
+            if (isUltra && dpmActive) {
+                prefs.edit().putBoolean("uninstall_protection", true).apply()
+            }
+
+            val active = dpmActive && isUltra
             val res = JSObject().apply { put("active", active) }
             call.resolve(res)
         } catch (e: Exception) {
@@ -243,6 +254,8 @@ class StrictModePlugin : Plugin() {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
             val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
             if (dpm != null && dpm.isAdminActive(comp)) {
+                val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("uninstall_protection", true).apply()
                 val res = JSObject().apply { put("active", true) }
                 call.resolve(res)
                 return
@@ -258,24 +271,34 @@ class StrictModePlugin : Plugin() {
 
             val currentActivity = activity ?: bridge?.activity
             if (currentActivity != null) {
-                // DeviceAdminAdd checks (flags & FLAG_ACTIVITY_NEW_TASK) != 0 and immediately finishes if set.
-                // It must be launched from the foreground Activity without FLAG_ACTIVITY_NEW_TASK.
-                currentActivity.startActivity(intent)
-                call.resolve(JSObject().apply { put("launched", true) })
-            } else {
                 try {
-                    val fallbackIntent = Intent("android.settings.DEVICE_ADMIN_SETTINGS").apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivityForResult(call, intent, "deviceAdminResult")
+                    return
+                } catch (eLauncher: Exception) {
+                    Log.w(TAG, "startActivityForResult launcher failed, falling back to direct startActivity", eLauncher)
+                    try {
+                        currentActivity.startActivity(intent)
+                        call.resolve(JSObject().apply { put("launched", true) })
+                        return
+                    } catch (eDirect: Exception) {
+                        Log.w(TAG, "currentActivity.startActivity failed, trying settings list", eDirect)
                     }
-                    context.startActivity(fallbackIntent)
-                    call.resolve(JSObject().apply { put("launched", true) })
-                } catch (e2: Exception) {
-                    val secIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(secIntent)
-                    call.resolve(JSObject().apply { put("launched", true) })
                 }
+            }
+
+            // Fallback: open Device Admin list in System Settings directly so the user can toggle study.io
+            try {
+                val fallbackIntent = Intent("android.settings.DEVICE_ADMIN_SETTINGS").apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+                call.resolve(JSObject().apply { put("launched", true) })
+            } catch (e2: Exception) {
+                val secIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(secIntent)
+                call.resolve(JSObject().apply { put("launched", true) })
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error opening device admin activation screen", e)
@@ -286,8 +309,26 @@ class StrictModePlugin : Plugin() {
                 context.startActivity(fallbackIntent)
                 call.resolve(JSObject().apply { put("launched", true) })
             } catch (e2: Exception) {
-                call.reject("Cannot open device admin settings: ${e.message}", e)
+                call.reject("Cannot open device admin settings: ${e2.message}", e)
             }
+        }
+    }
+
+    @ActivityCallback
+    private fun deviceAdminResult(call: PluginCall?, result: ActivityResult) {
+        try {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            val dpmActive = dpm?.isAdminActive(comp) ?: false
+            if (dpmActive) {
+                val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("uninstall_protection", true).apply()
+            }
+            val res = JSObject().apply { put("active", dpmActive) }
+            call?.resolve(res)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in deviceAdminResult callback", e)
+            call?.resolve(JSObject().apply { put("active", false) })
         }
     }
 
@@ -323,7 +364,15 @@ class StrictModePlugin : Plugin() {
     fun isUninstallProtectionEnabled(call: PluginCall) {
         val prefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
         val isUltra = prefs.getBoolean("is_ultra", false)
-        val enabled = if (!isUltra) false else prefs.getBoolean("uninstall_protection", false)
+        if (!isUltra) {
+            val res = JSObject().apply { put("enabled", false) }
+            call.resolve(res)
+            return
+        }
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+        val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+        val dpmActive = dpm?.isAdminActive(comp) ?: false
+        val enabled = prefs.getBoolean("uninstall_protection", false) || dpmActive
         val res = JSObject().apply { put("enabled", enabled) }
         call.resolve(res)
     }

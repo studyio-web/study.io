@@ -282,7 +282,16 @@ export function StudyTimer() {
           saveBlockShortsReelsEnabled(false);
         }
       }).catch(() => { });
-      StrictMode.isDeviceAdminActive().then(({ active }) => setIsDeviceAdminActive(active)).catch(() => { });
+      StrictMode.isDeviceAdminActive().then(({ active }) => {
+        if (!isUltraStrict) {
+          setIsDeviceAdminActive(false);
+        } else {
+          setIsDeviceAdminActive(active);
+          if (active) {
+            saveUninstallProtectionEnabled(true);
+          }
+        }
+      }).catch(() => { });
       StrictMode.syncStrictConfig({
         enabled: isStrictMode && !isRemoteSession,
         allowedPackages: allowedApps,
@@ -290,7 +299,7 @@ export function StudyTimer() {
         uninstallProtection: Boolean(isUltraStrict && !isRemoteSession && isDeviceAdminActive),
       }).catch(() => { });
     }
-  }, [isAndroid, isStrictMode, allowedApps, isUltraStrict, isRemoteSession]);
+  }, [isAndroid, isStrictMode, allowedApps, isUltraStrict, isRemoteSession, isDeviceAdminActive]);
 
   // Hardware Android Back Button: dismiss any open timer modal before leaving tab or exiting app
   useEffect(() => {
@@ -543,7 +552,16 @@ export function StudyTimer() {
     if (!isAndroid) return;
     pendingEnableDeviceAdminRef.current = true;
     try {
-      await StrictMode.requestDeviceAdmin();
+      const res = (await StrictMode.requestDeviceAdmin()) as { active?: boolean; launched?: boolean } | undefined;
+      if (res?.active) {
+        setIsDeviceAdminActive(true);
+        saveUninstallProtectionEnabled(true);
+        pendingEnableDeviceAdminRef.current = false;
+        toast.success('Uninstall Protection activated!', {
+          id: 'device-admin-status-toast',
+          icon: '🛡️',
+        });
+      }
     } catch (e) {
       console.warn('Failed to open device admin settings:', e);
     }
@@ -585,14 +603,15 @@ export function StudyTimer() {
           }
         } else {
           setIsDeviceAdminActive(adminActive);
-          if (adminActive && pendingEnableDeviceAdminRef.current) {
-            pendingEnableDeviceAdminRef.current = false;
+          if (adminActive) {
             saveUninstallProtectionEnabled(true);
-            StrictMode.setUninstallProtectionEnabled({ enabled: true }).catch(() => { });
-            toast.success('Uninstall Protection activated!', {
-              id: 'device-admin-status-toast',
-              icon: '🛡️',
-            });
+            if (pendingEnableDeviceAdminRef.current) {
+              pendingEnableDeviceAdminRef.current = false;
+              toast.success('Uninstall Protection activated!', {
+                id: 'device-admin-status-toast',
+                icon: '🛡️',
+              });
+            }
           }
         }
 
