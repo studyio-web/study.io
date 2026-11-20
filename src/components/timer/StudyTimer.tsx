@@ -240,6 +240,7 @@ export function StudyTimer() {
   isBlockShortsReelsRef.current = isBlockShortsReels;
   const allowedAppsRef = useRef(allowedApps);
   allowedAppsRef.current = allowedApps;
+  const pendingEnableReelsRef = useRef(false);
 
   useEffect(() => {
     const supported = isStrictModeSupported();
@@ -417,14 +418,13 @@ export function StudyTimer() {
     const enabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
     setHasAccessibilityPerm(enabled);
     if (!enabled) {
-      toast('Accessibility permission required to block Reels & Shorts. Please grant below.', { icon: '⚙️' });
+      pendingEnableReelsRef.current = true;
+      toast('Accessibility permission required to block Reels & Shorts. Please grant in Settings.', { icon: '⚙️' });
       try {
         await AccessibilityBlocker.openSettings();
       } catch (e) {
         console.warn('[AccessibilityBlocker] openSettings failed:', e);
       }
-      setIsBlockShortsReels(false);
-      saveBlockShortsReelsEnabled(false);
       return;
     }
 
@@ -441,6 +441,7 @@ export function StudyTimer() {
   };
 
   const handleRequestAccessibilityPermission = async () => {
+    pendingEnableReelsRef.current = true;
     try {
       await AccessibilityBlocker.openSettings();
     } catch (e) {
@@ -457,10 +458,10 @@ export function StudyTimer() {
     }
   };
 
-  // Re-verify permission on window focus if permission modal was waiting
+  // Re-verify permission when Strict Config modal opens or on app resume/focus
   useEffect(() => {
     if (!isAndroid) return;
-    const handleFocus = async () => {
+    const checkAllPermissions = async () => {
       try {
         const { granted: usageGranted } = await StrictMode.hasUsagePermission();
         setHasUsagePerm(usageGranted);
@@ -468,9 +469,17 @@ export function StudyTimer() {
         setHasOverlayPerm(overlayGranted);
         const accessibilityEnabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
         setHasAccessibilityPerm(accessibilityEnabled);
-        if (!accessibilityEnabled) {
+        if (accessibilityEnabled) {
+          if (pendingEnableReelsRef.current) {
+            setIsBlockShortsReels(true);
+            saveBlockShortsReelsEnabled(true);
+            pendingEnableReelsRef.current = false;
+            toast.success('Accessibility granted! Reels & Shorts Blocker enabled', { icon: '🛡️' });
+          }
+        } else {
           setIsBlockShortsReels(false);
           saveBlockShortsReelsEnabled(false);
+          pendingEnableReelsRef.current = false;
         }
         const { active: adminActive } = await StrictMode.isDeviceAdminActive();
         setIsDeviceAdminActive(adminActive);
@@ -485,9 +494,48 @@ export function StudyTimer() {
         }
       } catch { }
     };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+
+    window.addEventListener('focus', checkAllPermissions);
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        checkAllPermissions();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    let appStateHandle: any = null;
+    try {
+      import('@capacitor/app').then(({ App }) => {
+        appStateHandle = App.addListener('appStateChange', (state) => {
+          if (state.isActive) {
+            checkAllPermissions();
+          }
+        });
+      }).catch(() => { });
+    } catch { }
+
+    return () => {
+      window.removeEventListener('focus', checkAllPermissions);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (appStateHandle && typeof appStateHandle.remove === 'function') {
+        appStateHandle.remove();
+      }
+    };
   }, [isAndroid, isPermissionModalOpen]);
+
+  // When opening Strict Mode settings modal, immediately re-verify accessibility & usage permissions
+  useEffect(() => {
+    if (isAndroid && isStrictConfigOpen) {
+      AccessibilityBlocker.isServiceEnabled().then((enabled) => {
+        setHasAccessibilityPerm(enabled);
+        if (enabled && pendingEnableReelsRef.current) {
+          setIsBlockShortsReels(true);
+          saveBlockShortsReelsEnabled(true);
+          pendingEnableReelsRef.current = false;
+        }
+      }).catch(() => { });
+    }
+  }, [isAndroid, isStrictConfigOpen]);
 
   // Enable / disable Accessibility Reels & Shorts Blocker based on active study session
   // Bypassed when the session was started remotely from PC/desktop

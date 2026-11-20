@@ -981,10 +981,6 @@ export function StrictModeConfigModal({
               onClick={() => {
                 if (isFocusing) return;
                 triggerHaptic('medium');
-                if (!hasAccessibilityPermission) {
-                  onRequestAccessibilityPermission?.();
-                  return;
-                }
                 onToggleBlockShortsReels?.();
               }}
               className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${

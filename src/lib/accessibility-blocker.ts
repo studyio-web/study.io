@@ -115,7 +115,7 @@ export const AccessibilityBlocker = {
   async isServiceEnabled(): Promise<boolean> {
     try {
       const res = await NativeAccessibilityBlocker.isServiceEnabled();
-      return res.isServiceEnabled;
+      return Boolean(res.isServiceEnabled || res.isRunning);
     } catch {
       return false;
     }
