@@ -17,6 +17,9 @@ import { getSvgScene } from '../focus/scenes/svgScenes';
 import { useAuth } from '../../context/AuthContext';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { UserAvatar } from '../common/UserAvatar';
+import { ProCrown } from '../common/ProCrown';
+import { FlairCrown } from '../common/FlairBadge';
+import { ProAvatarRing } from '../ui/ProAvatarRing';
 import { getRankTier } from '../../lib/ranks';
 
 interface AndroidPremiumViewProps {
@@ -694,8 +697,8 @@ export function AndroidPremiumView({
             <div className="flex flex-col items-center gap-1.5">
               <div className="relative w-14 h-14 rounded-full ring-2 ring-[#E6C15A] ring-offset-2 ring-offset-[#0A0A0B] overflow-hidden bg-black shadow-[0_0_18px_rgba(230,193,90,0.35)] flex items-center justify-center">
                 <UserAvatar src={user?.avatarUrl} name={user?.name || 'Scholar'} size={56} />
-                <div className="absolute bottom-0 right-0 p-0.5 bg-[#E6C15A] rounded-full text-black">
-                  <Check className="w-3 h-3 stroke-[3]" />
+                <div className="absolute bottom-0 right-0 p-1 bg-[#141005] border border-[#E6C15A]/60 rounded-full shadow-md flex items-center justify-center">
+                  <ProCrown size={12} variant="gold" />
                 </div>
               </div>
               <span className="text-[11px] font-mono text-[#E6C15A] font-semibold">
@@ -715,41 +718,55 @@ export function AndroidPremiumView({
           </div>
         </section>
 
-        {/* ─── FEATURE 5: ROOM AURA ─── */}
+        {/* ─── FEATURE 5: STUDY ROOM FOCUS RING ─── */}
         <div className="border-t border-white/[0.08] my-7" />
 
         <section className="flex flex-col gap-3.5">
-          {/* Big Visual: Mini Study Room Tile with Focus Ring & VIP tag */}
-          <div className="w-full h-36 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex items-center px-5">
+          {/* Big Visual: Exact Live Study Room Tile */}
+          <div className="w-full h-40 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex items-center px-6 shadow-inner">
             {/* PRO Badge in Corner */}
-            <div className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A]">
+            <div className="absolute top-3.5 right-3.5 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A] z-20">
               PRO
             </div>
 
-            {/* Scholar Tile */}
-            <div className="flex items-center gap-3.5 w-full">
-              {/* Pulsing Aura Avatar */}
-              <div className="relative w-14 h-14 rounded-full shrink-0 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-2 border-[#E6C15A] animate-ping opacity-35" />
-                <div className="relative w-13 h-13 rounded-full border-2 border-[#E6C15A] shadow-[0_0_20px_rgba(230,193,90,0.45)] overflow-hidden bg-black flex items-center justify-center">
-                  <UserAvatar src={user?.avatarUrl} name={user?.name || 'You'} size={52} />
-                </div>
+            {/* Exact Study Room Tile matching ActiveRoom.tsx */}
+            <div className="flex items-center gap-5 w-full">
+              {/* Exact ProAvatarRing Component from Study Rooms */}
+              <div className="relative shrink-0 flex items-center justify-center p-2">
+                <ProAvatarRing isPro={true} isStudying={true} size="md" defaultBorder>
+                  <UserAvatar
+                    src={user?.avatarUrl}
+                    name={user?.name || 'Scholar'}
+                    size={56}
+                    className="pointer-events-none"
+                  />
+                </ProAvatarRing>
               </div>
 
-              {/* Scholar Details */}
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-white">
+              {/* Room Member Info matching exact room UI */}
+              <div className="text-left min-w-0 flex-1 flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-hud text-base font-bold text-white tracking-wide truncate max-w-[150px]">
                     {user?.name || 'Scholar'}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-md bg-[#E6C15A]/20 border border-[#E6C15A]/40 text-[9px] font-mono font-bold text-[#E6C15A]">
-                    VIP
+                  <FlairCrown frame="gold" size={14} className="-ml-0.5" />
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/15 border border-amber-400/30 text-amber-300 font-semibold uppercase tracking-wider flex-shrink-0">
+                    You
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span>Focusing · 45m</span>
+
+                <div className="flex items-center gap-1.5 font-mono text-xs text-amber-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  </span>
+                  <span className="font-bold tracking-wider">00:45:00</span>
+                  <span className="text-[11px] text-amber-300/80 font-sans font-medium">(Focusing)</span>
                 </div>
+
+                <p className="text-[11px] text-white/50 font-mono mt-0.5">
+                  Luminous dual focus ring in rooms
+                </p>
               </div>
             </div>
           </div>
@@ -757,10 +774,10 @@ export function AndroidPremiumView({
           {/* Title & Description */}
           <div>
             <h2 className="font-hud text-xl font-bold text-white mb-1">
-              Exclusive Room Aura
+              Study Room Focus Ring
             </h2>
             <p className="text-[15px] text-white/70 leading-relaxed">
-              Pulsing golden aura rings and VIP recognition whenever you join a study room.
+              Signature dual-rotating cyan & emerald focus rings and ambient energy glow while studying in live rooms, plus gold crown flair.
             </p>
           </div>
         </section>

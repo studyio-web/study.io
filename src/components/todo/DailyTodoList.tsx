@@ -719,8 +719,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                 taskPriority === 'high'
                   ? 'bg-rose-500/10 hover:bg-rose-500/15 border-rose-500/30 text-rose-300'
                   : taskPriority === 'medium'
-                  ? 'bg-[#FF8A00]/15 hover:bg-[#FF8A00]/20 border-[#FF8A00]/40 text-[#FFB054] shadow-[0_0_12px_rgba(255,138,0,0.25)]'
-                  : 'bg-white/10 hover:bg-white/15 border-white/30 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]'
+                  ? 'bg-[#FF8A00]/15 hover:bg-[#FF8A00]/20 border-[#FF8A00]/40 text-[#FFB054]'
+                  : 'bg-white/10 hover:bg-white/15 border-white/30 text-white'
               }`}
               aria-haspopup="listbox"
               aria-expanded={isPriorityDropdownOpen}
@@ -787,7 +787,7 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
                               ? 'bg-rose-500/15 border border-rose-500/25 text-rose-200 font-semibold'
                               : p === 'medium'
                               ? 'bg-[#FF8A00]/20 border border-[#FF8A00]/40 text-[#FFC480] font-semibold'
-                              : 'bg-white/15 border border-white/30 text-white font-semibold shadow-[0_0_8px_rgba(255,255,255,0.15)]'
+                              : 'bg-white/15 border border-white/30 text-white font-semibold'
                             : p === 'high'
                             ? 'text-rose-300 hover:text-white hover:bg-rose-500/10'
                             : p === 'medium'
