@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Logo } from '../../components/Logo';
 import Home from '../page';
-import { getCachedUserState } from '../../lib/userCache';
+import { hasValidCachedSession } from '../../lib/userCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +13,7 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
-  const hasCachedUser = typeof window !== 'undefined' && Boolean(
-    getCachedUserState()?.profile?.id ||
-    localStorage.getItem('studypulse_is_authenticated') === 'true'
-  );
+  const hasCachedUser = hasValidCachedSession();
 
   useEffect(() => {
     // Only redirect once auth loading has settled and confirmed unauthenticated

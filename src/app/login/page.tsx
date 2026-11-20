@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { IntroductionAndLogin } from '../../components/common/IntroductionAndLogin';
 import { Logo } from '../../components/Logo';
-import { getCachedUserState } from '../../lib/userCache';
+import { hasValidCachedSession } from '../../lib/userCache';
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -16,10 +16,7 @@ export default function LoginPage() {
     setIsMounted(true);
   }, []);
 
-  const hasCachedUser = typeof window !== 'undefined' && Boolean(
-    getCachedUserState()?.profile?.id ||
-    localStorage.getItem('studypulse_is_authenticated') === 'true'
-  );
+  const hasCachedUser = hasValidCachedSession();
 
   useEffect(() => {
     if (isAuthenticated || hasCachedUser) {

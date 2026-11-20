@@ -11,7 +11,7 @@ import { initPushNotifications, clearPushTokenOnLogout } from '../lib/pushNotifi
 import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '../lib/rankedSystem';
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
 import { resolveAppAvatar, isAppAvatar, getDeterministicDefaultAvatar } from '../lib/avatars';
-import { getCachedUserState, saveCachedUserState, clearCachedUserState } from '../lib/userCache';
+import { getCachedUserState, saveCachedUserState, clearCachedUserState, isRealUserAccount, hasValidCachedSession } from '../lib/userCache';
 
 export type StoredAccount = {
   id: string;
@@ -44,9 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         const cached = getCachedUserState();
-        if (cached?.profile) {
+        if (cached?.profile && isRealUserAccount(cached.profile.id)) {
           const profile = { ...INITIAL_USER, ...cached.profile } as UserProfile;
-          const resolvedDisplayName = profile.username || profile.displayName || profile.name || 'Focus Scholar';
+          const resolvedDisplayName = profile.username || profile.displayName || profile.name || 'Scholar';
           profile.avatarUrl = resolveAppAvatar(profile.avatarUrl, resolvedDisplayName);
           profile.streakDays = cached.streakCount ?? profile.streakDays ?? 0;
           if (typeof cached.rp === 'number' && cached.rp > 0) {
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const saved = localStorage.getItem('studypulse_active_user');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
+          if (parsed && typeof parsed === 'object' && isRealUserAccount(parsed.id)) {
             if (typeof cached?.rp === 'number' && cached.rp > 0) {
               parsed.seasonRp = Math.max(Number(parsed.seasonRp || 0), cached.rp);
               parsed.rp = Math.max(Number(parsed.rp || 0), cached.rp);
@@ -78,16 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = getCachedUserState();
-        if (cached?.profile?.id && !cached.profile.id.startsWith('guest')) {
-          return true;
-        }
-        return localStorage.getItem('studypulse_is_authenticated') === 'true';
-      } catch {}
-    }
-    return false;
+    return hasValidCachedSession();
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(() => {
@@ -95,21 +86,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (window.location.pathname.startsWith('/auth/callback')) {
         return true;
       }
-      try {
-        const cached = getCachedUserState();
-        const hasAuth = localStorage.getItem('studypulse_is_authenticated') === 'true';
-        if (cached?.profile?.id || hasAuth) {
-          return false;
-        }
-      } catch {}
+      if (hasValidCachedSession()) {
+        return false;
+      }
       return true;
     }
     return true;
   });
 
-  // Helper to persist to localStorage & unified user cache
+  // Helper to persist to localStorage & unified user cache (ONLY for real authenticated accounts)
   const saveUser = useCallback((newUser: UserProfile) => {
     setUser(newUser);
+    if (!isRealUserAccount(newUser.id)) return;
     try {
       localStorage.setItem('studypulse_active_user', JSON.stringify(newUser));
       saveCachedUserState({
@@ -717,12 +705,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(true);
         try { localStorage.setItem('studypulse_is_authenticated', 'true'); } catch {}
         await syncSupabaseProfile(supabase, session.user);
+      } else {
+        setIsAuthenticated(false);
+        setUser(INITIAL_USER);
+        try {
+          localStorage.removeItem('studypulse_is_authenticated');
+          localStorage.removeItem('studypulse_active_user');
+          clearCachedUserState();
+        } catch {}
       }
       if (isSubscribed) {
         setIsLoading(false);
       }
     }).catch(() => {
       if (isSubscribed) {
+        setIsAuthenticated(false);
         setIsLoading(false);
       }
     });
@@ -755,7 +752,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('studypulse:auth-changed', { detail: { session } }));
         }
-      } else if (event === 'SIGNED_OUT') {
+      } else {
+        // Any session absence / sign out: strictly unauthenticated
         setIsAuthenticated(false);
         setUser(INITIAL_USER);
         try {
@@ -767,6 +765,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem('studypulse_subjects');
           localStorage.removeItem('studypulse_todos');
           localStorage.removeItem('studypulse_pending_sessions');
+          clearCachedUserState();
         } catch {}
       }
       if (isSubscribed) {
@@ -1172,7 +1171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     }
-    saveUser(INITIAL_USER);
+    setUser(INITIAL_USER);
     setIsAuthenticated(false);
     clearCachedUserState();
     clearRankCache();
@@ -1233,7 +1232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
-    saveUser(INITIAL_USER);
+    setUser(INITIAL_USER);
     setIsAuthenticated(false);
     clearCachedUserState();
     clearRankCache();
@@ -1270,7 +1269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.clear();
       sessionStorage.clear();
 
-      saveUser(INITIAL_USER);
+      setUser(INITIAL_USER);
       setIsAuthenticated(false);
       setIsLoading(false);
 

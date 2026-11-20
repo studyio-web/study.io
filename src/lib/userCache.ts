@@ -14,6 +14,51 @@ export interface CachedUserState {
 export const CACHED_USER_STATE_KEY = 'studyio_cached_user_state';
 
 /**
+ * Checks whether an account ID belongs to a real authenticated user
+ * rather than a guest, demo, or fallback placeholder account.
+ */
+export function isRealUserAccount(userId?: string | null): boolean {
+  if (!userId || typeof userId !== 'string') return false;
+  const lower = userId.trim().toLowerCase();
+  return (
+    lower.length > 0 &&
+    !lower.startsWith('user-scholar') &&
+    !lower.startsWith('user-demo') &&
+    !lower.startsWith('guest') &&
+    lower !== 'scholar' &&
+    lower !== 'null' &&
+    lower !== 'undefined'
+  );
+}
+
+/**
+ * Checks whether there is a verified, authenticated cached session on this device.
+ * Guarantees that guest/mock accounts can NEVER be treated as authenticated.
+ */
+export function hasValidCachedSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const isAuth = localStorage.getItem('studypulse_is_authenticated') === 'true';
+    if (!isAuth) return false;
+
+    const cached = getCachedUserState();
+    const cachedId = cached?.profile?.id;
+    if (cachedId && isRealUserAccount(cachedId)) {
+      return true;
+    }
+
+    const saved = localStorage.getItem('studypulse_active_user');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed?.id && isRealUserAccount(parsed.id)) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
+/**
  * Synchronously retrieves cached user profile, Pro status, streak, rank badge,
  * and subjects list from localStorage for sub-second optimistic app launch.
  */
@@ -38,6 +83,11 @@ export function getCachedUserState(): CachedUserState | null {
 export function saveCachedUserState(updates: Partial<CachedUserState>): void {
   if (typeof window === 'undefined') return;
   try {
+    // Never persist a guest or mock profile as cached user state
+    if (updates.profile && !isRealUserAccount(updates.profile.id)) {
+      return;
+    }
+
     const prev = getCachedUserState() || {
       profile: null,
       isPro: false,

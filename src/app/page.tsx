@@ -22,7 +22,7 @@ import { SwipeTabContainer } from '../components/common/SwipeTabContainer';
 import { useRankTheme } from '../hooks/useRankTheme';
 import { DevRankSwitcher } from '../components/common/DevRankSwitcher';
 import { useStudyMode } from '../context/StudyModeContext';
-import { getCachedUserState } from '../lib/userCache';
+import { getCachedUserState, hasValidCachedSession } from '../lib/userCache';
 import { setupNotificationListeners } from '../lib/notifications';
 import { initPushNotifications } from '../lib/pushNotifications';
 import { registerBackButtonHandler } from '../lib/native-feel';
@@ -370,11 +370,8 @@ export default function Home() {
     };
   }, [isAuthenticated, refetchSessions]);
 
-  // Check if we have optimistic cached user state for instant launch
-  const hasCachedUser = typeof window !== 'undefined' && Boolean(
-    getCachedUserState()?.profile?.id ||
-    localStorage.getItem('studypulse_is_authenticated') === 'true'
-  );
+  // Check if we have verified cached session state for optimistic launch (real authenticated user only)
+  const hasCachedUser = hasValidCachedSession();
 
   // Track if initial boot has finished so we don't show the full-screen loader on re-fetches
   const hasInitialBootCompletedRef = useRef(false);

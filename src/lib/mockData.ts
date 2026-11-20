@@ -312,12 +312,19 @@ export function cleanupLegacyDemoData(): boolean {
       const parsed = JSON.parse(savedUser);
       if (
         parsed.id === 'user-demo-1' ||
+        parsed.id === 'user-scholar-1' ||
+        parsed.id?.startsWith?.('user-scholar') ||
+        parsed.id?.startsWith?.('guest') ||
         parsed.displayName === 'Alex Rivers' ||
+        parsed.displayName === 'Focus Scholar' ||
+        parsed.email === 'user@study.io' ||
         parsed.email === 'alex.studier@studypulse.io' ||
         parsed.displayName === 'Maya Lin' ||
         parsed.displayName === 'Kenji Sato'
       ) {
         localStorage.removeItem('studypulse_active_user');
+        localStorage.removeItem('studypulse_is_authenticated');
+        localStorage.removeItem('studyio_cached_user_state');
         cleaned = true;
       }
     }

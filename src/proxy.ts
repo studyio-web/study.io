@@ -111,9 +111,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If unauthenticated user tries to directly access /dashboard, redirect to /login
+  // If unauthenticated user tries to directly access /dashboard, /premium, or /recap, redirect to /login
   // Never redirect while on /auth/callback, /login, or /
-  if (!user && pathname.startsWith('/dashboard')) {
+  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/premium') || pathname.startsWith('/recap'))) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
