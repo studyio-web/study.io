@@ -1481,9 +1481,7 @@ export function StudyTimer() {
         subjectColor: selectedSub.color || '#10b981',
       });
 
-      if (isServerValidated) {
-        toast.success('Session saved successfully! 🎉', { id: 'session-saved-success', duration: 3000 });
-      }
+
 
       // Reset and stop active timer engine (syncs stopped to all devices)
       resetTimer();
