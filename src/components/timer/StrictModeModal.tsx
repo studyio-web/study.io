@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Shield,
@@ -770,6 +770,15 @@ export function StrictModeConfigModal({
   onRequestAccessibilityPermission,
 }: StrictConfigModalProps) {
   const [mounted, setMounted] = useState(false);
+  const lastToggleTimeRef = useRef<{ [key: string]: number }>({});
+  const canToggle = (key: string, cooldownMs = 400) => {
+    const now = Date.now();
+    const last = lastToggleTimeRef.current[key] || 0;
+    if (now - last < cooldownMs) return false;
+    lastToggleTimeRef.current[key] = now;
+    return true;
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -848,7 +857,7 @@ export function StrictModeConfigModal({
               type="button"
               disabled={isFocusing}
               onClick={() => {
-                if (isFocusing) return;
+                if (isFocusing || !canToggle('strict')) return;
                 triggerHaptic('medium');
                 onToggleStrictMode();
               }}
@@ -894,7 +903,7 @@ export function StrictModeConfigModal({
                 type="button"
                 disabled={isFocusing}
                 onClick={() => {
-                  if (isFocusing) return;
+                  if (isFocusing || !canToggle('ultra')) return;
                   triggerHaptic('medium');
                   onToggleUltraStrict?.();
                 }}
@@ -979,7 +988,7 @@ export function StrictModeConfigModal({
               type="button"
               disabled={isFocusing}
               onClick={() => {
-                if (isFocusing) return;
+                if (isFocusing || !canToggle('reels')) return;
                 triggerHaptic('medium');
                 onToggleBlockShortsReels?.();
               }}

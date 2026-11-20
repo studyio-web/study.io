@@ -136,6 +136,7 @@ export const AccessibilityBlocker = {
 };
 
 export const STORAGE_KEY_SHORTS_REELS_BLOCK = 'studyio_block_shorts_reels';
+export const REELS_BLOCKER_TOAST_ID = 'reels-shorts-blocker-toast';
 
 export function loadBlockShortsReelsEnabled(): boolean {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;

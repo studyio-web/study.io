@@ -70,6 +70,7 @@ import {
   AccessibilityBlocker,
   loadBlockShortsReelsEnabled,
   saveBlockShortsReelsEnabled,
+  REELS_BLOCKER_TOAST_ID,
 } from '../../lib/accessibility-blocker';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 import { useAtmosphere } from '../focus/useAtmosphere';
@@ -241,6 +242,15 @@ export function StudyTimer() {
   const allowedAppsRef = useRef(allowedApps);
   allowedAppsRef.current = allowedApps;
   const pendingEnableReelsRef = useRef(false);
+  const isTogglingReelsRef = useRef(false);
+  const lastReelsToggleTimeRef = useRef(0);
+  const isTogglingStrictRef = useRef(false);
+  const lastStrictToggleTimeRef = useRef(0);
+  const isTogglingUltraRef = useRef(false);
+  const lastUltraToggleTimeRef = useRef(0);
+
+  const STRICT_MODE_TOAST_ID = 'strict-mode-toggle-toast';
+  const ULTRA_STRICT_TOAST_ID = 'ultra-strict-toggle-toast';
 
   useEffect(() => {
     const supported = isStrictModeSupported();
@@ -329,61 +339,95 @@ export function StudyTimer() {
   ]);
 
   const handleToggleStrictMode = async () => {
-    if (isStudying) {
-      toast('Strict Mode cannot be changed during active focus sessions', { icon: '🔒' });
+    const now = Date.now();
+    if (now - lastStrictToggleTimeRef.current < 400 || isTogglingStrictRef.current) {
       return;
     }
-    if (isStrictMode) {
-      setIsStrictMode(false);
-      saveStrictModeEnabled(false);
-      setIsUltraStrict(false);
-      saveUltraStrictEnabled(false);
-      triggerHaptic('light');
-    } else {
-      triggerHaptic('medium');
-      try {
-        const { granted } = await StrictMode.hasUsagePermission();
-        if (!granted) {
-          setIsPermissionModalOpen(true);
-        } else {
-          setIsStrictMode(true);
-          saveStrictModeEnabled(true);
-          const currentAllowed = loadAllowedApps();
-          if (currentAllowed.length === 0) {
-            setIsAllowedAppsModalOpen(true);
-          }
-        }
-      } catch (e) {
-        setIsPermissionModalOpen(true);
+    lastStrictToggleTimeRef.current = now;
+    isTogglingStrictRef.current = true;
+
+    try {
+      if (isStudying) {
+        toast('Strict Mode cannot be changed during active focus sessions', {
+          id: STRICT_MODE_TOAST_ID,
+          icon: '🔒',
+        });
+        return;
       }
+      if (isStrictMode) {
+        setIsStrictMode(false);
+        saveStrictModeEnabled(false);
+        setIsUltraStrict(false);
+        saveUltraStrictEnabled(false);
+        triggerHaptic('light');
+        toast('Strict Mode disabled', { id: STRICT_MODE_TOAST_ID });
+      } else {
+        triggerHaptic('medium');
+        try {
+          const { granted } = await StrictMode.hasUsagePermission();
+          if (!granted) {
+            setIsPermissionModalOpen(true);
+          } else {
+            setIsStrictMode(true);
+            saveStrictModeEnabled(true);
+            const currentAllowed = loadAllowedApps();
+            if (currentAllowed.length === 0) {
+              setIsAllowedAppsModalOpen(true);
+            }
+            toast.success('Strict Mode enabled', { id: STRICT_MODE_TOAST_ID, icon: '🛡️' });
+          }
+        } catch (e) {
+          setIsPermissionModalOpen(true);
+        }
+      }
+    } finally {
+      setTimeout(() => {
+        isTogglingStrictRef.current = false;
+      }, 350);
     }
   };
 
   const handleToggleUltraStrict = async () => {
-    if (isStudying) {
-      toast('Ultra Strict Mode cannot be changed during active focus sessions', { icon: '🔒' });
+    const now = Date.now();
+    if (now - lastUltraToggleTimeRef.current < 400 || isTogglingUltraRef.current) {
       return;
     }
-    const nextUltra = !isUltraStrict;
-    setIsUltraStrict(nextUltra);
-    saveUltraStrictEnabled(nextUltra);
-    if (nextUltra) {
-      setIsStrictMode(true);
-      saveStrictModeEnabled(true);
-      setTimerMode('countdown');
-      syncTimerMode('countdown', true, countdownTarget);
-      try {
-        const { granted } = await StrictMode.hasUsagePermission();
-        if (!granted) {
-          setIsPermissionModalOpen(true);
-        }
-      } catch { }
-      toast.success('Ultra Strict enabled: Countdown mode only', { icon: '⚡' });
-    } else {
-      syncTimerMode(timerMode, false);
-      toast('Ultra Strict disabled');
+    lastUltraToggleTimeRef.current = now;
+    isTogglingUltraRef.current = true;
+
+    try {
+      if (isStudying) {
+        toast('Ultra Strict Mode cannot be changed during active focus sessions', {
+          id: ULTRA_STRICT_TOAST_ID,
+          icon: '🔒',
+        });
+        return;
+      }
+      const nextUltra = !isUltraStrict;
+      setIsUltraStrict(nextUltra);
+      saveUltraStrictEnabled(nextUltra);
+      if (nextUltra) {
+        setIsStrictMode(true);
+        saveStrictModeEnabled(true);
+        setTimerMode('countdown');
+        syncTimerMode('countdown', true, countdownTarget);
+        try {
+          const { granted } = await StrictMode.hasUsagePermission();
+          if (!granted) {
+            setIsPermissionModalOpen(true);
+          }
+        } catch { }
+        toast.success('Ultra Strict enabled: Countdown mode only', { id: ULTRA_STRICT_TOAST_ID, icon: '⚡' });
+      } else {
+        syncTimerMode(timerMode, false);
+        toast('Ultra Strict disabled', { id: ULTRA_STRICT_TOAST_ID });
+      }
+      triggerHaptic('medium');
+    } finally {
+      setTimeout(() => {
+        isTogglingUltraRef.current = false;
+      }, 350);
     }
-    triggerHaptic('medium');
   };
 
   // Enforce Countdown mode whenever Ultra Strict is enabled and timer is idle
@@ -411,32 +455,52 @@ export function StudyTimer() {
   };
 
   const handleToggleBlockShortsReels = async () => {
-    if (isStudying) {
-      toast('Reels & Shorts Blocker cannot be changed during active focus sessions', { icon: '🔒' });
+    const now = Date.now();
+    if (now - lastReelsToggleTimeRef.current < 400 || isTogglingReelsRef.current) {
       return;
     }
-    const enabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
-    setHasAccessibilityPerm(enabled);
-    if (!enabled) {
-      pendingEnableReelsRef.current = true;
-      toast('Accessibility permission required to block Reels & Shorts. Please grant in Settings.', { icon: '⚙️' });
-      try {
-        await AccessibilityBlocker.openSettings();
-      } catch (e) {
-        console.warn('[AccessibilityBlocker] openSettings failed:', e);
+    lastReelsToggleTimeRef.current = now;
+    isTogglingReelsRef.current = true;
+
+    try {
+      if (isStudying) {
+        toast('Reels & Shorts Blocker cannot be changed during active focus sessions', {
+          id: REELS_BLOCKER_TOAST_ID,
+          icon: '🔒',
+        });
+        return;
       }
-      return;
-    }
+      const enabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
+      setHasAccessibilityPerm(enabled);
+      if (!enabled) {
+        pendingEnableReelsRef.current = true;
+        toast('Accessibility permission required to block Reels & Shorts. Please grant in Settings.', {
+          id: REELS_BLOCKER_TOAST_ID,
+          icon: '⚙️',
+        });
+        try {
+          await AccessibilityBlocker.openSettings();
+        } catch (e) {
+          console.warn('[AccessibilityBlocker] openSettings failed:', e);
+        }
+        return;
+      }
 
-    const nextVal = !isBlockShortsReels;
-    setIsBlockShortsReels(nextVal);
-    saveBlockShortsReelsEnabled(nextVal);
-    triggerHaptic('medium');
-
-    if (nextVal) {
-      toast.success('Reels & Shorts Blocker enabled', { icon: '🛡️' });
-    } else {
-      toast('Reels & Shorts Blocker disabled');
+      setIsBlockShortsReels((prev) => {
+        const nextVal = !prev;
+        saveBlockShortsReelsEnabled(nextVal);
+        if (nextVal) {
+          toast.success('Reels & Shorts Blocker enabled', { id: REELS_BLOCKER_TOAST_ID, icon: '🛡️' });
+        } else {
+          toast('Reels & Shorts Blocker disabled', { id: REELS_BLOCKER_TOAST_ID });
+        }
+        return nextVal;
+      });
+      triggerHaptic('medium');
+    } finally {
+      setTimeout(() => {
+        isTogglingReelsRef.current = false;
+      }, 350);
     }
   };
 
@@ -474,7 +538,10 @@ export function StudyTimer() {
             setIsBlockShortsReels(true);
             saveBlockShortsReelsEnabled(true);
             pendingEnableReelsRef.current = false;
-            toast.success('Accessibility granted! Reels & Shorts Blocker enabled', { icon: '🛡️' });
+            toast.success('Accessibility granted! Reels & Shorts Blocker enabled', {
+              id: REELS_BLOCKER_TOAST_ID,
+              icon: '🛡️',
+            });
           }
         } else {
           setIsBlockShortsReels(false);
