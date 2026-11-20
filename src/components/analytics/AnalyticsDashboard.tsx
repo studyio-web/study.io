@@ -40,6 +40,7 @@ import {
 } from 'recharts';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import { WeeklyReportCard } from './WeeklyReportCard';
+import { ProCrown } from '../common/ProCrown';
 
 type Timeframe = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -409,7 +410,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       openPremiumModal();
       toast('Historical analytics navigation requires study.io Premium', {
         id: 'premium-history-guard',
-        icon: '👑',
+        icon: <ProCrown size={16} />,
       });
       return;
     }
@@ -532,7 +533,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       openPremiumModal();
       toast('Browsing historical day breakdown requires study.io Premium', {
         id: 'premium-history-guard',
-        icon: '👑',
+        icon: <ProCrown size={16} />,
       });
       return;
     }
@@ -547,7 +548,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       openPremiumModal();
       toast('Browsing historical calendar months requires study.io Premium', {
         id: 'premium-history-guard',
-        icon: '👑',
+        icon: <ProCrown size={16} />,
       });
       return;
     }
@@ -559,7 +560,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       openPremiumModal();
       toast('Browsing historical calendar months requires study.io Premium', {
         id: 'premium-history-guard',
-        icon: '👑',
+        icon: <ProCrown size={16} />,
       });
       return;
     }
@@ -673,7 +674,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
       openPremiumModal();
       toast('Browsing historical focus trends requires study.io Premium', {
         id: 'premium-history-guard',
-        icon: '👑',
+        icon: <ProCrown size={16} />,
       });
       return;
     }

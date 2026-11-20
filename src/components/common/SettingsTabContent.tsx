@@ -13,9 +13,9 @@ import {
   Smartphone,
   CheckCircle2,
   Trophy,
-  Crown,
   Vibrate,
 } from 'lucide-react';
+import { ProCrown } from './ProCrown';
 import { isHapticsEnabled, setHapticsEnabled, hapticMedium } from '@/lib/haptics';
 import { soundFx } from '../../lib/audio';
 import { useAuth } from '../../context/AuthContext';
@@ -165,7 +165,7 @@ export function SettingsTabContent() {
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] text-[10px] font-bold tracking-wider uppercase shrink-0"
                   title="study.io Premium Scholar"
                 >
-                  <Crown className="w-3 h-3 fill-current" />
+                  <ProCrown size={13} variant="gold" aria-label="Pro member" />
                   <span>Premium</span>
                 </span>
               )}

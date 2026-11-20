@@ -4,13 +4,13 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   Sparkles,
-  Crown,
   CreditCard,
   RotateCw,
   Calendar,
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
+import { ProCrown } from '../common/ProCrown';
 import { usePremium } from '../../context/PremiumContext';
 import { toast } from 'react-hot-toast';
 
@@ -71,7 +71,7 @@ export function SettingsPlanSection() {
               }`}
             >
               {isPremium ? (
-                <Crown className="w-5 h-5 fill-current" />
+                <ProCrown size={20} variant="gold" />
               ) : (
                 <CreditCard className="w-5 h-5" />
               )}
@@ -134,7 +134,7 @@ export function SettingsPlanSection() {
                 href="/premium"
                 className="px-3.5 py-1.5 rounded-xl text-xs font-hud font-semibold text-[#E6C15A] hover:bg-[#E6C15A]/10 border border-[#E6C15A]/30 transition-all flex items-center gap-1.5 cursor-pointer"
               >
-                <Crown className="w-3.5 h-3.5 fill-current" />
+                <ProCrown size={15} variant="gold" />
                 <span>View Benefits</span>
               </Link>
             )}

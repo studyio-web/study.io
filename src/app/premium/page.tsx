@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Crown,
   Lock,
   Check,
   ArrowRight,
@@ -19,6 +18,7 @@ import {
   BarChart3,
   ChevronLeft,
 } from 'lucide-react';
+import { ProCrown } from '../../components/common/ProCrown';
 import { useReducedMotion } from 'framer-motion';
 import { Logo } from '../../components/Logo';
 import { useAuth } from '../../context/AuthContext';
@@ -649,7 +649,7 @@ function ScholarCrownDemo() {
                 </span>
                 {/* Gold Crown SVG drops in */}
                 <span
-                  className="inline-flex text-white transition-all duration-500 ease-out"
+                  className="inline-flex transition-all duration-500 ease-out"
                   style={{
                     transform: hasDropped ? 'translateY(0)' : 'translateY(-8px)',
                     opacity: hasDropped ? 1 : 0,
@@ -658,7 +658,7 @@ function ScholarCrownDemo() {
                       : 'none',
                   }}
                 >
-                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                  <ProCrown size={14} variant="gold" />
                 </span>
               </div>
               <span className="text-[9px] font-mono text-white/40">
@@ -930,7 +930,7 @@ function WebPremiumView() {
 
           {/* Centered Brand Title */}
           <div className="flex items-center gap-1.5 font-hud font-black text-xs sm:text-sm tracking-wider uppercase text-white/90">
-            <Crown className="w-4 h-4 text-[#E6C15A] fill-current" />
+            <ProCrown size={18} variant="gold" />
             <span>study.io <span className="text-[#E6C15A]">PRO</span></span>
           </div>
 
@@ -946,7 +946,7 @@ function WebPremiumView() {
                   boxShadow: '0 0 12px rgba(230,193,90,0.3)',
                 }}
               >
-                <Crown className="w-3 h-3 fill-current" />
+                <ProCrown size={13} variant="mono" />
                 <span>Active</span>
               </span>
             ) : (
@@ -956,7 +956,7 @@ function WebPremiumView() {
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-hud font-bold tracking-wider uppercase text-[#1A1405] hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm shrink-0"
                 style={{ background: PREMIUM_GOLD_GRADIENT }}
               >
-                <Crown className="w-3 h-3 fill-current" />
+                <ProCrown size={13} variant="mono" />
                 <span>Upgrade</span>
               </button>
             )}
@@ -976,7 +976,7 @@ function WebPremiumView() {
           <div className="lg:col-span-7 flex flex-col items-start text-left">
             {/* Small Gold Pill */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[rgba(230,193,90,0.3)] bg-[#E6C15A]/10 text-[10px] font-hud font-bold uppercase tracking-widest text-[#E6C15A] mb-4">
-              <Crown className="w-3 h-3 fill-current" />
+              <ProCrown size={13} variant="gold" />
               <span>Premium</span>
             </div>
 
@@ -1167,7 +1167,7 @@ function WebPremiumView() {
               }}
             >
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] mb-3">
-                <Crown className="w-6 h-6 fill-current" />
+                <ProCrown size={28} variant="gold" />
               </div>
               <h2 className="font-hud text-xl sm:text-2xl font-bold text-white">
                 You&apos;re Premium

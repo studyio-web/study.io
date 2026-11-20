@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Crown, Sparkles, Gem, Check, Lock } from 'lucide-react';
+import { Sparkles, Gem, Check, Lock } from 'lucide-react';
+import { ProCrown } from '../../../components/common/ProCrown';
 import {
   PREMIUM_COLLECTIBLES,
   VAULT_CATEGORIES,
@@ -45,7 +46,7 @@ export default function DevAvatarsPage() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Crown className="w-3.5 h-3.5" />
+              <ProCrown size={14} variant="mono" />
               <span>Pro (Unlocked)</span>
             </button>
             <button
@@ -89,7 +90,7 @@ export default function DevAvatarsPage() {
           <div className="flex items-center justify-between pl-1 pb-1">
             <div>
               <div className="flex items-center gap-2">
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <ProCrown size={15} variant="gold" />
                 <h4 className="text-[11px] font-mono font-bold uppercase tracking-widest text-amber-400">
                   {premiumCat.name}
                 </h4>
@@ -158,7 +159,7 @@ export default function DevAvatarsPage() {
                     {isEpic ? (
                       <Gem className="w-3.5 h-3.5" />
                     ) : (
-                      <Crown className="w-3.5 h-3.5 fill-amber-300/40" />
+                      <ProCrown size={14} variant="gold" />
                     )}
                   </div>
 

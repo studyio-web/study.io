@@ -26,7 +26,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Hash,
-  Crown,
   Globe,
   Trash2,
   X,

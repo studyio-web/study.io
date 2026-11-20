@@ -16,7 +16,6 @@ import { DEMO_PREMIUM_THEMES } from '../../lib/premiumThemes';
 import { useAuth } from '../../context/AuthContext';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { UserAvatar } from '../common/UserAvatar';
-import { FlairCrown } from '../common/FlairBadge';
 import { getRankTier } from '../../lib/ranks';
 
 interface AndroidPremiumViewProps {

@@ -18,10 +18,10 @@ import {
   Trophy,
   CheckSquare,
   Users,
-  Crown,
   Check,
   HelpCircle,
 } from 'lucide-react';
+import { ProCrown } from './ProCrown';
 import { usePremium } from '../../context/PremiumContext';
 import {
   PREMIUM_GOLD_GRADIENT,
@@ -455,7 +455,7 @@ export function Navbar({
                 title="Upgrade to Premium"
                 aria-label="Upgrade to Premium"
               >
-                <Crown className="w-3.5 h-3.5 fill-current" />
+                <ProCrown size={16} variant="mono" />
                 <span className="hidden sm:inline">UPGRADE</span>
               </Link>
             ) : (
@@ -469,7 +469,7 @@ export function Navbar({
                 title="Premium Active — Click to view membership status"
                 aria-label="Premium Active"
               >
-                <Crown className="w-3.5 h-3.5 fill-current" />
+                <ProCrown size={16} variant="mono" />
                 <span className="hidden sm:inline">PRO</span>
               </Link>
             )}
@@ -752,7 +752,7 @@ export function Navbar({
                     onClick={() => setShowPersonaMenu(false)}
                     className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[#E6C15A] hover:bg-[#E6C15A]/10 border border-transparent hover:border-[#E6C15A]/20 transition-all flex items-center gap-2.5 cursor-pointer active:scale-[0.99]"
                   >
-                    <Crown className="w-3.5 h-3.5 fill-current" />
+                    <ProCrown size={16} variant="gold" />
                     <span>{isPremium ? 'PREMIUM MEMBERSHIP' : 'UPGRADE TO PREMIUM'}</span>
                   </Link>
 

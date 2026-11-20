@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useStudy } from '../../context/StudyContext';
 import { usePremium } from '../../context/PremiumContext';
-import { X, Target, User, Loader2, Save, Plus, Dices, Crown, Lock, Sparkles, Check, Gem } from 'lucide-react';
+import { X, Target, User, Loader2, Save, Plus, Dices, Lock, Sparkles, Check, Gem } from 'lucide-react';
+import { ProCrown } from './ProCrown';
 
 import { useRank } from '../../context/RankContext';
 import { useDevRankPreview } from '../../lib/devRankPreview';
@@ -532,7 +533,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                           <div className="flex items-center justify-between pl-1 pb-1">
                             <div>
                               <div className="flex items-center gap-2">
-                                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                                <ProCrown size={15} variant="gold" />
                                 <h4 className="text-[11px] font-mono font-bold uppercase tracking-widest text-amber-400">
                                   {category.name}
                                 </h4>
@@ -610,7 +611,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                     {isEpic ? (
                                       <Gem className="w-3.5 h-3.5" />
                                     ) : (
-                                      <Crown className="w-3.5 h-3.5 fill-amber-300/40" />
+                                      <ProCrown size={14} variant="gold" />
                                     )}
                                   </div>
 

@@ -29,11 +29,11 @@ import {
   Settings,
   Eye,
   EyeOff,
-  Crown,
   BellOff,
   Bell,
   MoreVertical,
 } from 'lucide-react';
+import { ProCrown } from '../common/ProCrown';
 import toast from 'react-hot-toast';
 import { updateRoomSettingsAction } from '../../app/actions/rooms';
 import ActiveRoom, { getCachedRoomMembers, prefetchRoomsMembers } from './ActiveRoom';
@@ -1312,7 +1312,7 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-dim)] font-mono">
                                   {isHost ? (
                                     <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border)] uppercase tracking-wider flex items-center gap-1">
-                                      <Crown className="w-2.5 h-2.5" />
+                                      <ProCrown size={11} variant="mono" />
                                       YOU (HOST)
                                     </span>
                                   ) : isMember ? (

@@ -6,7 +6,6 @@ import {
   X,
   Sparkles,
   Sliders,
-  Crown,
   Music,
   CloudRain,
   Flame,
@@ -16,6 +15,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { ProCrown } from '../common/ProCrown';
 import { getSceneThumbnailDataUrl } from './scenes/thumbnailRenderer';
 import { getSvgScene } from './scenes/svgScenes';
 import { useAtmosphere, AtmosphereOption, AtmosphereSoundId } from './useAtmosphere';
@@ -271,7 +271,7 @@ export function ScenePicker({
                             {scene.name}
                           </span>
                           {scene.premium && (
-                            <Crown className="w-3.5 h-3.5 text-[#E6C15A] fill-[#E6C15A] shrink-0 drop-shadow ml-1" />
+                            <ProCrown size={14} variant="gold" className="shrink-0 drop-shadow ml-1" />
                           )}
                         </div>
                       </div>

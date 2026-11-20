@@ -3,7 +3,8 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useTheme, ThemeOption } from '../../context/ThemeContext';
 import { usePremium } from '../../context/PremiumContext';
-import { Check, Palette, RotateCcw, Lock, Crown, ChevronRight } from 'lucide-react';
+import { Check, Palette, RotateCcw, Lock, ChevronRight } from 'lucide-react';
+import { ProCrown } from '../common/ProCrown';
 import { hapticTick } from '@/lib/haptics';
 import { registerBackButtonHandler } from '@/lib/native-feel';
 
@@ -356,7 +357,7 @@ export function ThemePicker() {
                   color: '#F59E0B',
                 }}
               >
-                <Crown className="w-5 h-5 fill-amber-400 text-amber-400" />
+                <ProCrown size={20} variant="gold" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 truncate">
@@ -425,7 +426,7 @@ export function ThemePicker() {
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 text-xs font-hud font-bold tracking-wider text-amber-300 transition-colors cursor-pointer active:scale-95 shrink-0"
                   >
-                    <Crown className="w-3.5 h-3.5 fill-current" />
+                    <ProCrown size={15} variant="gold" />
                     <span>UPGRADE</span>
                   </button>
                 )}

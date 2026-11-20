@@ -8,12 +8,12 @@ import {
   Sparkles,
   Palette,
   BarChart3,
-  Crown,
   ArrowRight,
   CheckCircle2,
   Loader2,
   Check,
 } from 'lucide-react';
+import { ProCrown } from '../common/ProCrown';
 import { usePremium } from '../../context/PremiumContext';
 import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout';
 import {
@@ -137,7 +137,7 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-[#1A1405] shadow-md"
                 style={{ background: PREMIUM_GOLD_GRADIENT }}
               >
-                <Crown className="w-5 h-5 fill-current" />
+                <ProCrown size={22} variant="mono" />
               </div>
               <div>
                 <h2
@@ -169,7 +169,7 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
               /* Already Premium Banner */
               <div className="my-4 p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-[#E6C15A] font-semibold">
-                  <Crown className="w-4 h-4 fill-current" />
+                  <ProCrown size={16} variant="gold" />
                   <span>You have study.io Premium</span>
                 </div>
                 {formattedDate && (
@@ -274,7 +274,7 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
             <div className="mt-3 pt-3 border-t border-[var(--border)]">
               {isPremium ? (
                 <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[var(--surface-2)] text-[#E6C15A] font-semibold text-xs border border-[var(--border)] select-none">
-                  <Crown className="w-4 h-4 fill-current" />
+                  <ProCrown size={16} variant="gold" />
                   <span>Premium Active{formattedDate ? ` • Until ${formattedDate}` : ''}</span>
                 </div>
               ) : !checkoutSuccess ? (

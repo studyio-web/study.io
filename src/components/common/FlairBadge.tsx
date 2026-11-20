@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Check } from 'lucide-react';
 import { FlairFrame, FLAIR_FRAMES } from '../../lib/flair';
+import { ProCrown } from './ProCrown';
 
 export function AvatarFlairRing({
   children,
@@ -19,7 +19,6 @@ export function FlairCrown({
   frame,
   className = '',
   size = 14,
-  strokeWidth = 3.85,
 }: {
   frame?: FlairFrame | null;
   className?: string;
@@ -30,15 +29,12 @@ export function FlairCrown({
   const flairConfig = FLAIR_FRAMES[frame] || FLAIR_FRAMES.gold;
 
   return (
-    <Check
-      style={{
-        width: size,
-        height: size,
-        color: '#FFFFFF',
-      }}
-      strokeWidth={strokeWidth}
-      className={`shrink-0 inline text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] -ml-0.5 ${className}`}
-      aria-label={`${flairConfig.name} Verified Scholar`}
+    <ProCrown
+      size={size}
+      variant={frame === 'gold' ? 'gold' : 'mono'}
+      style={frame !== 'gold' ? { color: flairConfig.crownColor } : undefined}
+      className={`shrink-0 inline -ml-0.5 ${className}`}
+      aria-label={`${flairConfig.name} Pro member`}
     />
   );
 }

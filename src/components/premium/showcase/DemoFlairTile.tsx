@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, Crown, User, Check } from 'lucide-react';
+import { Sparkles, User, Check } from 'lucide-react';
+import { ProCrown } from '../../common/ProCrown';
 
 type FrameStyle = 'gold' | 'aurora' | 'ember';
 
@@ -42,7 +43,7 @@ export function DemoFlairTile() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Crown className="w-3.5 h-3.5 text-[#E6C15A] fill-current" />
+            <ProCrown size={15} variant="gold" />
             <h4 className="font-hud font-bold text-xs uppercase tracking-wider text-[var(--text)]">
               Scholar Profile Flair
             </h4>
