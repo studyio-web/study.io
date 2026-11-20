@@ -1,13 +1,16 @@
 package com.studyio.app;
 
+import android.app.KeyguardManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.OrientationEventListener;
 import android.view.View;
@@ -21,6 +24,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private static final String TAG = "StudyAlarm";
     public static volatile boolean isAppInForeground = false;
     public static volatile long lastForegroundTime = 0L;
 
@@ -28,6 +32,7 @@ public class MainActivity extends BridgeActivity {
     private boolean hasManuallyExitedFullscreen = false;
     private OrientationEventListener orientationEventListener;
     private volatile boolean isWebLoaded = false;
+    private String pendingAlarmScript = null;
     private long appLaunchTime = 0;
 
     @Override
@@ -185,6 +190,17 @@ public class MainActivity extends BridgeActivity {
                 @JavascriptInterface
                 public void onPageLoaded() {
                     isWebLoaded = true;
+                    Log.d(TAG, "WebView reported onPageLoaded");
+                    if (pendingAlarmScript != null) {
+                        final String script = pendingAlarmScript;
+                        pendingAlarmScript = null;
+                        runOnUiThread(() -> {
+                            if (getBridge() != null && getBridge().getWebView() != null) {
+                                Log.d(TAG, "Evaluating deferred pendingAlarmScript now that webview is loaded");
+                                getBridge().getWebView().evaluateJavascript(script, null);
+                            }
+                        });
+                    }
                 }
             }, "AndroidFullscreenBridge");
 
@@ -255,6 +271,61 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         isAppInForeground = true;
         lastForegroundTime = System.currentTimeMillis();
+
+        if (AlarmService.Companion.isRinging()) {
+            Log.d(TAG, "onResume: AlarmService is actively ringing! Applying lockscreen & wake flags");
+            applyAlarmWindowFlags();
+            dispatchOpenAlarm(
+                AlarmService.Companion.getAlarmMode(),
+                AlarmService.Companion.getAlarmPhase(),
+                AlarmService.Companion.getAlarmSubject(),
+                AlarmService.Companion.getAlarmDurationSeconds()
+            );
+        }
+    }
+
+    public void applyAlarmWindowFlags() {
+        runOnUiThread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    setShowWhenLocked(true);
+                    setTurnScreenOn(true);
+                }
+                getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                );
+                KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+                if (km != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    km.requestDismissKeyguard(this, null);
+                }
+                Log.d(TAG, "Applied alarm lockscreen, turn-screen-on, and dismiss-keyguard flags");
+            } catch (Exception e) {
+                Log.w(TAG, "Error applying alarm window flags", e);
+            }
+        });
+    }
+
+    private void dispatchOpenAlarm(String mode, String phase, String subject, long duration) {
+        String cleanMode = mode != null ? mode : "countdown";
+        String cleanPhase = phase != null ? phase : "work";
+        String cleanSubject = subject != null ? subject.replace("'", "\\'") : "";
+        String script = "window.dispatchEvent(new CustomEvent('studyio:open-alarm', { detail: { " +
+            "mode: '" + cleanMode + "', " +
+            "phase: '" + cleanPhase + "', " +
+            "subject: '" + cleanSubject + "', " +
+            "duration: " + duration + " } }));";
+
+        if (isWebLoaded && getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().post(() -> {
+                Log.d(TAG, "Dispatching studyio:open-alarm event directly to WebView");
+                getBridge().getWebView().evaluateJavascript(script, null);
+            });
+        } else {
+            Log.d(TAG, "WebView not yet loaded: deferring studyio:open-alarm to pendingAlarmScript");
+            pendingAlarmScript = script;
+        }
     }
 
     @Override
@@ -320,18 +391,9 @@ public class MainActivity extends BridgeActivity {
             String phase = intent.getStringExtra("alarmPhase");
             String subject = intent.getStringExtra("alarmSubject");
             long duration = intent.getLongExtra("alarmDuration", 0);
-            if (getBridge() != null && getBridge().getWebView() != null) {
-                getBridge().getWebView().post(() -> {
-                    getBridge().getWebView().evaluateJavascript(
-                        "window.dispatchEvent(new CustomEvent('studyio:open-alarm', { detail: { " +
-                        "mode: '" + (mode != null ? mode : "countdown") + "', " +
-                        "phase: '" + (phase != null ? phase : "work") + "', " +
-                        "subject: '" + (subject != null ? subject : "") + "', " +
-                        "duration: " + duration + " } }));",
-                        null
-                    );
-                });
-            }
+            Log.d(TAG, "handleNotificationIntent: openAlarm=true received (mode=" + mode + ", phase=" + phase + ")");
+            applyAlarmWindowFlags();
+            dispatchOpenAlarm(mode, phase, subject, duration);
         }
     }
 

@@ -15,6 +15,7 @@ export interface TimerAlarmModalProps {
   subjectName?: string;
   focusedDurationSeconds?: number;
   seasonRp?: number;
+  initialSecondsRemaining?: number;
   onDismiss: () => void;
   onSnooze?: () => void;
   onSave?: () => void;
@@ -34,10 +35,11 @@ export function TimerAlarmModal({
   mode,
   phase = 'work',
   subjectName,
+  initialSecondsRemaining,
   onDismiss,
 }: TimerAlarmModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(ALARM_MAX_DURATION_SECONDS);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(initialSecondsRemaining ?? ALARM_MAX_DURATION_SECONDS);
   const [isCompletedSlide, setIsCompletedSlide] = useState(false);
   const [sliderDragX, setSliderDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -101,6 +103,7 @@ export function TimerAlarmModal({
     triggerHaptic('heavy');
     // If native Android, instruct native plugin to stop native AlarmService
     if (isNativeAndroid()) {
+      TimerNotification.stopAlarm().catch(() => {});
       TimerNotification.stop().catch(() => {});
     }
     onDismiss();
@@ -109,13 +112,13 @@ export function TimerAlarmModal({
   // Reset state on open & tick down until auto-silence (5 minutes)
   useEffect(() => {
     if (!isOpen) {
-      setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
+      setSecondsRemaining(initialSecondsRemaining ?? ALARM_MAX_DURATION_SECONDS);
       setIsCompletedSlide(false);
       setSliderDragX(0);
       return;
     }
 
-    setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
+    setSecondsRemaining(initialSecondsRemaining ?? ALARM_MAX_DURATION_SECONDS);
     setIsCompletedSlide(false);
     setSliderDragX(0);
 

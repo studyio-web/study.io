@@ -285,4 +285,26 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     cancelAlarm();
     assert.equal(pendingAlarm, null);
   });
+
+  it('guarantees native plugin contracts for alarm state, test alarm, and manufacturer detection', async () => {
+    const { TimerNotification } = await import('../src/lib/timerNotificationPlugin');
+
+    // 1. getAlarmState returns clean default state on web/fallback
+    const state = await TimerNotification.getAlarmState();
+    assert.strictEqual(typeof state.isRinging, 'boolean');
+    assert.strictEqual(state.isRinging, false);
+    assert.strictEqual(state.remainingSilenceSeconds, 300);
+
+    // 2. testAlarm schedules test alarm in 10s
+    const testResult = await TimerNotification.testAlarm({ seconds: 10 });
+    assert.strictEqual(testResult.success, true);
+    assert.strictEqual(testResult.delaySeconds, 10);
+
+    // 3. getDeviceManufacturer returns metadata
+    const manufacturer = await TimerNotification.getDeviceManufacturer();
+    assert.ok(manufacturer.manufacturer);
+
+    // 4. stopAlarm completes successfully
+    await TimerNotification.stopAlarm();
+  });
 });

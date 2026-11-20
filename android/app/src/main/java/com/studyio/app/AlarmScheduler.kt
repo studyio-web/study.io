@@ -19,7 +19,7 @@ data class PendingAlarmData(
 )
 
 object AlarmScheduler {
-    private const val TAG = "AlarmScheduler"
+    private const val TAG = "StudyAlarm"
     private const val PREFS_NAME = "studyio_alarm_prefs"
     private const val KEY_ALARM_ID = "alarm_id"
     private const val KEY_TRIGGER_AT = "alarm_trigger_at"
@@ -32,7 +32,9 @@ object AlarmScheduler {
     fun canScheduleExact(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            return alarmManager?.canScheduleExactAlarms() ?: false
+            val can = alarmManager?.canScheduleExactAlarms() ?: false
+            Log.d(TAG, "canScheduleExactAlarms check: $can")
+            return can
         }
         return true
     }
@@ -49,11 +51,11 @@ object AlarmScheduler {
     ): Boolean {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
         if (alarmManager == null) {
-            Log.e(TAG, "AlarmManager not available")
+            Log.e(TAG, "AlarmManager not available on this device")
             return false
         }
 
-        // Cancel any existing pending alarm first (guarantees only one pending alarm)
+        // Cancel any existing pending alarm first (guarantees strictly only one pending alarm)
         cancelAlarm(context, id)
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
@@ -82,7 +84,8 @@ object AlarmScheduler {
         try {
             val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerAtMs, showOperation)
             alarmManager.setAlarmClock(alarmClockInfo, operation)
-            Log.i(TAG, "Scheduled AlarmClock for $id at $triggerAtMs (${(triggerAtMs - System.currentTimeMillis()) / 1000}s from now)")
+            val diffSec = (triggerAtMs - System.currentTimeMillis()) / 1000
+            Log.d(TAG, "Scheduled AlarmClock for '$id' at $triggerAtMs (fires in ${diffSec}s, mode=$mode, phase=$phase)")
 
             // Persist to SharedPreferences for device reboot recovery
             savePendingAlarm(
@@ -104,6 +107,37 @@ object AlarmScheduler {
         } catch (e: Exception) {
             Log.e(TAG, "Error scheduling alarm clock", e)
             return false
+        }
+    }
+
+    fun triggerAlarmNow(
+        context: Context,
+        id: String = "immediate_alarm",
+        label: String = "Session Complete",
+        mode: String = "countdown",
+        phase: String = "work",
+        subject: String = "",
+        durationSeconds: Long = 0
+    ) {
+        Log.d(TAG, "triggerAlarmNow requested: starting AlarmService immediately (mode=$mode, phase=$phase)")
+        val intent = Intent(context, AlarmService::class.java).apply {
+            action = AlarmService.ACTION_START_ALARM
+            putExtra("id", id)
+            putExtra("label", label)
+            putExtra("mode", mode)
+            putExtra("phase", phase)
+            putExtra("subject", subject)
+            putExtra("durationSeconds", durationSeconds)
+            putExtra("triggerAtMs", System.currentTimeMillis())
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start AlarmService in triggerAlarmNow", e)
         }
     }
 

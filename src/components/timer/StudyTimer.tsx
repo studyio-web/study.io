@@ -943,7 +943,9 @@ export function StudyTimer() {
       if (timerMode === 'countdown' && typeof window !== 'undefined') {
         try {
           if (!localStorage.getItem('studyio_alarm_setup_checked')) {
+            pendingStartSubjectIdRef.current = activeSub.id;
             setIsAlarmSetupOpen(true);
+            return;
           }
         } catch { }
       }
@@ -1676,6 +1678,22 @@ export function StudyTimer() {
             }
           }
         }
+        // Check if native Android AlarmService is already ringing
+        if (isNativeAndroid()) {
+          TimerNotification.getAlarmState()
+            .then((state) => {
+              if (state && state.isRinging && !isCancelled) {
+                setIsAlarmRinging(true);
+                setAlarmModalData({
+                  mode: state.mode === 'pomodoro' ? 'pomodoro' : 'countdown',
+                  phase: state.phase === 'break' ? 'break' : 'work',
+                  subjectName: state.subject || undefined,
+                  focusedDurationSeconds: state.durationSeconds > 0 ? state.durationSeconds : undefined,
+                });
+              }
+            })
+            .catch(() => {});
+        }
       } catch (e) {
         console.warn('Failed to restore timer:', e);
       }
@@ -1821,6 +1839,9 @@ export function StudyTimer() {
   const handleDismissAlarm = useCallback(() => {
     isSavingRef.current = false;
     soundFx.stopTimerAlarm();
+    if (isNativeAndroid()) {
+      TimerNotification.stopAlarm().catch(() => {});
+    }
     setIsAlarmRinging(false);
     setAlarmModalData(null);
   }, [soundFx]);
@@ -2961,7 +2982,16 @@ export function StudyTimer() {
       {isAndroid && (
         <AlarmSetupModal
           isOpen={isAlarmSetupOpen}
-          onClose={() => setIsAlarmSetupOpen(false)}
+          onClose={() => {
+            setIsAlarmSetupOpen(false);
+            const subId = pendingStartSubjectIdRef.current || selectedSubject?.id;
+            if (subId) startTimer(subId);
+          }}
+          onProceed={() => {
+            setIsAlarmSetupOpen(false);
+            const subId = pendingStartSubjectIdRef.current || selectedSubject?.id;
+            if (subId) startTimer(subId);
+          }}
         />
       )}
 

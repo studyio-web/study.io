@@ -258,16 +258,19 @@ class TimerNotificationPlugin : Plugin() {
     fun scheduleAlarm(call: PluginCall) {
         try {
             val id = call.getString("id", "timer_alarm_${System.currentTimeMillis()}") ?: "timer_alarm"
-            val triggerAtMs = call.getDouble("triggerAtMs")?.toLong() ?: run {
-                call.reject("triggerAtMs is required")
+            val rawTrigger = call.getDouble("triggerAtMs")?.toLong() ?: call.getData().optLong("triggerAtMs", 0L)
+            if (rawTrigger <= 0L) {
+                call.reject("triggerAtMs is required and must be > 0")
                 return
             }
+            val triggerAtMs = rawTrigger
             val label = call.getString("label", "Session Complete") ?: "Session Complete"
             val mode = call.getString("mode", "countdown") ?: "countdown"
             val phase = call.getString("phase", "work") ?: "work"
             val subject = call.getString("subject", "") ?: ""
             val durationSeconds = call.getInt("durationSeconds", 0)?.toLong() ?: 0L
 
+            Log.d(TAG, "scheduleAlarm called from plugin: id=$id, triggerAtMs=$triggerAtMs, mode=$mode, phase=$phase")
             val scheduled = AlarmScheduler.scheduleAlarm(
                 context = context,
                 id = id,
@@ -293,6 +296,7 @@ class TimerNotificationPlugin : Plugin() {
     fun cancelAlarm(call: PluginCall) {
         try {
             val id = call.getString("id")
+            Log.d(TAG, "cancelAlarm called from plugin: id=$id")
             AlarmScheduler.cancelAlarm(context, id)
             call.resolve()
         } catch (e: Exception) {
@@ -304,11 +308,68 @@ class TimerNotificationPlugin : Plugin() {
     @PluginMethod
     fun stopAlarm(call: PluginCall) {
         try {
+            Log.d(TAG, "stopAlarm called from plugin: stopping AlarmService and clearing ringing state")
             AlarmService.stopAlarmService(context)
             call.resolve()
         } catch (e: Exception) {
             Log.e(TAG, "Error in stopAlarm", e)
             call.reject("Failed to stop alarm: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun getAlarmState(call: PluginCall) {
+        try {
+            val isRinging = AlarmService.isRinging
+            val now = System.currentTimeMillis()
+            val startedAt = AlarmService.alarmStartedAtMs
+            val elapsedAlarmSeconds = if (isRinging && startedAt > 0) Math.max(0, ((now - startedAt) / 1000).toInt()) else 0
+            val remainingSilenceSeconds = Math.max(0, 300 - elapsedAlarmSeconds)
+
+            val ret = JSObject().apply {
+                put("isRinging", isRinging)
+                put("remainingSilenceSeconds", remainingSilenceSeconds)
+                put("mode", AlarmService.alarmMode)
+                put("phase", AlarmService.alarmPhase)
+                put("subject", AlarmService.alarmSubject)
+                put("durationSeconds", AlarmService.alarmDurationSeconds)
+            }
+            call.resolve(ret)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in getAlarmState", e)
+            call.reject("Failed to get alarm state: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun getDeviceManufacturer(call: PluginCall) {
+        val ret = JSObject().apply {
+            put("manufacturer", Build.MANUFACTURER ?: "")
+            put("model", Build.MODEL ?: "")
+            put("sdkInt", Build.VERSION.SDK_INT)
+        }
+        call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun openNotificationSettings(call: PluginCall) {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            }
+            context.startActivity(intent)
+            call.resolve()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening notification settings", e)
+            call.reject("Failed to open notification settings: ${e.message}", e)
         }
     }
 
@@ -403,12 +464,14 @@ class TimerNotificationPlugin : Plugin() {
     @PluginMethod
     fun testAlarm(call: PluginCall) {
         try {
-            val triggerAtMs = System.currentTimeMillis() + 5000L
+            val delaySeconds = call.getInt("seconds", 10) ?: 10
+            val triggerAtMs = System.currentTimeMillis() + (delaySeconds * 1000L)
+            Log.d(TAG, "testAlarm requested: scheduling AlarmClock in ${delaySeconds}s (triggerAtMs=$triggerAtMs)")
             val scheduled = AlarmScheduler.scheduleAlarm(
                 context = context,
                 id = "test_alarm_${System.currentTimeMillis()}",
                 triggerAtMs = triggerAtMs,
-                label = "Test Alarm (5s)",
+                label = "Test Alarm (${delaySeconds}s)",
                 mode = "countdown",
                 phase = "work",
                 subject = "Alarm Verification",
@@ -416,6 +479,7 @@ class TimerNotificationPlugin : Plugin() {
             )
             val ret = JSObject().apply {
                 put("success", scheduled)
+                put("delaySeconds", delaySeconds)
             }
             call.resolve(ret)
         } catch (e: Exception) {

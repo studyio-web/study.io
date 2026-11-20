@@ -938,35 +938,22 @@ class TimerForegroundService : Service() {
         }
         mainHandler.postDelayed(finishRunnable!!, delayMs)
 
-        // 2. Hardware AlarmManager RTC_WAKEUP (guarantees wakeup even when device screen is OFF / sleeping)
+        // 2. Hardware AlarmManager setAlarmClock via AlarmScheduler (guarantees wakeup in Doze, screen off, app closed)
         try {
-            val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            val alarmIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
-                action = TimerNotificationReceiver.ACTION_TIMER_EXACT_FINISH
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                this,
-                888,
-                alarmIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
             val triggerAtMs = System.currentTimeMillis() + delayMs
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager?.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMs,
-                    pendingIntent
-                )
-            } else {
-                alarmManager?.setExact(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMs,
-                    pendingIntent
-                )
-            }
-            Log.d(TAG, "Exact alarm scheduled with AlarmManager in ${delayMs / 1000}s (at $triggerAtMs)")
+            AlarmScheduler.scheduleAlarm(
+                context = this,
+                id = "timer_finish_alarm",
+                triggerAtMs = triggerAtMs,
+                label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
+                mode = mode,
+                phase = phase,
+                subject = subject,
+                durationSeconds = targetSeconds.toLong()
+            )
+            Log.d("StudyAlarm", "TimerForegroundService: Scheduled AlarmClock via AlarmScheduler in ${delayMs / 1000}s (at $triggerAtMs)")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to schedule AlarmManager exact wakeup alarm", e)
+            Log.w("StudyAlarm", "Failed to schedule AlarmClock in TimerForegroundService", e)
         }
     }
 
@@ -976,6 +963,7 @@ class TimerForegroundService : Service() {
             finishRunnable = null
         }
         try {
+            AlarmScheduler.cancelAlarm(this, "timer_finish_alarm")
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
             val alarmIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
                 action = TimerNotificationReceiver.ACTION_TIMER_EXACT_FINISH
@@ -994,7 +982,7 @@ class TimerForegroundService : Service() {
     }
 
     private fun onTimerTargetReached() {
-        Log.d(TAG, "Timer target reached: mode=$mode, phase=$phase, isUltra=$isUltraStrict")
+        Log.d("StudyAlarm", "TimerForegroundService: onTimerTargetReached: mode=$mode, phase=$phase, isUltra=$isUltraStrict")
         cancelScheduledFinishCheck()
         val wasUltra = isUltraStrict
         if (isUltraStrict) {
@@ -1019,6 +1007,17 @@ class TimerForegroundService : Service() {
         } catch (e: Exception) {
             Log.w(TAG, "Could not acquire screen wakeup lock", e)
         }
+
+        // Ring native AlarmService with sound, vibration, and full-screen intent
+        AlarmScheduler.triggerAlarmNow(
+            context = this,
+            id = "timer_target_reached",
+            label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
+            mode = mode,
+            phase = phase,
+            subject = subject,
+            durationSeconds = targetSeconds.toLong()
+        )
 
         postFinishAlertNotification(wasUltra)
 

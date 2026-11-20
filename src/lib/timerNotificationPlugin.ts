@@ -50,6 +50,21 @@ export interface ServiceTimerState {
   subject: string;
 }
 
+export interface NativeAlarmState {
+  isRinging: boolean;
+  remainingSilenceSeconds: number;
+  mode: string;
+  phase: string;
+  subject: string;
+  durationSeconds: number;
+}
+
+export interface DeviceManufacturerResult {
+  manufacturer: string;
+  model: string;
+  sdkInt: number;
+}
+
 export interface TimerNotificationPlugin {
   start(options: TimerStartOptions): Promise<void>;
   pause(): Promise<void>;
@@ -66,10 +81,13 @@ export interface TimerNotificationPlugin {
   cancelAlarm(options?: { id?: string }): Promise<void>;
   stopAlarm(): Promise<void>;
   snooze(options?: { minutes?: number }): Promise<void>;
+  getAlarmState(): Promise<NativeAlarmState>;
+  getDeviceManufacturer(): Promise<DeviceManufacturerResult>;
+  openNotificationSettings(): Promise<void>;
   checkAlarmPermissions(): Promise<AlarmPermissionsResult>;
   requestExactAlarmPermission(): Promise<void>;
   requestFullScreenPermission(): Promise<void>;
-  testAlarm(): Promise<{ success: boolean }>;
+  testAlarm(options?: { seconds?: number }): Promise<{ success: boolean; delaySeconds?: number }>;
 
   addListener(
     eventName: 'onTimerAction',
@@ -107,6 +125,20 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
     cancelAlarm: async () => {},
     stopAlarm: async () => {},
     snooze: async () => {},
+    getAlarmState: async () => ({
+      isRinging: false,
+      remainingSilenceSeconds: 300,
+      mode: 'countdown',
+      phase: 'work',
+      subject: '',
+      durationSeconds: 0,
+    }),
+    getDeviceManufacturer: async () => ({
+      manufacturer: 'Web Browser',
+      model: 'Standard Web',
+      sdkInt: 0,
+    }),
+    openNotificationSettings: async () => {},
     checkAlarmPermissions: async () => ({
       exactAlarm: true,
       fullScreen: true,
@@ -115,7 +147,7 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
     }),
     requestExactAlarmPermission: async () => {},
     requestFullScreenPermission: async () => {},
-    testAlarm: async () => ({ success: true }),
+    testAlarm: async () => ({ success: true, delaySeconds: 10 }),
     addListener: async () => ({
       remove: async () => {},
     }),
