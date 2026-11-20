@@ -390,15 +390,20 @@ export function StrictModePermissionModal({
   );
 }
 
+import { LockdownSheet, LockdownSheetProps } from './LockdownSheet';
+export { LockdownSheet };
+
 /**
  * Warning Confirmation Modal before starting a Countdown with Strict Mode / Ultra Strict Mode
+ * Powered by shared LockdownSheet component
  */
-interface StrictCountdownWarningModalProps {
+export interface StrictCountdownWarningModalProps {
   isOpen: boolean;
   isUltraStrict: boolean;
   countdownSeconds: number;
   subjectName?: string;
-  allowedAppsCount: number;
+  allowedApps?: string[];
+  allowedAppsCount?: number;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -408,240 +413,22 @@ export function StrictCountdownWarningModal({
   isUltraStrict,
   countdownSeconds,
   subjectName,
+  allowedApps = [],
   allowedAppsCount,
   onConfirm,
   onCancel,
 }: StrictCountdownWarningModalProps) {
-  const [mounted, setMounted] = useState(false);
-  const [hasAcknowledged, setHasAcknowledged] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      setHasAcknowledged(false);
-    }
-  }, [isOpen]);
-
-  if (!isOpen || !mounted || typeof document === 'undefined') return null;
-
-  const formattedDuration = (() => {
-    const mins = Math.floor(countdownSeconds / 60);
-    const secs = countdownSeconds % 60;
-    if (mins >= 60) {
-      const h = Math.floor(mins / 60);
-      const m = mins % 60;
-      return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    }
-    if (secs > 0 && mins > 0) return `${mins}m ${secs}s`;
-    if (mins > 0) return `${mins} min${mins === 1 ? '' : 's'}`;
-    return `${secs}s`;
-  })();
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-      onClick={onCancel}
-    >
-      <div
-        className={`relative w-full max-w-sm rounded-3xl bg-[var(--surface,#121214)] p-5 sm:p-6 text-[var(--text,#fff)] text-center animate-in zoom-in-95 duration-150 ${
-          isUltraStrict
-            ? 'border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
-            : 'border border-amber-500/30 shadow-[0_0_50px_rgba(0,0,0,0.8)]'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Warning Icon Badge */}
-        <div
-          className={`w-16 h-16 rounded-3xl border flex items-center justify-center mx-auto mb-3 shadow-lg ${
-            isUltraStrict
-              ? 'bg-red-500/15 border-red-500/50 text-red-400 shadow-[0_0_28px_rgba(239,68,68,0.35)]'
-              : 'bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.15)]'
-          }`}
-        >
-          {isUltraStrict ? (
-            <AlertTriangle className="w-8 h-8 animate-pulse text-red-500" />
-          ) : (
-            <ShieldAlert className="w-8 h-8 text-amber-400" />
-          )}
-        </div>
-
-        {/* Heading & Badge */}
-        <h3 className="font-hud text-lg font-bold text-white tracking-wide">
-          {isUltraStrict ? 'Ultra Strict Warning' : 'Strict Mode Warning'}
-        </h3>
-        <div className="mt-1 flex items-center justify-center">
-          <span
-            className={`text-[10px] font-mono tracking-widest uppercase px-2.5 py-0.5 rounded-full font-bold border ${
-              isUltraStrict
-                ? 'text-red-400 bg-red-500/15 border-red-500/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
-                : 'text-amber-400 bg-amber-500/10 border-amber-500/25'
-            }`}
-          >
-            {isUltraStrict ? '🚨 IRREVERSIBLE LOCKDOWN' : '⚠️ APP LOCKDOWN WARNING'}
-          </span>
-        </div>
-
-        {/* Duration & Subject Summary Card */}
-        <div
-          className={`mt-3.5 mb-3 p-3 rounded-2xl border flex items-center justify-between text-left px-4 ${
-            isUltraStrict
-              ? 'bg-red-950/20 border-red-500/25'
-              : 'bg-white/[0.04] border-white/[0.08]'
-          }`}
-        >
-          <div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Countdown</p>
-            <p className={`text-sm font-hud font-bold mt-0.5 ${isUltraStrict ? 'text-red-400' : 'text-white'}`}>
-              {formattedDuration}
-            </p>
-          </div>
-          {subjectName && (
-            <div className="text-right">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Subject</p>
-              <p className="text-sm font-semibold text-white/90 truncate max-w-[130px] mt-0.5">{subjectName}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Big Warning Consequences Box */}
-        {isUltraStrict ? (
-          <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-3.5 text-left space-y-2">
-            <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider text-[11px]">
-              <AlertOctagon className="w-4 h-4 text-red-500 shrink-0" />
-              <span>Ultra Strict Lockdown Protocol</span>
-            </div>
-            <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Irreversible Countdown:</strong> You <span className="text-red-300 font-semibold underline decoration-red-400/50">cannot pause, cancel, or stop early</span>. Controls are locked until <span className="font-mono font-bold text-red-300">00:00:00</span>.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Sealed App Lockdown:</strong> All blocked apps remain sealed with <span className="text-red-300 font-semibold">no early unlock</span>.
-                  {allowedAppsCount > 0 ? (
-                    <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
-                  ) : (
-                    <span className="text-white/60"> No unauthorized apps can be accessed.</span>
-                  )}
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Anti-Bypass Protection:</strong> Leaving or switching apps triggers an immediate lock and returns you here.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Uninstall Protection:</strong> Device Admin &amp; System Shield prevent <span className="text-red-300 font-semibold underline decoration-red-400/50">deleting, uninstalling, or force-stopping</span> study.io until the countdown reaches <span className="font-mono font-bold text-red-300">00:00:00</span>.
-                </span>
-              </li>
-            </ul>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-left space-y-2">
-            <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
-              <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Strict Enforcement Notice</span>
-            </div>
-            <ul className="space-y-1.5 text-white/85 text-[11px] leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Blocked Apps Locked:</strong> You <span className="text-amber-300 font-semibold underline decoration-amber-400/40">cannot use any blocked apps</span> until you press stop button.
-                  {allowedAppsCount > 0 ? (
-                    <span className="text-white/60"> Only your {allowedAppsCount} allowed app{allowedAppsCount === 1 ? '' : 's'} can be accessed.</span>
-                  ) : (
-                    <span className="text-white/60"> All non-essential apps will be locked.</span>
-                  )}
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold leading-none select-none">•</span>
-                <span>
-                  <strong>Anti-Distraction Shield:</strong> Opening unauthorized apps triggers an instant block and returns you here.
-                </span>
-              </li>
-            </ul>
-          </div>
-        )}
-
-        {/* Mandatory Acknowledgment Checkbox */}
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={hasAcknowledged}
-          onClick={() => {
-            triggerHaptic('light');
-            setHasAcknowledged((prev) => !prev);
-          }}
-          className={`w-full mt-3.5 p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-            hasAcknowledged
-              ? isUltraStrict
-                ? 'bg-red-500/15 border-red-500/50 text-white ring-1 ring-red-500/30'
-                : 'bg-amber-500/15 border-amber-500/50 text-white ring-1 ring-amber-500/30'
-              : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/[0.07] hover:border-white/20'
-          }`}
-        >
-          <div
-            className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center flex-shrink-0 transition-all ${
-              hasAcknowledged
-                ? isUltraStrict
-                  ? 'bg-red-500 border-red-500 text-white shadow-sm'
-                  : 'bg-amber-400 border-amber-400 text-black shadow-sm'
-                : 'border-white/30 bg-black/40'
-            }`}
-          >
-            {hasAcknowledged && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-          </div>
-          <span className="text-xs leading-snug font-medium select-none text-white/90">
-            {isUltraStrict
-              ? 'I accept the zero-tolerance lockdown: I cannot pause, stop, or cancel, and blocked apps remain sealed until 00:00:00.'
-              : 'I understand the consequences. Blocked apps will remain locked until you press stop button.'}
-          </span>
-        </button>
-
-        {/* Action Buttons */}
-        <div className="mt-4 flex flex-col gap-2.5">
-          <button
-            type="button"
-            disabled={!hasAcknowledged}
-            onClick={() => {
-              if (!hasAcknowledged) return;
-              triggerHaptic('heavy');
-              onConfirm();
-            }}
-            className={`w-full py-3.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-              hasAcknowledged
-                ? isUltraStrict
-                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_25px_rgba(239,68,68,0.4)] active:scale-95 cursor-pointer'
-                  : 'bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.25)] active:scale-95 cursor-pointer'
-                : 'bg-white/10 text-white/30 border border-white/10 cursor-not-allowed opacity-50'
-            }`}
-          >
-            <span>{isUltraStrict ? 'Accept & Start Ultra Lockdown' : 'Accept & Start Timer'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              onCancel();
-            }}
-            className="w-full py-2.5 rounded-xl text-xs font-mono uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+  return (
+    <LockdownSheet
+      isOpen={isOpen}
+      mode={isUltraStrict ? 'ultra' : 'strict'}
+      countdownSeconds={countdownSeconds}
+      subjectName={subjectName}
+      allowedApps={allowedApps}
+      allowedAppsCount={allowedAppsCount}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   );
 }
 

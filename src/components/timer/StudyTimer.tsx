@@ -1692,7 +1692,7 @@ export function StudyTimer() {
                 });
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       } catch (e) {
         console.warn('Failed to restore timer:', e);
@@ -1840,7 +1840,7 @@ export function StudyTimer() {
     isSavingRef.current = false;
     soundFx.stopTimerAlarm();
     if (isNativeAndroid()) {
-      TimerNotification.stopAlarm().catch(() => {});
+      TimerNotification.stopAlarm().catch(() => { });
     }
     setIsAlarmRinging(false);
     setAlarmModalData(null);
@@ -2972,6 +2972,7 @@ export function StudyTimer() {
           isUltraStrict={isUltraStrict}
           countdownSeconds={countdownTarget}
           subjectName={selectedSubject?.name}
+          allowedApps={allowedApps}
           allowedAppsCount={allowedApps.length}
           onConfirm={handleConfirmStrictCountdown}
           onCancel={handleCancelStrictCountdown}

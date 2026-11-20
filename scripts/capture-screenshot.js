@@ -10,9 +10,11 @@ const height = parseInt(process.argv[5] || '844', 10);
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const userDataDir = path.join(process.env.TEMP, 'chrome_cdp_' + Date.now());
 
+const port = 9222 + Math.floor(Math.random() * 1000);
+
 const chrome = spawn(chromePath, [
   '--headless=new',
-  '--remote-debugging-port=9222',
+  `--remote-debugging-port=${port}`,
   `--user-data-dir=${userDataDir}`,
   '--no-first-run',
   '--no-default-browser-check',
@@ -26,7 +28,7 @@ async function sleep(ms) {
 
 async function run() {
   await sleep(1500);
-  const targetRes = await fetch(`http://127.0.0.1:9222/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
+  const targetRes = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
   const tab = await targetRes.json();
   const ws = new WebSocket(tab.webSocketDebuggerUrl);
 
