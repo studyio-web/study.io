@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Check, ShieldCheck, Clock, Coffee, Plus, ChevronRight, BellOff, Sparkles } from 'lucide-react';
+import { Bell, Check, ChevronRight } from 'lucide-react';
 import { triggerHaptic } from '../../lib/native-feel';
-import { ALARM_MAX_DURATION_SECONDS, formatAlarmRemaining } from '../../lib/timerAlarm';
-import { getRankTier, getNextTier } from '../../lib/ranks';
-import { calculateSessionRP } from '../../lib/rankedSystem';
+import { ALARM_MAX_DURATION_SECONDS } from '../../lib/timerAlarm';
 import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 
 export interface TimerAlarmModalProps {
@@ -24,73 +22,74 @@ export interface TimerAlarmModalProps {
   onStartFocus?: () => void;
 }
 
-function formatDurationFocused(totalSeconds: number): string {
-  const safeSec = Math.max(0, Math.round(totalSeconds || 0));
-  const hours = Math.floor(safeSec / 3600);
-  const mins = Math.floor((safeSec % 3600) / 60);
-
-  if (hours > 0) {
-    return mins > 0 ? `${hours}h ${mins}m focused` : `${hours}h focused`;
-  }
-  const displayMins = Math.max(1, mins);
-  return `${displayMins}m focused`;
+function formatAutoSilenceTime(seconds: number): string {
+  const safeSec = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(safeSec / 60);
+  const s = safeSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function TimerAlarmModal({
   isOpen,
   mode,
   phase = 'work',
-  isUltraStrict = false,
   subjectName,
-  focusedDurationSeconds = 0,
-  seasonRp = 0,
   onDismiss,
-  onSnooze,
-  onSave,
-  onStartBreak,
-  onStartFocus,
 }: TimerAlarmModalProps) {
   const [mounted, setMounted] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(ALARM_MAX_DURATION_SECONDS);
-  const [elapsedRinging, setElapsedRinging] = useState<number>(0);
   const [isCompletedSlide, setIsCompletedSlide] = useState(false);
   const [sliderDragX, setSliderDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
 
   const sliderTrackRef = useRef<HTMLDivElement>(null);
   const startDragXRef = useRef<number>(0);
   const currentDragXRef = useRef<number>(0);
   const wakeLockRef = useRef<any>(null);
 
+  // Initialize clock and reduced motion query
   useEffect(() => {
     setMounted(true);
+    const updateClock = () => {
+      const now = new Date();
+      setCurrentTimeStr(
+        now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      );
+    };
+    updateClock();
+    const clockInterval = setInterval(updateClock, 1000);
+
     if (typeof window !== 'undefined') {
       const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
       setPrefersReducedMotion(mediaQuery.matches);
       const listener = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
       mediaQuery.addEventListener?.('change', listener);
-      return () => mediaQuery.removeEventListener?.('change', listener);
+      return () => {
+        clearInterval(clockInterval);
+        mediaQuery.removeEventListener?.('change', listener);
+      };
     }
+
+    return () => clearInterval(clockInterval);
   }, []);
 
   // Web Screen Wake Lock API while alarm screen is open
   useEffect(() => {
     if (!isOpen || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
 
-    let released = false;
     async function requestWakeLock() {
       try {
         wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      } catch (err) {
-        // Wake lock may fail if low battery or background tab
+      } catch {
+        // Wake lock may fail if battery saver is active or tab is hidden
       }
     }
 
     requestWakeLock();
 
     return () => {
-      released = true;
       if (wakeLockRef.current) {
         wakeLockRef.current.release().catch(() => {});
         wakeLockRef.current = null;
@@ -98,18 +97,25 @@ export function TimerAlarmModal({
     };
   }, [isOpen]);
 
+  const handleStopAlarm = useCallback(() => {
+    triggerHaptic('heavy');
+    // If native Android, instruct native plugin to stop native AlarmService
+    if (isNativeAndroid()) {
+      TimerNotification.stop().catch(() => {});
+    }
+    onDismiss();
+  }, [onDismiss]);
+
   // Reset state on open & tick down until auto-silence (5 minutes)
   useEffect(() => {
     if (!isOpen) {
       setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
-      setElapsedRinging(0);
       setIsCompletedSlide(false);
       setSliderDragX(0);
       return;
     }
 
     setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
-    setElapsedRinging(0);
     setIsCompletedSlide(false);
     setSliderDragX(0);
 
@@ -120,7 +126,6 @@ export function TimerAlarmModal({
     }, 3600);
 
     const timer = setInterval(() => {
-      setElapsedRinging((prev) => prev + 1);
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
@@ -136,18 +141,9 @@ export function TimerAlarmModal({
       clearInterval(timer);
       clearInterval(hapticInterval);
     };
-  }, [isOpen]);
+  }, [isOpen, handleStopAlarm]);
 
-  const handleStopAlarm = useCallback(() => {
-    triggerHaptic('heavy');
-    // If native Android, instruct native plugin to stop native AlarmService
-    if (isNativeAndroid()) {
-      TimerNotification.stop().catch(() => {});
-    }
-    onDismiss();
-  }, [onDismiss]);
-
-  // Slide-To-Stop Drag Logic (Touch & Pointer events)
+  // Slide-To-Stop Drag Logic
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isCompletedSlide) return;
     setIsDragging(true);
@@ -158,8 +154,8 @@ export function TimerAlarmModal({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || isCompletedSlide || !sliderTrackRef.current) return;
     const trackWidth = sliderTrackRef.current.clientWidth;
-    const knobWidth = 56;
-    const maxDrag = Math.max(1, trackWidth - knobWidth - 8);
+    const knobWidth = 52;
+    const maxDrag = Math.max(1, trackWidth - knobWidth - 12);
 
     let nextX = e.clientX - startDragXRef.current;
     if (nextX < 0) nextX = 0;
@@ -168,12 +164,12 @@ export function TimerAlarmModal({
     currentDragXRef.current = nextX;
     setSliderDragX(nextX);
 
-    // If dragged >= 85% of track width: trigger stop completion
+    // If dragged >= 85% of track width: trigger stop completion with light haptic
     if (nextX >= maxDrag * 0.85) {
       setIsCompletedSlide(true);
       setIsDragging(false);
       setSliderDragX(maxDrag);
-      triggerHaptic('heavy');
+      triggerHaptic('light');
 
       setTimeout(() => {
         handleStopAlarm();
@@ -193,245 +189,178 @@ export function TimerAlarmModal({
   const isBreakPhase = mode === 'pomodoro' && phase === 'break';
   const accentColor = isBreakPhase ? '#14b8a6' : '#f59e0b'; // teal-500 vs amber-500
 
-  // Escalation: subtle glow increase over the first 20 seconds (0.25 to 0.45)
-  const escalationProgress = Math.min(1.0, elapsedRinging / 20);
-  const baseGlowOpacity = 0.25 + 0.20 * escalationProgress;
-
-  // Rank and RP calculations
-  const isEligibleForRP = !isBreakPhase && focusedDurationSeconds >= 60;
-  const gainedRP = useMemo(() => {
-    if (!isEligibleForRP) return 0;
-    return calculateSessionRP(focusedDurationSeconds).totalGained;
-  }, [isEligibleForRP, focusedDurationSeconds]);
-
-  const currentTier = useMemo(() => getRankTier(seasonRp), [seasonRp]);
-  const nextTier = useMemo(() => getNextTier(currentTier.name), [currentTier.name]);
-
-  const rankProgress = useMemo(() => {
-    if (!nextTier) return null;
-    const range = Math.max(1, currentTier.maxRp - currentTier.minRp);
-    const progress = Math.max(0, seasonRp - currentTier.minRp);
-    const percent = Math.min(100, Math.max(0, (progress / range) * 100));
-    return {
-      currentRp: seasonRp,
-      targetRp: currentTier.maxRp,
-      nextTierName: nextTier.name,
-      percent,
-    };
-  }, [currentTier, nextTier, seasonRp]);
-
   if (!isOpen || !mounted || typeof document === 'undefined') return null;
+
+  const sliderMaxDrag = sliderTrackRef.current
+    ? Math.max(1, sliderTrackRef.current.clientWidth - 52 - 12)
+    : 200;
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Timer Complete Alarm"
-      className="fixed inset-0 z-[150] w-screen h-dvh bg-[#05070B] text-white flex flex-col justify-between overflow-hidden select-none"
+      className="fixed inset-0 z-[150] w-screen h-dvh bg-[#0A0A0B] text-white flex flex-col justify-between overflow-hidden select-none"
       style={{
-        paddingTop: 'max(1.25rem, env(safe-area-inset-top, 1.25rem))',
-        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 1.25rem))',
+        paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
         paddingLeft: 'max(1.5rem, env(safe-area-inset-left, 1.5rem))',
         paddingRight: 'max(1.5rem, env(safe-area-inset-right, 1.5rem))',
       }}
     >
       <style>{`
         @keyframes alarmGlowBreathe {
-          0%, 100% { transform: scale(0.95); opacity: ${baseGlowOpacity}; }
-          50% { transform: scale(1.15); opacity: ${baseGlowOpacity + 0.15}; }
+          0%, 100% {
+            opacity: 0.25;
+            transform: scale(0.95);
+          }
+          50% {
+            opacity: 0.40;
+            transform: scale(1.10);
+          }
         }
         @keyframes alarmBellWobble {
           0%, 100% { transform: rotate(0deg); }
           20% { transform: rotate(-8deg); }
           40% { transform: rotate(8deg); }
-          60% { transform: rotate(-6deg); }
-          80% { transform: rotate(6deg); }
+          60% { transform: rotate(-4deg); }
+          80% { transform: rotate(4deg); }
         }
         @keyframes alarmWaveRipple1 {
-          0% { transform: scale(0.8); opacity: 0.8; }
-          100% { transform: scale(2.4); opacity: 0; }
+          0% { transform: scale(0.9); opacity: 0.45; }
+          100% { transform: scale(2.2); opacity: 0; }
         }
         @keyframes alarmWaveRipple2 {
-          0% { transform: scale(0.8); opacity: 0.6; }
-          100% { transform: scale(3.0); opacity: 0; }
+          0% { transform: scale(0.9); opacity: 0.30; }
+          100% { transform: scale(2.8); opacity: 0; }
+        }
+        @keyframes labelShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
         }
         .alarm-glow-breathe {
-          animation: ${prefersReducedMotion ? 'none' : 'alarmGlowBreathe 4s ease-in-out infinite'};
+          animation: ${prefersReducedMotion ? 'none' : 'alarmGlowBreathe 5s ease-in-out infinite'};
+          opacity: ${prefersReducedMotion ? 0.30 : undefined};
         }
         .alarm-bell-wobble {
           animation: ${prefersReducedMotion ? 'none' : 'alarmBellWobble 2s ease-in-out infinite'};
         }
         .alarm-ripple-1 {
-          animation: ${prefersReducedMotion ? 'none' : 'alarmWaveRipple1 3.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite'};
+          display: ${prefersReducedMotion ? 'none' : 'block'};
+          animation: alarmWaveRipple1 3.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
         }
         .alarm-ripple-2 {
-          animation: ${prefersReducedMotion ? 'none' : 'alarmWaveRipple2 3.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.9s'};
+          display: ${prefersReducedMotion ? 'none' : 'block'};
+          animation: alarmWaveRipple2 3.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 1.1s;
+        }
+        .shimmer-label {
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.45) 0%,
+            rgba(255, 255, 255, 0.95) 50%,
+            rgba(255, 255, 255, 0.45) 100%
+          );
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: labelShimmer 2.8s infinite linear;
         }
       `}</style>
 
-      {/* Large Soft Breathing Radial Glow behind content */}
+      {/* Large Soft Breathing Radial Glow (no hard rings, cards or boxes) */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
         <div
-          className="alarm-glow-breathe w-[min(520px,95vw)] h-[min(520px,95vw)] rounded-full blur-[110px]"
+          className="alarm-glow-breathe w-[min(560px,95vw)] h-[min(560px,95vw)] rounded-full blur-[120px]"
           style={{
             background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
           }}
         />
       </div>
 
-      {/* TOP BAR: Status Chip */}
-      <div className="relative z-10 w-full flex items-center justify-center pt-2">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-md shadow-sm">
-          {isUltraStrict ? (
-            <>
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-medium text-amber-300/90 tracking-wide">
-                Lockdown lifted
-              </span>
-            </>
-          ) : isBreakPhase ? (
-            <>
-              <Coffee className="w-3.5 h-3.5 text-teal-400" />
-              <span className="text-xs font-medium text-teal-300/90 tracking-wide">
-                Break finished
-              </span>
-            </>
-          ) : (
-            <>
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-medium text-amber-300/90 tracking-wide">
-                Focus target reached
-              </span>
-            </>
-          )}
+      {/* TOP: Current Time & Small "Alarm" Label */}
+      <div className="relative z-10 w-full flex flex-col items-center justify-center pt-2">
+        <span className="font-mono tabular-nums text-[18px] text-white/60 font-medium tracking-tight">
+          {currentTimeStr}
+        </span>
+        <div className="flex items-center gap-1.5 text-xs text-white/40 mt-0.5">
+          <Bell className="w-3.5 h-3.5 stroke-[1.5]" />
+          <span>Alarm</span>
         </div>
       </div>
 
-      {/* CENTER HERO: Bell with Expanding Ripples, Title & Big Stats */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center my-auto px-2 max-w-md mx-auto w-full">
-        {/* Animated Bell Hero with Ripples */}
-        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center mb-6">
-          {/* Wave Ripple 1 */}
+      {/* CENTER: One large bell icon (80px), 2 soft ripple waves, Title & Subject Name */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center my-auto px-6 max-w-md mx-auto w-full">
+        {/* Bell with 2 soft expanding ripples */}
+        <div className="relative w-28 h-28 flex items-center justify-center">
+          {/* Ripple 1 */}
           <div
-            className="alarm-ripple-1 absolute w-24 h-24 rounded-full border pointer-events-none"
+            className="alarm-ripple-1 absolute w-20 h-20 rounded-full border pointer-events-none"
             style={{ borderColor: accentColor }}
           />
-          {/* Wave Ripple 2 */}
+          {/* Ripple 2 */}
           <div
-            className="alarm-ripple-2 absolute w-24 h-24 rounded-full border pointer-events-none"
+            className="alarm-ripple-2 absolute w-20 h-20 rounded-full border pointer-events-none"
             style={{ borderColor: accentColor }}
           />
 
-          {/* Central Bell Container */}
-          <div
-            className="alarm-bell-wobble relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center shadow-2xl border"
-            style={{
-              backgroundColor: isBreakPhase ? 'rgba(20, 184, 166, 0.14)' : 'rgba(245, 158, 11, 0.14)',
-              borderColor: isBreakPhase ? 'rgba(20, 184, 166, 0.35)' : 'rgba(245, 158, 11, 0.35)',
-              boxShadow: `0 0 45px ${isBreakPhase ? 'rgba(20, 184, 166, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
-            }}
-          >
-            {isBreakPhase ? (
-              <Coffee className="w-10 h-10 sm:w-12 sm:h-12 text-teal-300 stroke-[1.8]" />
-            ) : (
-              <Bell className="w-10 h-10 sm:w-12 sm:h-12 text-amber-400 stroke-[1.8]" />
-            )}
+          {/* Central Bell */}
+          <div className="alarm-bell-wobble relative flex items-center justify-center">
+            <Bell
+              className="w-20 h-20 stroke-[1.25]"
+              style={{ color: accentColor }}
+            />
           </div>
         </div>
 
         {/* Display Title */}
-        <h1 className="font-hud text-4xl sm:text-5xl font-black tracking-tight text-white mb-2 leading-none">
+        <h1 className="text-4xl sm:text-[44px] font-bold tracking-tight text-white leading-none mt-7 mb-2">
           {isBreakPhase ? 'Break over' : "Time's up"}
         </h1>
 
-        {/* Subject Chip (if available) */}
-        {subjectName ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-xs font-mono text-zinc-300 mb-5">
+        {/* Subject Name as plain text with colored dot (no pill or border) */}
+        {subjectName && (
+          <div className="flex items-center gap-2 text-base text-white/60 mt-1">
             <span
               className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: accentColor }}
             />
-            <span className="truncate max-w-[220px]">{subjectName}</span>
+            <span className="truncate max-w-[280px]">{subjectName}</span>
           </div>
-        ) : (
-          <div className="mb-4" />
-        )}
-
-        {/* Big Stat Line */}
-        {!isBreakPhase ? (
-          <div className="w-full flex flex-col items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 sm:p-5 backdrop-blur-sm">
-            {/* Focused duration in tabular numerals */}
-            <div className="text-2xl sm:text-3xl font-mono tabular-nums font-bold text-white tracking-tight">
-              {formatDurationFocused(focusedDurationSeconds)}
-            </div>
-
-            {/* RP Reward chip */}
-            {isEligibleForRP && gainedRP > 0 && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-mono font-semibold">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>+{gainedRP} RP</span>
-              </div>
-            )}
-
-            {/* Rank Progress Bar to Next Tier */}
-            {rankProgress && (
-              <div className="w-full mt-1">
-                <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-1.5">
-                  <span>{rankProgress.currentRp} RP</span>
-                  <span>{rankProgress.targetRp} to {rankProgress.nextTierName}</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500 ease-out"
-                    style={{
-                      width: `${rankProgress.percent}%`,
-                      backgroundColor: accentColor,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm font-mono text-zinc-400 max-w-xs">
-            Ready to jump back into your next focus block?
-          </p>
         )}
       </div>
 
-      {/* BOTTOM ACTION CONTROLS */}
-      <div className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center gap-4 pb-2">
-        {/* Slide-to-Stop Control */}
+      {/* BOTTOM: Slide-to-stop pill & Quiet Auto-silence Caption */}
+      <div className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center pb-2">
+        {/* Slide-to-Stop Pill */}
         <div
           ref={sliderTrackRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative w-full h-14 sm:h-16 rounded-full bg-white/[0.07] border border-white/15 p-1 flex items-center overflow-hidden cursor-grab active:cursor-grabbing touch-none select-none shadow-lg"
-          style={{
-            boxShadow: `0 0 24px ${isCompletedSlide ? accentColor : 'transparent'}`,
-          }}
+          className="relative w-full h-16 rounded-full bg-white/[0.06] border border-white/10 p-1.5 flex items-center overflow-hidden cursor-grab active:cursor-grabbing touch-none select-none backdrop-blur-md"
         >
           {/* Draggable Progress Fill */}
           <div
             className="absolute left-0 top-0 bottom-0 rounded-full transition-colors"
             style={{
-              width: `${sliderDragX + 56}px`,
+              width: `${sliderDragX + 52}px`,
               backgroundColor: isCompletedSlide
                 ? accentColor
                 : isBreakPhase
-                ? 'rgba(20, 184, 166, 0.22)'
-                : 'rgba(245, 158, 11, 0.22)',
+                ? 'rgba(20, 184, 166, 0.20)'
+                : 'rgba(245, 158, 11, 0.20)',
             }}
           />
 
           {/* Centered Track Label */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <span
-              className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-white/70 transition-opacity"
+              className={`text-base font-normal tracking-normal transition-opacity ${
+                prefersReducedMotion ? 'text-white/50' : 'shimmer-label'
+              }`}
               style={{
-                opacity: Math.max(0.1, 1 - sliderDragX / 140),
+                opacity: Math.max(0, 1 - (sliderDragX / (sliderMaxDrag || 100)) * 1.5),
               }}
             >
               {isCompletedSlide ? 'Alarm stopped' : 'Slide to stop'}
@@ -440,12 +369,12 @@ export function TimerAlarmModal({
 
           {/* Draggable Knob */}
           <div
-            className="relative z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-transform shadow-md"
+            className="relative z-10 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-transform shadow-md"
             style={{
               transform: `translateX(${sliderDragX}px)`,
               backgroundColor: isCompletedSlide ? '#ffffff' : accentColor,
-              color: isCompletedSlide ? accentColor : '#000000',
-              transition: isDragging ? 'none' : 'transform 0.25s ease-out',
+              color: isCompletedSlide ? accentColor : '#0A0A0B',
+              transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1)',
             }}
           >
             {isCompletedSlide ? (
@@ -466,83 +395,10 @@ export function TimerAlarmModal({
           Stop alarm
         </button>
 
-        {/* Secondary Actions: +5 min (Snooze) & Save & continue */}
-        <div className="w-full flex items-center justify-around px-2 text-xs font-mono">
-          {onSnooze && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('light');
-                handleStopAlarm();
-                onSnooze();
-              }}
-              className="px-4 py-2 rounded-full text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+5 min</span>
-            </button>
-          )}
-
-          {isBreakPhase && onStartFocus && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('medium');
-                handleStopAlarm();
-                onStartFocus();
-              }}
-              className="px-4 py-2 rounded-full text-teal-300 hover:text-teal-200 bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>Start Focus Round</span>
-            </button>
-          )}
-
-          {!isBreakPhase && onSave && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('medium');
-                handleStopAlarm();
-                onSave();
-              }}
-              className="px-4 py-2 rounded-full text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Save &amp; continue</span>
-            </button>
-          )}
-
-          {!isBreakPhase && onStartBreak && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('medium');
-                handleStopAlarm();
-                onStartBreak();
-              }}
-              className="px-4 py-2 rounded-full text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Coffee className="w-3.5 h-3.5" />
-              <span>Take a Break</span>
-            </button>
-          )}
-        </div>
-
-        {/* Auto-silence Draining Progress Line & Caption */}
-        <div className="w-full flex flex-col items-center gap-1 mt-1">
-          <div className="w-full h-1 bg-white/[0.08] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-1000 ease-linear"
-              style={{
-                width: `${(secondsRemaining / ALARM_MAX_DURATION_SECONDS) * 100}%`,
-                backgroundColor: accentColor,
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-mono text-zinc-400">
-            Silences in {formatAlarmRemaining(secondsRemaining)}
-          </span>
-        </div>
+        {/* Quiet Auto-silence caption */}
+        <p className="text-[13px] text-white/40 mt-3.5 font-normal select-none">
+          Silences automatically in {formatAutoSilenceTime(secondsRemaining)}
+        </p>
       </div>
     </div>,
     document.body
