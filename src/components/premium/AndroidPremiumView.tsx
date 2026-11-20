@@ -1,30 +1,23 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Crown,
   ChevronLeft,
-  Sparkles,
-  ArrowRight,
-  TrendingUp,
-  Calendar,
   ShieldCheck,
-  Flame,
+  Lock,
   Check,
-  Loader2,
-  Clock,
-  Layers,
-  Palette,
-  Volume2,
+  Sparkles,
+  Calendar,
 } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
 import { triggerHaptic, registerBackButtonHandler, updateNativeStatusBar } from '../../lib/native-feel';
-import { PAYMENTS_ENABLED } from '../../config/billing';
 import { DEMO_PREMIUM_THEMES } from '../../lib/premiumThemes';
-import { ProAvatarRing } from '../ui/ProAvatarRing';
+import { useAuth } from '../../context/AuthContext';
+import { RankCrestBadge } from '../common/RankCrestBadge';
 import { UserAvatar } from '../common/UserAvatar';
 import { FlairCrown } from '../common/FlairBadge';
+import { getRankTier } from '../../lib/ranks';
 
 interface AndroidPremiumViewProps {
   isPremium: boolean;
@@ -39,47 +32,19 @@ interface AndroidPremiumViewProps {
 const PREMIUM_GOLD_GRADIENT =
   'linear-gradient(135deg, #F5E6A8 0%, #E6C15A 50%, #B8892B 100%)';
 
-const DEMO_FOCUS_SCENES = [
-  {
-    id: 'forest',
-    name: 'Moonlit Forest',
-    tag: 'Emerald Mist',
-    bg: 'linear-gradient(135deg, #030d14 0%, #0a2630 50%, #15494c 100%)',
-    glow: 'rgba(16, 185, 129, 0.45)',
-    accent: '#10B981',
-  },
-  {
-    id: 'dusk',
-    name: 'Dusk Peaks',
-    tag: 'Sunset Glow',
-    bg: 'linear-gradient(135deg, #171040 0%, #4a2372 40%, #b9487c 75%, #f58a69 100%)',
-    glow: 'rgba(245, 138, 105, 0.45)',
-    accent: '#f58a69',
-  },
-  {
-    id: 'neon',
-    name: 'Neon Skyline',
-    tag: 'Cyber Rain',
-    bg: 'linear-gradient(135deg, #06021a 0%, #1a0945 40%, #5a1a78 75%, #d1307f 100%)',
-    glow: 'rgba(217, 70, 239, 0.45)',
-    accent: '#d1307f',
-  },
-  {
-    id: 'sakura',
-    name: 'Sakura Night',
-    tag: 'Cherry Blossom',
-    bg: 'linear-gradient(135deg, #0d0a1a 0%, #2a1438 45%, #662249 75%, #cc5577 100%)',
-    glow: 'rgba(244, 114, 182, 0.45)',
-    accent: '#f472b6',
-  },
-  {
-    id: 'campfire',
-    name: 'Campfire Night',
-    tag: 'Warm Embers',
-    bg: 'linear-gradient(135deg, #0c1527 0%, #1b263b 40%, #5c2410 75%, #ff9800 100%)',
-    glow: 'rgba(255, 152, 0, 0.45)',
-    accent: '#ff9800',
-  },
+const PREMIUM_AVATARS = [
+  { name: 'Astral Monk', file: 'astral-monk.png' },
+  { name: 'Arcane Scholar', file: 'arcane-scholar.png' },
+  { name: 'Alchemist', file: 'alchemist.png' },
+  { name: 'Celestial Cartographer', file: 'celestial-cartographer.png' },
+  { name: 'Clockwork Inventor', file: 'clockwork-inventor.png' },
+  { name: 'Crystal Mage', file: 'crystal-mage.png' },
+  { name: 'Cyber Librarian', file: 'cyber-librarian.png' },
+  { name: 'Dragon Sage', file: 'dragon-sage.png' },
+  { name: 'Moon Oracle', file: 'moon-oracle.png' },
+  { name: 'Phoenix Archivist', file: 'phoenix-archivist.png' },
+  { name: 'Samurai Scholar', file: 'samurai-scholar.png' },
+  { name: 'Void Walker', file: 'void-walker.png' },
 ];
 
 export function AndroidPremiumView({
@@ -89,51 +54,91 @@ export function AndroidPremiumView({
   plans,
   isProcessing,
   startCheckout,
+  userRank,
 }: AndroidPremiumViewProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const shouldReduceMotion = useReducedMotion();
 
-  // Selected state
+  // Scroll header transparency state
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Selected plan: 'monthly' | 'yearly' (default 'yearly')
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
+
+  // Selected theme in Themes miniature
   const [activeThemeId, setActiveThemeId] = useState<string>('sakura');
-  const [activeSceneId, setActiveSceneId] = useState<string>('forest');
-  const [carouselIndex, setCarouselIndex] = useState(0);
+  const themeDotsRowRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll refs for theme and scene horizontal chip rows
-  const themeChipsRef = useRef<HTMLDivElement>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
+  // Intersection observers to pause off-screen animations
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const [isSceneVisible, setIsSceneVisible] = useState(false);
+  const avatarsRef = useRef<HTMLDivElement>(null);
+  const [isAvatarsVisible, setIsAvatarsVisible] = useState(false);
 
-  // Pricing formatting
-  const monthlyFormatted = plans?.monthly?.formattedAmount || '₹499';
-  const yearlyFormatted = plans?.yearly?.formattedAmount || '₹4,999';
-  const monthlyAmount = plans?.monthly?.amount ? plans.monthly.amount / 100 : 499;
-  const yearlyAmount = plans?.yearly?.amount ? plans.yearly.amount / 100 : 4999;
-  const savingPercentage = Math.max(
-    0,
-    Math.round((1 - yearlyAmount / (monthlyAmount * 12)) * 100)
-  );
+  // Real pricing from plans
+  const monthlyFormatted = plans?.monthly?.formattedAmount || '₹99';
+  const yearlyFormatted = plans?.yearly?.formattedAmount || '₹999';
 
-  // Hardware Back Button integration & native status bar for Android
+  // Current rank of user
+  const effectiveUserRankTier = useMemo(() => {
+    if (userRank?.tier) return userRank.tier;
+    if (user?.seasonRp) return getRankTier(user.seasonRp).tier;
+    return 'Silver';
+  }, [userRank, user?.seasonRp]);
+
+  const effectiveUserDivision = useMemo(() => {
+    if (userRank?.division) return userRank.division;
+    if (user?.seasonRp) return getRankTier(user.seasonRp).division;
+    return 'I';
+  }, [userRank, user?.seasonRp]);
+
+  // Hardware back button and status bar styling
   useEffect(() => {
-    updateNativeStatusBar('#070709', true);
+    updateNativeStatusBar('#0A0A0B', true);
     return registerBackButtonHandler(() => {
       triggerHaptic('light');
-      router.push('/dashboard');
+      router.back();
       return true;
     });
   }, [router]);
 
-  // Handle Carousel Swipe Scroll & Pagination Indicator Sync
-  const handleCarouselScroll = useCallback(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const cardWidth = el.offsetWidth * 0.84;
-    const index = Math.round(el.scrollLeft / cardWidth);
-    setCarouselIndex(Math.min(Math.max(index, 0), 4));
+  // Track scroll position for header blur
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      setIsScrolled(scrollY > 24);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Handle Theme Selection with haptics & auto-scroll into view
-  const handleThemeSelect = (themeId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+  // Intersection observer for scene and avatars animation pause
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.target === sceneRef.current) {
+            setIsSceneVisible(entry.isIntersecting);
+          } else if (entry.target === avatarsRef.current) {
+            setIsAvatarsVisible(entry.isIntersecting);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (sceneRef.current) observer.observe(sceneRef.current);
+    if (avatarsRef.current) observer.observe(avatarsRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Handle Theme Selection with haptic feedback & auto-scroll into view
+  const handleSelectTheme = (themeId: string, e: React.MouseEvent<HTMLButtonElement>) => {
     triggerHaptic('selection');
     setActiveThemeId(themeId);
     e.currentTarget.scrollIntoView({
@@ -143,18 +148,7 @@ export function AndroidPremiumView({
     });
   };
 
-  // Handle Scene Selection with haptics & auto-scroll
-  const handleSceneSelect = (sceneId: string, e: React.MouseEvent<HTMLButtonElement>) => {
-    triggerHaptic('selection');
-    setActiveSceneId(sceneId);
-    e.currentTarget.scrollIntoView({
-      behavior: shouldReduceMotion ? 'auto' : 'smooth',
-      inline: 'center',
-      block: 'nearest',
-    });
-  };
-
-  // Primary CTA click handler
+  // Primary CTA click
   const handleCtaClick = () => {
     triggerHaptic('medium');
     if (isPremium) {
@@ -164,668 +158,673 @@ export function AndroidPremiumView({
     }
   };
 
-  const currentTheme =
-    DEMO_PREMIUM_THEMES.find((t) => t.id === activeThemeId) ||
-    DEMO_PREMIUM_THEMES[2]; // Sakura default
-
-  const currentScene =
-    DEMO_FOCUS_SCENES.find((s) => s.id === activeSceneId) ||
-    DEMO_FOCUS_SCENES[0]; // Moonlit forest default
-
-  const formattedExpiry = premiumUntil
-    ? new Date(premiumUntil).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    : null;
+  const currentTheme = useMemo(() => {
+    return (
+      DEMO_PREMIUM_THEMES.find((t) => t.id === activeThemeId) ||
+      DEMO_PREMIUM_THEMES[2] // Sakura fallback
+    );
+  }, [activeThemeId]);
 
   return (
-    <div className="min-h-screen bg-[#070709] text-white selection:bg-[#E6C15A]/30 selection:text-[#F6EFD9] flex flex-col overflow-x-hidden relative">
+    <div
+      ref={scrollContainerRef}
+      className="min-h-screen bg-[#0A0A0B] text-white selection:bg-[#E6C15A]/30 selection:text-[#F6EFD9] flex flex-col overflow-x-hidden relative"
+      style={{
+        paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 1.25rem))',
+        paddingRight: 'max(1.25rem, env(safe-area-inset-right, 1.25rem))',
+      }}
+    >
+      <style>{`
+        @keyframes heroFloatTrio {
+          0%, 100% { transform: translateY(-6px); }
+          50% { transform: translateY(6px); }
+        }
+        @keyframes heroShineSweep {
+          0%, 80% { transform: translateX(-150%) rotate(25deg); opacity: 0; }
+          90% { opacity: 0.35; }
+          100% { transform: translateX(250%) rotate(25deg); opacity: 0; }
+        }
+        @keyframes avatarsDriftMarquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes ctaInitialShimmer {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(200%); }
+        }
+        @keyframes sceneFireflyFloat1 {
+          0%, 100% { transform: translate(0, 0) scale(0.9); opacity: 0.3; }
+          50% { transform: translate(6px, -12px) scale(1.2); opacity: 0.85; }
+        }
+        @keyframes sceneFireflyFloat2 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+          50% { transform: translate(-8px, -14px) scale(1.3); opacity: 0.9; }
+        }
+        .hero-float-animation {
+          animation: ${shouldReduceMotion ? 'none' : 'heroFloatTrio 6s ease-in-out infinite'};
+        }
+        .hero-shine-animation {
+          animation: ${shouldReduceMotion ? 'none' : 'heroShineSweep 6s ease-in-out infinite'};
+        }
+        .avatars-marquee {
+          animation: ${shouldReduceMotion ? 'none' : 'avatarsDriftMarquee 26s linear infinite'};
+        }
+        .cta-shimmer-sweep {
+          animation: ${shouldReduceMotion ? 'none' : 'ctaInitialShimmer 2.4s ease-out 0.6s 1'};
+        }
+        .firefly-1 {
+          animation: ${shouldReduceMotion ? 'none' : 'sceneFireflyFloat1 4.5s ease-in-out infinite'};
+        }
+        .firefly-2 {
+          animation: ${shouldReduceMotion ? 'none' : 'sceneFireflyFloat2 5.5s ease-in-out infinite 1.2s'};
+        }
+      `}</style>
+
       {/* ═════════════════════════════════════════════════════════════════════
-          1. SLIM 48PX NATIVE ANDROID HEADER
+          2. HEADER: Transparent 48px Header -> Blurred dark bar on scroll
           ═════════════════════════════════════════════════════════════════════ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#070709]/95 backdrop-blur-md border-b border-white/[0.08] pt-[env(safe-area-inset-top,0px)]">
-        <div className="h-12 px-2 flex items-center justify-between relative">
-          {/* Back button with generous >=44px tap target */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              router.push('/dashboard');
-            }}
-            className="w-11 h-11 flex items-center justify-center rounded-full text-white/80 active:text-white active:bg-white/10 active:scale-95 transition-all cursor-pointer"
-            aria-label="Back to dashboard"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-
-          {/* Centered Title (Crown + Study.io Pro) */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none">
-            <Crown className="w-4 h-4 text-[#E6C15A] fill-current" />
-            <span className="font-hud font-bold text-sm tracking-wide text-white">
-              Study.io <span className="text-[#E6C15A]">Pro</span>
-            </span>
-          </div>
-
-          {/* Clean spacer balance */}
-          <div className="w-11 h-11" aria-hidden="true" />
-        </div>
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 h-12 transition-all duration-200 flex items-center px-2 pt-[env(safe-area-inset-top,0px)] ${
+          isScrolled
+            ? 'bg-[#0A0A0B]/90 backdrop-blur-md border-b border-white/[0.06]'
+            : 'bg-transparent'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic('light');
+            router.back();
+          }}
+          className="w-12 h-12 flex items-center justify-center rounded-full text-white/80 active:text-white active:bg-white/10 active:scale-95 transition-all cursor-pointer"
+          aria-label="Back"
+        >
+          <ChevronLeft className="w-6 h-6 stroke-[2.25]" />
+        </button>
       </header>
 
-      {/* ═════════════════════════════════════════════════════════════════════
-          MAIN SCROLLABLE CONTENT (Safe offset below 48px header + insets)
-          ═════════════════════════════════════════════════════════════════════ */}
-      <main className="flex-1 w-full flex flex-col pt-[calc(48px+env(safe-area-inset-top,0px)+12px)] pb-36 overflow-x-hidden">
-        {/* ═══════════════════════════════════════════════════════════════════
-            2. COMPACT HERO SECTION
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section className="relative px-5 pt-3 pb-5 flex flex-col items-center text-center">
-          {/* Subtle warm radial gradient behind the hero */}
-          <div
-            className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 w-72 h-44 rounded-full blur-[80px] opacity-25"
-            style={{ backgroundColor: '#E6C15A' }}
-          />
+      {/* Ambient Warm Gold Radial Glow behind the hero */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(480px,100vw)] h-[480px] pointer-events-none -z-10 overflow-hidden">
+        <div
+          className="w-full h-full rounded-full blur-[100px]"
+          style={{
+            background:
+              'radial-gradient(circle at 50% 35%, rgba(232, 196, 106, 0.20) 0%, rgba(201, 160, 74, 0.08) 45%, transparent 70%)',
+          }}
+        />
+      </div>
 
-          {/* Small gold crown with soft glow */}
-          <div className="relative mb-3 flex items-center justify-center">
-            <div className="absolute w-12 h-12 rounded-full bg-[#E6C15A]/20 blur-md animate-pulse" />
-            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-b from-[#E6C15A]/20 to-[#E6C15A]/5 border border-[#E6C15A]/30 flex items-center justify-center shadow-sm">
-              <Crown className="w-5 h-5 text-[#E6C15A] fill-current" />
+      {/* Main Content Area */}
+      <main className="flex-1 w-full max-w-md mx-auto pt-16 pb-36 flex flex-col">
+        {/* ═════════════════════════════════════════════════════════════════════
+            3. HERO: The Signature Moment
+            ═════════════════════════════════════════════════════════════════════ */}
+        <section className="flex flex-col items-center text-center pt-4 pb-6">
+          {/* Trio Showpiece: ~300px Tall Container */}
+          <div className="relative w-full h-[260px] sm:h-[280px] flex items-center justify-center select-none">
+            {/* Subtle central glow halo */}
+            <div className="absolute w-44 h-44 rounded-full bg-[#E6C15A]/20 blur-[50px] pointer-events-none" />
+
+            {/* Overlapping Trio Wrapper with slow 6s float animation */}
+            <div className="hero-float-animation relative w-[260px] h-[200px] flex items-center justify-center">
+              {/* Left: Premium Avatar */}
+              <div
+                className="absolute left-1 bottom-4 w-20 h-20 rounded-full border border-[#E6C15A]/40 overflow-hidden shadow-xl bg-[#141822] z-10 transition-transform"
+                style={{
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.6), 0 0 16px rgba(230,193,90,0.2)',
+                }}
+              >
+                <img
+                  src="/images/avatars/premium/astral-monk.png"
+                  alt="Premium Avatar"
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                />
+              </div>
+
+              {/* Right: Half-faded Grandmaster / Diamond crest (Behind & Above) */}
+              <div
+                className="absolute -right-2 top-0 w-24 h-24 opacity-45 pointer-events-none z-10 scale-95"
+                style={{
+                  filter: 'drop-shadow(0 0 20px rgba(230,193,90,0.3))',
+                }}
+              >
+                <img
+                  src="/images/ranks/grandmaster.png"
+                  alt="Grandmaster Prestige"
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                />
+              </div>
+
+              {/* Center: User's CURRENT Rank Badge (Prominent in front) */}
+              <div
+                className="relative z-20 w-36 h-36 flex items-center justify-center"
+                style={{
+                  filter: 'drop-shadow(0 14px 28px rgba(0,0,0,0.85)) drop-shadow(0 0 25px rgba(230,193,90,0.35))',
+                }}
+              >
+                <RankCrestBadge
+                  tier={effectiveUserRankTier}
+                  division={effectiveUserDivision}
+                  size={136}
+                  priority
+                />
+
+                {/* Faint shine sweep over central crest */}
+                <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
+                  <div
+                    className="hero-shine-animation absolute inset-y-0 w-16 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Headline (2 lines max) */}
-          <h1 className="font-hud font-extrabold text-2xl tracking-tight text-white leading-tight">
-            Study with an unfair advantage
+          {/* Headline */}
+          <h1 className="font-hud text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-2 leading-[1.15]">
+            Study like it matters.
           </h1>
 
-          {/* One-line readable subtext */}
-          <p className="mt-1.5 text-[14px] text-white/70 max-w-xs leading-normal">
+          {/* Subtext */}
+          <p className="text-base text-white/70 max-w-sm mb-3.5 leading-relaxed">
             Handcrafted luxury themes, atmospheric scenes, and prestige recognition.
           </p>
 
-          {/* Quiet price line using real data */}
-          <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[12px] text-[#E6C15A] font-medium">
-            <span>Plans start at {monthlyFormatted}/mo</span>
-            <span className="text-white/30">•</span>
-            <span className="text-white/60">Cancel anytime</span>
+          {/* Facts line: Plain text with dot separators, NO chips and NO boxes */}
+          <div className="text-[11px] sm:text-xs font-mono text-zinc-400 select-none whitespace-nowrap">
+            7 themes <span className="text-[#E6C15A] mx-1.5">·</span> Animated scenes <span className="text-[#E6C15A] mx-1.5">·</span> Full history
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            3. FEATURE PREVIEWS: HORIZONTAL SNAP CAROUSEL
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section className="w-full mt-2">
-          <div className="px-5 mb-2.5 flex items-center justify-between">
-            <span className="text-[12px] font-hud font-bold uppercase tracking-wider text-white/50">
-              Interactive Previews
-            </span>
-            <span className="text-[11px] text-white/40">Swipe to explore</span>
-          </div>
+        {/* ═════════════════════════════════════════════════════════════════════
+            4. FEATURE SHOWCASE: Full-width Borderless Story (1px 8% dividers)
+            ═════════════════════════════════════════════════════════════════════ */}
 
-          {/* Snap-scrolling Carousel Container */}
+        {/* ─── FEATURE 1: 7 LUXURY THEMES ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual on top: Live Mini Timer Dial */}
           <div
-            ref={carouselRef}
-            onScroll={handleCarouselScroll}
-            className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-3 px-5 py-1 w-full"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {/* ── CARD 1: 7 LUXURY THEMES ── */}
-            <div
-              className="w-[84vw] max-w-[340px] shrink-0 snap-center rounded-2xl p-4 bg-white/[0.035] border border-white/[0.08] flex flex-col justify-between relative shadow-lg"
-              style={{
-                borderLeft: `2.5px solid ${currentTheme.accent}`,
-              }}
-            >
-              {/* Header with Icon + PRO badge */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-[#E6C15A]" />
-                  <span className="text-xs font-semibold text-white/80">Themes</span>
-                </div>
-                <span className="bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider">
-                  PRO
-                </span>
-              </div>
-
-              {/* Live Miniature: Timer Preview */}
-              <div
-                className="w-full rounded-xl border p-3 transition-all duration-500 shadow-inner"
-                style={{
-                  backgroundColor: currentTheme.bg,
-                  borderColor: currentTheme.border,
-                  boxShadow: `0 0 20px ${currentTheme.accent}15`,
-                }}
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shadow-xs"
-                      style={{ backgroundColor: currentTheme.accent }}
-                    />
-                    <span
-                      className="text-xs font-bold uppercase tracking-wider"
-                      style={{ color: currentTheme.accent }}
-                    >
-                      {currentTheme.name}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-white/50">25:00</span>
-                </div>
-
-                <div className="mt-2.5 flex items-center justify-between gap-2">
-                  <div className="h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: currentTheme.progress,
-                        backgroundColor: currentTheme.accent,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="text-[10px] font-mono font-bold"
-                    style={{ color: currentTheme.text }}
-                  >
-                    {currentTheme.progress}
-                  </span>
-                </div>
-              </div>
-
-              {/* Theme Chips: 36px tall, 10px dot, fade mask on right edge */}
-              <div className="mt-3 relative w-full">
-                <div
-                  ref={themeChipsRef}
-                  className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 w-full"
-                  style={{
-                    maskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                    WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                  }}
-                >
-                  {DEMO_PREMIUM_THEMES.map((theme) => {
-                    const isSelected = activeThemeId === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={(e) => handleThemeSelect(theme.id, e)}
-                        className={`h-9 px-3 rounded-full flex items-center gap-1.5 shrink-0 transition-all cursor-pointer text-xs font-medium ${
-                          isSelected
-                            ? 'border font-semibold scale-100 shadow-sm'
-                            : 'bg-white/[0.04] text-white/50 border border-transparent'
-                        }`}
-                        style={{
-                          backgroundColor: isSelected ? `${theme.accent}20` : undefined,
-                          borderColor: isSelected ? theme.accent : 'transparent',
-                          color: isSelected ? theme.accent : undefined,
-                        }}
-                      >
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: theme.accent }}
-                        />
-                        <span className="text-[11px] uppercase tracking-wider">{theme.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Title & One-line Description (Shown ONCE only) */}
-              <div className="mt-3 text-left pt-2 border-t border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white">
-                  7 Luxury Themes — {currentTheme.name}
-                </h3>
-                <p className="mt-0.5 text-xs text-white/60 line-clamp-1">
-                  {currentTheme.desc}
-                </p>
-              </div>
-            </div>
-
-            {/* ── CARD 2: ANIMATED FOCUS SCENES ── */}
-            <div
-              className="w-[84vw] max-w-[340px] shrink-0 snap-center rounded-2xl p-4 bg-white/[0.035] border border-white/[0.08] flex flex-col justify-between relative shadow-lg"
-              style={{
-                borderLeft: `2.5px solid ${currentScene.accent}`,
-              }}
-            >
-              {/* Header with Icon + PRO badge */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#E6C15A]" />
-                  <span className="text-xs font-semibold text-white/80">Atmosphere</span>
-                </div>
-                <span className="bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider">
-                  PRO
-                </span>
-              </div>
-
-              {/* Live Miniature: Scene Preview */}
-              <div
-                className="w-full rounded-xl border p-3.5 transition-all duration-500 shadow-inner flex flex-col justify-between"
-                style={{
-                  background: currentScene.bg,
-                  borderColor: 'rgba(255,255,255,0.15)',
-                  boxShadow: `0 0 20px ${currentScene.glow}`,
-                }}
-              >
-                <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
-                  <span className="text-xs font-bold uppercase tracking-wider text-white">
-                    {currentScene.name}
-                  </span>
-                  <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/40 text-white/80">
-                    {currentScene.tag}
-                  </span>
-                </div>
-
-                <div className="py-2.5 flex flex-col items-center justify-center">
-                  <span className="font-hud text-2xl font-bold tracking-wider text-white">
-                    25:00
-                  </span>
-                  <span className="text-[9px] uppercase tracking-widest text-white/70">
-                    Deep Focus
-                  </span>
-                </div>
-              </div>
-
-              {/* Scene Chips Row: 36px tall, fade mask */}
-              <div className="mt-3 relative w-full">
-                <div
-                  className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 w-full"
-                  style={{
-                    maskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                    WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                  }}
-                >
-                  {DEMO_FOCUS_SCENES.map((scene) => {
-                    const isSelected = activeSceneId === scene.id;
-                    return (
-                      <button
-                        key={scene.id}
-                        type="button"
-                        onClick={(e) => handleSceneSelect(scene.id, e)}
-                        className={`h-9 px-3 rounded-full flex items-center gap-1.5 shrink-0 transition-all cursor-pointer text-xs font-medium ${
-                          isSelected
-                            ? 'border font-semibold shadow-sm'
-                            : 'bg-white/[0.04] text-white/50 border border-transparent'
-                        }`}
-                        style={{
-                          backgroundColor: isSelected ? 'rgba(255,255,255,0.12)' : undefined,
-                          borderColor: isSelected ? scene.accent : 'transparent',
-                          color: isSelected ? scene.accent : undefined,
-                        }}
-                      >
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: scene.accent }}
-                        />
-                        <span className="text-[11px] uppercase tracking-wider">{scene.name.split(' ')[0]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Title & One-line Description */}
-              <div className="mt-3 text-left pt-2 border-t border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white">
-                  Animated focus scenes
-                </h3>
-                <p className="mt-0.5 text-xs text-white/60 line-clamp-1">
-                  Living atmospheric environments for deep flow & serenity.
-                </p>
-              </div>
-            </div>
-
-            {/* ── CARD 3: PRO AVATARS & STUDY ROOM FLAIRS ── */}
-            <div
-              className="w-[84vw] max-w-[340px] shrink-0 snap-center rounded-2xl p-4 bg-white/[0.035] border border-white/[0.08] flex flex-col justify-between relative shadow-lg"
-              style={{
-                borderLeft: '2.5px solid #F59E0B',
-              }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-semibold text-white/80">Social Flair</span>
-                </div>
-                <span className="bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider">
-                  PRO
-                </span>
-              </div>
-
-              <div className="w-full rounded-xl border border-white/[0.08] bg-black/40 p-3.5 flex items-center gap-3.5 shadow-inner">
-                <ProAvatarRing isPro={true} isStudying={true} size="md" defaultBorder>
-                  <UserAvatar
-                    src="https://api.dicebear.com/9.x/micah/svg?seed=CyberScholar&backgroundColor=0d1117"
-                    name="Cyber Scholar"
-                    size={48}
-                    className="pointer-events-none"
-                  />
-                </ProAvatarRing>
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-hud text-xs font-bold text-white truncate">
-                      Cyber Scholar
-                    </span>
-                    <FlairCrown frame="gold" size={13} />
-                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
-                      VIP
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 mt-1 font-mono text-[11px] text-amber-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                    <span>00:25:00 · Focusing</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 text-left pt-2 border-t border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white">
-                  Pro avatars & room flairs
-                </h3>
-                <p className="mt-0.5 text-xs text-white/60 line-clamp-1">
-                  Exclusive Cyber Visor avatar and pulsing focus rings in study rooms.
-                </p>
-              </div>
-            </div>
-
-            {/* ── CARD 4: HISTORICAL TIME TRAVEL ── */}
-            <div
-              className="w-[84vw] max-w-[340px] shrink-0 snap-center rounded-2xl p-4 bg-white/[0.035] border border-white/[0.08] flex flex-col justify-between relative shadow-lg"
-              style={{
-                borderLeft: '2.5px solid #3B82F6',
-              }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-semibold text-white/80">Time Travel</span>
-                </div>
-                <span className="bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider">
-                  PRO
-                </span>
-              </div>
-
-              <div className="w-full rounded-xl border border-white/[0.08] bg-black/40 p-3 shadow-inner">
-                <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.06]">
-                  <span className="text-xs font-bold text-[#E6C15A]">NOVEMBER 2026</span>
-                  <span className="text-[10px] font-mono text-white/40">Archives</span>
-                </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5 text-center font-mono text-[10px]">
-                  {[4, 7, 14, 18, 21, 24, 28, 29].map((d) => (
-                    <div
-                      key={d}
-                      className={`h-6 flex items-center justify-center rounded-md ${
-                        d === 18
-                          ? 'border border-[#E6C15A] bg-[#E6C15A] text-black font-bold'
-                          : 'text-white/40 bg-white/[0.02]'
-                      }`}
-                    >
-                      {d}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-3 text-left pt-2 border-t border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white">
-                  Historical time travel
-                </h3>
-                <p className="mt-0.5 text-xs text-white/60 line-clamp-1">
-                  Browse every past day and month with full session records.
-                </p>
-              </div>
-            </div>
-
-            {/* ── CARD 5: WEEKLY REPORT CARD ── */}
-            <div
-              className="w-[84vw] max-w-[340px] shrink-0 snap-center rounded-2xl p-4 bg-white/[0.035] border border-white/[0.08] flex flex-col justify-between relative shadow-lg"
-              style={{
-                borderLeft: '2.5px solid #10B981',
-              }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-semibold text-white/80">Weekly Analytics</span>
-                </div>
-                <span className="bg-[#E6C15A]/15 border border-[#E6C15A]/30 text-[#E6C15A] text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider">
-                  PRO
-                </span>
-              </div>
-
-              <div className="w-full rounded-xl border border-white/[0.08] bg-black/40 p-3 shadow-inner">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-mono text-white/40">vs last week</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
-                    <TrendingUp className="w-3 h-3" />
-                    +18%
-                  </span>
-                </div>
-                <div className="flex h-12 items-end justify-between gap-1.5 px-1">
-                  {[40, 65, 30, 85, 55, 95, 75].map((pct, idx) => (
-                    <div
-                      key={idx}
-                      className="w-full rounded-t-xs bg-[#E6C15A]"
-                      style={{ height: `${pct}%`, opacity: idx === 5 ? 1 : 0.7 }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-3 text-left pt-2 border-t border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white">
-                  Weekly report card
-                </h3>
-                <p className="mt-0.5 text-xs text-white/60 line-clamp-1">
-                  Compare weekly study volume and subject focus balance.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Pagination Dots */}
-          <div className="flex items-center justify-center gap-1.5 mt-3">
-            {[0, 1, 2, 3, 4].map((idx) => (
-              <span
-                key={idx}
-                className={`transition-all duration-300 rounded-full ${
-                  carouselIndex === idx
-                    ? 'w-4 h-1.5 bg-[#E6C15A]'
-                    : 'w-1.5 h-1.5 bg-white/20'
-                }`}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            4. COMPACT 2-COLUMN GRID OF REMAINING PRO PERKS
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section className="px-5 mt-7">
-          <h2 className="text-xs font-hud font-bold uppercase tracking-wider text-white/50 mb-3 text-left">
-            Included With Pro
-          </h2>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Perk 1: Verified Badge */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3 flex flex-col gap-1.5 text-left shadow-xs">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-[#E6C15A]">
-                <Crown className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[13px] font-semibold text-white">Verified Scholar</span>
-              <p className="text-[11px] text-white/60 leading-snug">
-                Distinctive gold verified crest badge on your profile.
-              </p>
-            </div>
-
-            {/* Perk 2: Room Recognition */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3 flex flex-col gap-1.5 text-left shadow-xs">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <Flame className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[13px] font-semibold text-white">Room Aura</span>
-              <p className="text-[11px] text-white/60 leading-snug">
-                Pulsing focus ring & VIP tag in live study rooms.
-              </p>
-            </div>
-
-            {/* Perk 3: Full Archives */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3 flex flex-col gap-1.5 text-left shadow-xs">
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <Calendar className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[13px] font-semibold text-white">Full History</span>
-              <p className="text-[11px] text-white/60 leading-snug">
-                Access every past study session and calendar day.
-              </p>
-            </div>
-
-            {/* Perk 4: Unlimited Limits */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3 flex flex-col gap-1.5 text-left shadow-xs">
-              <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[13px] font-semibold text-white">All Themes</span>
-              <p className="text-[11px] text-white/60 leading-snug">
-                Unlock all 7 luxury themes and ambient scenes.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            5. PRICING SELECTOR TOGGLE (Free users) / STATUS (Pro users)
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section className="px-5 mt-7">
-          {premiumLoading ? (
-            <div className="h-28 rounded-2xl bg-white/[0.03] border border-white/[0.06] animate-pulse" />
-          ) : isPremium ? (
-            <div className="rounded-2xl bg-[#E6C15A]/10 border border-[#E6C15A]/30 p-4 text-center">
-              <div className="inline-flex items-center gap-1 text-[#E6C15A] font-bold text-sm">
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>Study.io Pro is Active</span>
-              </div>
-              <p className="text-xs text-white/70 mt-1">
-                {formattedExpiry ? `Valid until ${formattedExpiry}` : 'All Pro benefits are active.'}
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.08] p-3.5 flex flex-col gap-2.5">
-              <span className="text-xs font-hud font-bold uppercase tracking-wider text-white/60 text-left">
-                Choose Plan
-              </span>
-
-              <div className="grid grid-cols-2 gap-2">
-                {/* Monthly selector */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setSelectedPlan('monthly');
-                  }}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    selectedPlan === 'monthly'
-                      ? 'border-[#E6C15A] bg-[#E6C15A]/10 shadow-sm'
-                      : 'border-white/[0.08] bg-white/[0.02] text-white/60'
-                  }`}
-                >
-                  <span className="text-[11px] font-hud uppercase tracking-wider text-white/60">
-                    Monthly
-                  </span>
-                  <div className="text-base font-bold text-white mt-0.5">
-                    {monthlyFormatted}
-                    <span className="text-[10px] font-normal text-white/50">/mo</span>
-                  </div>
-                  <span className="text-[10px] text-white/40 block mt-0.5">Cancel anytime</span>
-                </button>
-
-                {/* Yearly selector */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setSelectedPlan('yearly');
-                  }}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                    selectedPlan === 'yearly'
-                      ? 'border-[#E6C15A] bg-[#E6C15A]/15 shadow-sm'
-                      : 'border-white/[0.08] bg-white/[0.02] text-white/60'
-                  }`}
-                >
-                  {savingPercentage > 0 && (
-                    <span className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#E6C15A] text-black">
-                      Save {savingPercentage}%
-                    </span>
-                  )}
-                  <span className="text-[11px] font-hud uppercase tracking-wider text-[#E6C15A] font-bold">
-                    Yearly
-                  </span>
-                  <div className="text-base font-bold text-white mt-0.5">
-                    {yearlyFormatted}
-                    <span className="text-[10px] font-normal text-white/50">/yr</span>
-                  </div>
-                  <span className="text-[10px] text-white/40 block mt-0.5">Best value</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-      </main>
-
-      {/* ═════════════════════════════════════════════════════════════════════
-          6. STICKY BOTTOM PURCHASE CTA (Android Only)
-          ═════════════════════════════════════════════════════════════════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-3 pb-[max(env(safe-area-inset-bottom,0px)+12px,24px)] bg-[#070709]/95 backdrop-blur-xl border-t border-white/[0.08] shadow-[0_-12px_28px_rgba(0,0,0,0.7)]">
-        {/* Soft top gradient overlay so content slides under softly */}
-        <div className="pointer-events-none absolute -top-6 left-0 right-0 h-6 bg-gradient-to-t from-[#070709] to-transparent" />
-
-        <div className="max-w-md mx-auto flex flex-col items-center gap-1.5">
-          {!isPremium && (
-            <div className="text-[11px] font-mono text-white/60">
-              {selectedPlan === 'yearly'
-                ? `Start Pro · ${yearlyFormatted}/yr (${Math.round(yearlyAmount / 12)}/mo)`
-                : `Start Pro · ${monthlyFormatted}/mo`}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleCtaClick}
-            disabled={isProcessing || (!isPremium && !PAYMENTS_ENABLED)}
-            className="w-full h-[52px] rounded-2xl font-hud font-bold text-sm tracking-wider uppercase text-[#141006] shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-all disabled:opacity-50 relative overflow-hidden"
+            className="w-full h-52 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 transition-colors duration-300"
             style={{
-              background: PREMIUM_GOLD_GRADIENT,
-              boxShadow: '0 4px 20px rgba(230,193,90,0.3)',
+              backgroundColor: currentTheme.bg,
+              border: `1px solid ${currentTheme.border}`,
             }}
           >
-            {/* Shimmer animation */}
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-3.5 right-3.5 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A]">
+              PRO
+            </div>
+
+            {/* Theme Header info */}
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                style={{ backgroundColor: currentTheme.accent }}
+              />
+              <span className="text-xs font-mono uppercase tracking-wider font-semibold text-white/90">
+                {currentTheme.name}
+              </span>
+            </div>
+
+            {/* Live Center Timer Display in Theme Palettes */}
+            <div className="my-auto flex flex-col items-center justify-center text-center">
+              <div
+                className="text-4xl font-mono tabular-nums font-bold tracking-tight mb-2 leading-none"
+                style={{ color: currentTheme.text }}
+              >
+                25:00
+              </div>
+              {/* Mini themed progress bar */}
+              <div className="w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: currentTheme.progress,
+                    backgroundColor: currentTheme.accent,
+                    boxShadow: `0 0 10px ${currentTheme.accent}`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Subtle theme subcaption */}
+            <div className="text-[11px] font-mono text-white/50 truncate">
+              {currentTheme.desc}
+            </div>
+          </div>
+
+          {/* Horizontally scrollable single row of 28px colored dots with right-edge fade */}
+          <div className="relative w-full">
             <div
-              className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite]"
+              ref={themeDotsRowRef}
+              className="flex items-center gap-3 overflow-x-auto py-1.5 px-1 no-scrollbar scroll-smooth"
               style={{
-                background:
-                  'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+                maskImage: 'linear-gradient(to right, black 86%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to right, black 86%, transparent 100%)',
+              }}
+            >
+              {DEMO_PREMIUM_THEMES.map((theme) => {
+                const isSelected = theme.id === activeThemeId;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={(e) => handleSelectTheme(theme.id, e)}
+                    className="relative shrink-0 flex items-center justify-center p-1 rounded-full transition-transform active:scale-90 cursor-pointer"
+                    aria-label={`Select ${theme.name} theme`}
+                  >
+                    <span
+                      className={`w-7 h-7 rounded-full shrink-0 transition-all ${
+                        isSelected
+                          ? 'ring-2 ring-[#E6C15A] ring-offset-2 ring-offset-[#0A0A0B] scale-110'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: theme.accent,
+                        boxShadow: isSelected ? `0 0 12px ${theme.accent}` : 'none',
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              7 Luxury Themes
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Crafted visual palettes designed for calm, immersive focus.
+            </p>
+          </div>
+        </section>
+
+        {/* ─── FEATURE 2: ANIMATED FOCUS SCENES ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual: Moonlit Forest Scene Preview */}
+          <div
+            ref={sceneRef}
+            className="w-full h-48 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 border border-emerald-500/25 select-none"
+            style={{
+              background: 'linear-gradient(135deg, #020C12 0%, #08222C 50%, #114243 100%)',
+            }}
+          >
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-3.5 right-3.5 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A] z-20">
+              PRO
+            </div>
+
+            {/* Glowing Moon */}
+            <div className="absolute top-5 left-7 w-12 h-12 rounded-full bg-emerald-100/90 shadow-[0_0_35px_rgba(52,211,153,0.55)] pointer-events-none" />
+
+            {/* Animated Forest Fireflies / Embers (paused when off-screen) */}
+            {isSceneVisible && (
+              <>
+                <div className="firefly-1 absolute top-20 left-24 w-2 h-2 rounded-full bg-emerald-400 blur-[1px] pointer-events-none" />
+                <div className="firefly-2 absolute top-14 right-24 w-2.5 h-2.5 rounded-full bg-teal-300 blur-[1.5px] pointer-events-none" />
+                <div className="firefly-1 absolute bottom-12 left-44 w-1.5 h-1.5 rounded-full bg-emerald-300 blur-[1px] pointer-events-none" />
+              </>
+            )}
+
+            {/* Silhouetted Forest Mountain Treeline Vector at Bottom */}
+            <div className="absolute inset-x-0 bottom-0 h-20 opacity-80 pointer-events-none">
+              <svg viewBox="0 0 500 150" preserveAspectRatio="none" className="w-full h-full fill-[#031016]">
+                <path d="M0,150 L0,80 L35,50 L70,85 L110,40 L150,90 L200,30 L250,95 L300,45 L350,90 L400,25 L450,85 L500,50 L500,150 Z" />
+              </svg>
+            </div>
+
+            {/* Scene Header */}
+            <div className="relative z-10 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+              <span className="text-xs font-mono uppercase tracking-wider font-semibold text-emerald-300">
+                Moonlit Forest
+              </span>
+            </div>
+
+            {/* Scene Status caption */}
+            <div className="relative z-10 text-[11px] font-mono text-emerald-200/70">
+              Living ambient environment · Serene midnight flow
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              Animated Focus Scenes
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Living visual environments that react subtly with gentle acoustic ambience.
+            </p>
+          </div>
+        </section>
+
+        {/* ─── FEATURE 3: 12 ELITE AVATARS ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual: Slowly drifting horizontal marquee strip */}
+          <div
+            ref={avatarsRef}
+            className="w-full h-28 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex items-center p-2"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+            }}
+          >
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-2.5 right-3 px-2 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[9px] font-mono font-bold text-[#E6C15A] z-20">
+              PRO
+            </div>
+
+            {/* Drifting Avatar Track */}
+            <div
+              className={`flex items-center gap-3 shrink-0 ${
+                isAvatarsVisible ? 'avatars-marquee' : ''
+              }`}
+            >
+              {[...PREMIUM_AVATARS, ...PREMIUM_AVATARS].map((avatar, idx) => (
+                <div
+                  key={`${avatar.file}-${idx}`}
+                  className="w-14 h-14 rounded-full border border-[#E6C15A]/30 overflow-hidden shrink-0 bg-[#161B26] shadow-md"
+                >
+                  <img
+                    src={`/images/avatars/premium/${avatar.file}`}
+                    alt={avatar.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              12 Elite Avatars
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Distinctive illustrated personas to represent your rank and presence.
+            </p>
+          </div>
+        </section>
+
+        {/* ─── FEATURE 4: VERIFIED SCHOLAR ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual: User's avatar with & without gold verified crest */}
+          <div className="w-full h-36 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex items-center justify-around px-6">
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A]">
+              PRO
+            </div>
+
+            {/* Standard Profile Preview */}
+            <div className="flex flex-col items-center gap-1.5 opacity-60">
+              <div className="w-14 h-14 rounded-full border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center">
+                <UserAvatar src={user?.avatarUrl} name={user?.name || 'Scholar'} size={56} />
+              </div>
+              <span className="text-[11px] font-mono text-zinc-400">Standard</span>
+            </div>
+
+            {/* Divider */}
+            <span className="text-white/20 font-mono text-sm">→</span>
+
+            {/* Verified Scholar Preview */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="relative w-14 h-14 rounded-full ring-2 ring-[#E6C15A] ring-offset-2 ring-offset-[#0A0A0B] overflow-hidden bg-black shadow-[0_0_18px_rgba(230,193,90,0.35)] flex items-center justify-center">
+                <UserAvatar src={user?.avatarUrl} name={user?.name || 'Scholar'} size={56} />
+                <div className="absolute bottom-0 right-0 p-0.5 bg-[#E6C15A] rounded-full text-black">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                </div>
+              </div>
+              <span className="text-[11px] font-mono text-[#E6C15A] font-semibold">
+                Verified Scholar
+              </span>
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              Verified Scholar Recognition
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Stand out with a distinctive gold crest and verified badge across all study rooms.
+            </p>
+          </div>
+        </section>
+
+        {/* ─── FEATURE 5: ROOM AURA ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual: Mini Study Room Tile with Focus Ring & VIP tag */}
+          <div className="w-full h-36 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex items-center px-5">
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A]">
+              PRO
+            </div>
+
+            {/* Scholar Tile */}
+            <div className="flex items-center gap-3.5 w-full">
+              {/* Pulsing Aura Avatar */}
+              <div className="relative w-14 h-14 rounded-full shrink-0 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-2 border-[#E6C15A] animate-ping opacity-35" />
+                <div className="relative w-13 h-13 rounded-full border-2 border-[#E6C15A] shadow-[0_0_20px_rgba(230,193,90,0.45)] overflow-hidden bg-black flex items-center justify-center">
+                  <UserAvatar src={user?.avatarUrl} name={user?.name || 'You'} size={52} />
+                </div>
+              </div>
+
+              {/* Scholar Details */}
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-white">
+                    {user?.name || 'Scholar'}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-[#E6C15A]/20 border border-[#E6C15A]/40 text-[9px] font-mono font-bold text-[#E6C15A]">
+                    VIP
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Focusing · 45m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              Exclusive Room Aura
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Pulsing golden aura rings and VIP recognition whenever you join a study room.
+            </p>
+          </div>
+        </section>
+
+        {/* ─── FEATURE 6: FULL STUDY HISTORY ─── */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="flex flex-col gap-3.5">
+          {/* Big Visual: Compact calendar strip with highlighted days */}
+          <div className="w-full h-36 rounded-2xl overflow-hidden relative bg-[#0E1118]/80 border border-white/[0.08] flex flex-col justify-between p-4">
+            {/* PRO Badge in Corner */}
+            <div className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A]">
+              PRO
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-[#E6C15A]" />
+              <span className="text-xs font-mono font-semibold text-white/90">
+                Full Calendar Log
+              </span>
+            </div>
+
+            {/* Calendar Mini Heatmap Row */}
+            <div className="flex items-center justify-between gap-1 py-1">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
+                const isGold = i === 2 || i === 4;
+                const isEmerald = i === 0 || i === 1 || i === 3;
+                return (
+                  <div key={`${day}-${i}`} className="flex flex-col items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-zinc-400">{day}</span>
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold ${
+                        isGold
+                          ? 'bg-[#E6C15A] text-black shadow-[0_0_10px_rgba(230,193,90,0.4)]'
+                          : isEmerald
+                          ? 'bg-emerald-500/25 border border-emerald-500/40 text-emerald-300'
+                          : 'bg-white/5 text-white/40'
+                      }`}
+                    >
+                      {i + 14}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="text-[10px] font-mono text-zinc-400">
+              Complete historical session logs &amp; performance trends
+            </div>
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <h2 className="font-hud text-xl font-bold text-white mb-1">
+              Full Study History
+            </h2>
+            <p className="text-[15px] text-white/70 leading-relaxed">
+              Access every past study session, calendar day, and lifetime milestone.
+            </p>
+          </div>
+        </section>
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            5. PLANS (Box 1 of 2 Allowed Cards)
+            ═════════════════════════════════════════════════════════════════════ */}
+        <div className="border-t border-white/[0.08] my-7" />
+
+        <section className="rounded-2xl bg-[#12151E] border border-white/10 p-5 flex flex-col gap-4 shadow-xl">
+          {/* Full-width Segmented Toggle with Sliding Gold Highlight */}
+          <div className="relative w-full h-12 rounded-xl bg-black/50 p-1 flex items-center select-none">
+            {/* Sliding Gold Indicator */}
+            <div
+              className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-transform duration-250 ease-out"
+              style={{
+                background: PREMIUM_GOLD_GRADIENT,
+                transform:
+                  selectedPlan === 'yearly'
+                    ? 'translateX(calc(100% + 4px))'
+                    : 'translateX(0px)',
               }}
             />
 
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 animate-spin text-[#141006]" />
-            ) : isPremium ? (
-              <>
-                <span>Go to Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
+            {/* Monthly Option */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('selection');
+                setSelectedPlan('monthly');
+              }}
+              className={`relative z-10 flex-1 h-full rounded-lg font-mono text-xs font-bold transition-colors flex items-center justify-center cursor-pointer ${
+                selectedPlan === 'monthly' ? 'text-[#141005]' : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Monthly
+            </button>
+
+            {/* Yearly Option */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('selection');
+                setSelectedPlan('yearly');
+              }}
+              className={`relative z-10 flex-1 h-full rounded-lg font-mono text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                selectedPlan === 'yearly' ? 'text-[#141005]' : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <span>Yearly</span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                  selectedPlan === 'yearly'
+                    ? 'bg-black/20 text-[#141005]'
+                    : 'bg-[#E6C15A]/20 text-[#E6C15A]'
+                }`}
+              >
+                Save 16%
+              </span>
+            </button>
+          </div>
+
+          {/* Dynamic Price Display */}
+          <div className="flex flex-col items-center text-center gap-1 pt-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-mono text-4xl font-extrabold text-white tracking-tight">
+                {selectedPlan === 'yearly' ? yearlyFormatted : monthlyFormatted}
+              </span>
+              <span className="text-sm font-mono text-white/60">
+                {selectedPlan === 'yearly' ? '/year' : '/month'}
+              </span>
+            </div>
+
+            {/* Subline note */}
+            {selectedPlan === 'yearly' ? (
+              <div className="text-xs font-mono text-[#E6C15A] font-medium">
+                ₹83/mo billed yearly <span className="text-white/30">·</span> Best value
+              </div>
             ) : (
-              <>
-                <Crown className="w-4 h-4 fill-current" />
-                <span>Get Premium</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
+              <div className="text-xs font-mono text-zinc-400">
+                Billed monthly <span className="text-white/30">·</span> Cancel anytime
+              </div>
             )}
-          </button>
+          </div>
+        </section>
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            6. TRUST LINE
+            ═════════════════════════════════════════════════════════════════════ */}
+        <div className="flex items-center justify-center gap-1.5 text-xs font-mono text-zinc-400 text-center mt-5 mb-2 select-none">
+          <ShieldCheck className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          <span>Cancel anytime · Secure checkout via Razorpay</span>
         </div>
+      </main>
+
+      {/* ═════════════════════════════════════════════════════════════════════
+          7. STICKY CTA BAR (Card 2 of 2 Allowed Cards)
+          ═════════════════════════════════════════════════════════════════════ */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-[#0A0A0B] via-[#0A0A0B]/95 to-transparent pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom,1.25rem))] px-5"
+      >
+        <button
+          type="button"
+          onClick={handleCtaClick}
+          disabled={isProcessing}
+          className="relative w-full max-w-md mx-auto h-[54px] rounded-2xl font-mono font-bold text-base text-[#141005] shadow-xl flex items-center justify-center overflow-hidden active:scale-[0.98] transition-transform cursor-pointer disabled:opacity-50"
+          style={{ background: PREMIUM_GOLD_GRADIENT }}
+        >
+          {/* Initial Slow Shimmer */}
+          <div className="cta-shimmer-sweep absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
+
+          {/* Button Text without any icons */}
+          <span className="relative z-10">
+            {isPremium
+              ? 'Active Scholar · Manage Plan'
+              : `Start Pro · ${selectedPlan === 'yearly' ? yearlyFormatted : monthlyFormatted}`}
+          </span>
+        </button>
       </div>
     </div>
   );
