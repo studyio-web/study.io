@@ -979,8 +979,8 @@ class AudioEngine {
       // ignore
     }
 
-    // 2. Procedural crystal chime phrase (fallback / instant onset while buffer fetches)
-    const playChimePhrase = () => {
+    // 2. Procedural classic stopwatch alarm fallback (instant double-beep every 1s)
+    const playStopwatchBeepPhrase = () => {
       if (!this.isAlarmActive || this.alarmSource) return;
       try {
         const ctx = this.getContext();
@@ -988,64 +988,32 @@ class AudioEngine {
         const now = ctx.currentTime;
 
         const elapsedSec = (Date.now() - alarmStartEpoch) / 1000;
-        const rampMultiplier = Math.min(1.0, 0.35 + 0.65 * Math.min(1.0, elapsedSec / 20));
+        const rampMultiplier = Math.min(1.0, 0.40 + 0.60 * Math.min(1.0, elapsedSec / 15));
 
-        // Uplifting crystal chime progression (Dmaj9 -> F#m9 -> Gmaj9 -> Aadd9)
-        const notes = [
-          { freq: 587.33, offset: 0.00, duration: 1.2 }, // D5
-          { freq: 739.99, offset: 0.00, duration: 1.0 }, // F#5
-          { freq: 880.00, offset: 0.40, duration: 0.9 }, // A5
-          { freq: 1108.73, offset: 0.70, duration: 0.8 }, // C#6
-          { freq: 1318.51, offset: 1.10, duration: 1.2 }, // E6
-          { freq: 1479.98, offset: 1.80, duration: 1.0 }, // F#6
-          { freq: 1174.66, offset: 2.30, duration: 1.4 }, // D6
-        ];
+        const FREQ = 2048; // Classic 2048 Hz digital stopwatch piezo beep
+        const beeps = [0.0, 0.135]; // Double-beep at 0ms and 135ms
 
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2800, now);
-        filter.Q.setValueAtTime(1.0, now);
-        filter.connect(ctx.destination);
-        this.alarmNodes.push(filter);
-
-        notes.forEach(({ freq, offset, duration }) => {
+        beeps.forEach((offset) => {
           const startTime = now + offset;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
 
-          // Crystalline mallet body
-          const osc1 = ctx.createOscillator();
-          const gain1 = ctx.createGain();
-          osc1.type = 'triangle';
-          osc1.frequency.setValueAtTime(freq, startTime);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(FREQ, startTime);
 
-          const peakGain = 0.16 * rampMultiplier;
-          gain1.gain.setValueAtTime(0.0001, startTime);
-          gain1.gain.linearRampToValueAtTime(peakGain, startTime + 0.006);
-          gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+          const peakGain = 0.22 * rampMultiplier;
+          gain.gain.setValueAtTime(0.0001, startTime);
+          gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.003);
+          gain.gain.setValueAtTime(peakGain, startTime + 0.070);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.075);
 
-          osc1.connect(gain1);
-          gain1.connect(filter);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
 
-          osc1.start(startTime);
-          osc1.stop(startTime + duration + 0.05);
+          osc.start(startTime);
+          osc.stop(startTime + 0.080);
 
-          // Glass sparkle overtone
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(freq * 2.756, startTime);
-
-          const subPeakGain = 0.035 * rampMultiplier;
-          gain2.gain.setValueAtTime(0.0001, startTime);
-          gain2.gain.linearRampToValueAtTime(subPeakGain, startTime + 0.004);
-          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35);
-
-          osc2.connect(gain2);
-          gain2.connect(filter);
-
-          osc2.start(startTime);
-          osc2.stop(startTime + 0.40);
-
-          this.alarmNodes.push(osc1, osc2, gain1, gain2);
+          this.alarmNodes.push(osc, gain);
         });
 
         setTimeout(() => {
@@ -1056,17 +1024,17 @@ class AudioEngine {
               return false;
             }
           });
-        }, 2800);
+        }, 300);
       } catch (err) {
-        console.warn('[AudioEngine] startTimerAlarm chime error:', err);
+        console.warn('[AudioEngine] stopwatch beep error:', err);
       }
     };
 
-    // Play initial phrase if buffer hasn't loaded yet
-    playChimePhrase();
+    // Play initial double beep
+    playStopwatchBeepPhrase();
 
-    // Repeat every 3.8 seconds
-    this.alarmInterval = window.setInterval(playChimePhrase, 3800);
+    // Repeat every 1.0 second (standard stopwatch alarm cadence)
+    this.alarmInterval = window.setInterval(playStopwatchBeepPhrase, 1000);
 
     // Auto-silence after maxDurationSeconds (default 5 minutes = 300 seconds)
     this.alarmTimeout = window.setTimeout(() => {
