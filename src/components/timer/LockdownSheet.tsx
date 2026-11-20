@@ -316,17 +316,6 @@ export function LockdownSheet({
           <rect width="100%" height="100%" filter="url(#lockdown-sheet-grain)" />
         </svg>
 
-        {/* Ultra-only: Thin diagonal hazard-stripe edge at the top (4px, 25% opacity) */}
-        {isUltra && (
-          <div
-            className="w-full h-1 shrink-0 opacity-25 z-10"
-            style={{
-              background: 'repeating-linear-gradient(45deg, #E5383B, #E5383B 6px, transparent 6px, transparent 12px)',
-            }}
-            aria-hidden="true"
-          />
-        )}
-
         {/* Top Edge Breathing Glow */}
         <div
           className={`absolute top-0 inset-x-0 h-28 pointer-events-none z-0 ${
@@ -340,26 +329,25 @@ export function LockdownSheet({
           aria-hidden="true"
         />
 
-        {/* Mobile Drag Handle */}
+        {/* Invisible Mobile Swipe-Down Drag Zone (Zero visible lines or bars) */}
         <div
-          className="w-full pt-3 pb-1 flex justify-center cursor-grab active:cursor-grabbing sm:hidden z-10 relative touch-none"
+          className="w-full h-4 shrink-0 sm:hidden z-10 relative touch-none select-none"
           onPointerDown={handleDragStart}
           onPointerMove={handleDragMove}
           onPointerUp={handleDragEnd}
           onPointerCancel={handleDragEnd}
-        >
-          <div className="w-9 h-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors" />
-        </div>
+          aria-hidden="true"
+        />
 
-        {/* Scrollable Sheet Content */}
-        <div className="overflow-y-auto px-6 pt-3 pb-4 space-y-5 z-10 relative">
+        {/* Sheet Content (Completely hidden scrollbar, optimized vertical fit) */}
+        <div className="overflow-y-auto px-5 sm:px-6 pt-1 pb-3 space-y-4 z-10 relative scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {/* Header Section */}
-          <div className="flex flex-col items-center text-center pt-2">
-            {/* Custom Shield Lock Glyph (Inline SVG, ~72px) */}
-            <div className="relative mb-3.5 flex items-center justify-center">
+          <div className="flex flex-col items-center text-center pt-1">
+            {/* Custom Shield Lock Glyph (Inline SVG, ~60px) */}
+            <div className="relative mb-2.5 flex items-center justify-center">
               <svg
-                width="72"
-                height="72"
+                width="60"
+                height="60"
                 viewBox="0 0 72 72"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -422,33 +410,33 @@ export function LockdownSheet({
             <div className="flex items-center justify-center gap-2">
               <h2
                 id="lockdown-sheet-title"
-                className="font-hud text-3xl font-bold tracking-tight text-white leading-tight"
+                className="font-hud text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight"
               >
                 {title}
               </h2>
               {/* Ultra-only: Small solid label 'Irreversible' */}
               {isUltra && (
-                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 font-bold text-xs tracking-normal border border-red-500/30 select-none">
+                <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-bold text-[11px] tracking-normal border border-red-500/30 select-none">
                   Irreversible
                 </span>
               )}
             </div>
 
             {/* Subtitle */}
-            <p id="lockdown-sheet-desc" className="text-[15px] text-white/65 mt-1.5 max-w-[340px] leading-snug">
+            <p id="lockdown-sheet-desc" className="text-sm text-white/65 mt-1 max-w-[320px] leading-snug">
               {subtitle}
             </p>
           </div>
 
           {/* Ticket Style Summary (No Box) */}
-          <div className="pt-2 pb-1 text-center">
+          <div className="pt-1 pb-0.5 text-center">
             {/* Countdown length + Subject */}
             <div className="flex flex-col items-center justify-center">
-              <div className="font-hud text-4xl sm:text-[44px] font-bold text-white tracking-tight leading-none">
+              <div className="font-hud text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none">
                 {formatDurationDisplay(countdownSeconds)}
               </div>
               {subjectName && (
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-white/65">
+                <div className="flex items-center gap-1.5 mt-1.5 text-sm text-white/65">
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: accentColor }}
@@ -460,17 +448,17 @@ export function LockdownSheet({
             </div>
 
             {/* Dashed Perforated Divider with Notches */}
-            <div className="relative my-4 flex items-center justify-center">
+            <div className="relative my-3 flex items-center justify-center">
               <div className="w-full border-b border-dashed border-white/15" />
               {/* Left Notch */}
               <div
-                className="absolute -left-6 w-3 h-3 rounded-full bg-black/90 pointer-events-none"
+                className="absolute -left-5 sm:-left-6 w-3 h-3 rounded-full bg-black/90 pointer-events-none"
                 style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)' }}
                 aria-hidden="true"
               />
               {/* Right Notch */}
               <div
-                className="absolute -right-6 w-3 h-3 rounded-full bg-black/90 pointer-events-none"
+                className="absolute -right-5 sm:-right-6 w-3 h-3 rounded-full bg-black/90 pointer-events-none"
                 style={{ clipPath: 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' }}
                 aria-hidden="true"
               />
@@ -488,21 +476,21 @@ export function LockdownSheet({
             {isUltra ? (
               // Ultra Strict: 4 Rules
               <>
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <Ban className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <Ban className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Irreversible</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Irreversible</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       No pause, cancel or stop early until the end time.
                     </p>
                   </div>
                 </div>
 
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <Lock className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <Lock className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Sealed apps</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Sealed apps</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       {effectiveAllowedCount > 0
                         ? `Blocked apps stay locked, only your ${effectiveAllowedCount} allowed app${
                             effectiveAllowedCount === 1 ? '' : 's'
@@ -512,21 +500,21 @@ export function LockdownSheet({
                   </div>
                 </div>
 
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Anti-bypass</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Anti-bypass</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       Leaving or switching apps returns you here.
                     </p>
                   </div>
                 </div>
 
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Uninstall protection</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Uninstall protection</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       Device Admin and System Shield stop deleting, uninstalling or force-stopping study.io until the countdown ends.
                     </p>
                   </div>
@@ -535,33 +523,33 @@ export function LockdownSheet({
             ) : (
               // Strict Mode: 3 Rules
               <>
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <Lock className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Blocked apps locked</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Blocked apps locked</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       Stay locked until you press stop.
                     </p>
                   </div>
                 </div>
 
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <Shield className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">Shield active</p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="font-semibold text-white text-[13.5px]">Shield active</p>
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       Opening a blocked app returns you here.
                     </p>
                   </div>
                 </div>
 
-                <div className="py-3 border-b border-white/[0.08] flex items-start gap-3 text-left">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+                <div className="py-2.5 border-b border-white/[0.08] flex items-start gap-2.5 text-left">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                   <div>
-                    <p className="font-semibold text-white text-sm">
+                    <p className="font-semibold text-white text-[13.5px]">
                       {effectiveAllowedCount > 0 ? `Your ${effectiveAllowedCount} allowed apps` : 'Allowed apps'}
                     </p>
-                    <p className="text-[13.5px] text-white/65 mt-0.5 leading-snug">
+                    <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
                       {effectiveAllowedCount > 0
                         ? 'Only these stay open.'
                         : 'No allowed apps selected — all non-essential apps stay locked.'}
@@ -574,34 +562,34 @@ export function LockdownSheet({
 
           {/* Under rules: "Still allowed" strip with real allowed apps */}
           {effectiveAllowedCount > 0 && (
-            <div className="pt-1 pb-1">
-              <div className="text-[11px] font-semibold text-white/45 uppercase tracking-wider mb-2">
+            <div className="pt-0.5 pb-1">
+              <div className="text-[10.5px] font-semibold text-white/45 uppercase tracking-wider mb-1.5">
                 Still allowed during session
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+              <div className="flex items-center gap-2 overflow-x-auto py-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden">
                 {allowedDisplayItems.length > 0 ? (
                   allowedDisplayItems.map((item) => (
                     <div
                       key={item.pkg}
                       title={item.name}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 shrink-0 select-none"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 shrink-0 select-none"
                     >
                       {item.icon ? (
                         <img
                           src={item.icon}
                           alt=""
-                          className="w-5 h-5 rounded-md object-contain shrink-0"
+                          className="w-4 h-4 rounded-md object-contain shrink-0"
                           loading="lazy"
                         />
                       ) : (
                         <div
-                          className="w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] text-black"
+                          className="w-4 h-4 rounded-md flex items-center justify-center font-bold text-[9px] text-black"
                           style={{ backgroundColor: accentColor }}
                         >
                           {item.name.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <span className="text-xs text-white/85 max-w-[90px] truncate">{item.name}</span>
+                      <span className="text-[11.5px] text-white/85 max-w-[85px] truncate">{item.name}</span>
                     </div>
                   ))
                 ) : (
@@ -615,7 +603,7 @@ export function LockdownSheet({
         </div>
 
         {/* Pinned Bottom Action Area */}
-        <div className="sticky bottom-0 bg-gradient-to-t from-[#0A0A0C] via-[#0A0A0C]/95 to-[#0A0A0C]/80 backdrop-blur-sm pt-3 pb-[max(20px,env(safe-area-inset-bottom))] px-6 z-20 flex flex-col items-center gap-2">
+        <div className="sticky bottom-0 bg-gradient-to-t from-[#0A0A0C] via-[#0A0A0C]/95 to-[#0A0A0C]/80 backdrop-blur-sm pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] px-5 sm:px-6 z-20 flex flex-col items-center gap-1.5">
           {/* Accessible alternative for screen readers / TalkBack */}
           <button
             type="button"
@@ -626,7 +614,7 @@ export function LockdownSheet({
             Accept and start {title}
           </button>
 
-          {/* Full-width "Hold to confirm" Button (60px tall, 18px radius) */}
+          {/* Full-width "Hold to confirm" Button (56px tall, 16px radius) */}
           <button
             type="button"
             role="button"
@@ -638,7 +626,7 @@ export function LockdownSheet({
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             disabled={hasConfirmedRef.current}
-            className="relative w-full h-[60px] rounded-[18px] overflow-hidden select-none touch-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black transition-transform active:scale-[0.985] cursor-pointer"
+            className="relative w-full h-[54px] rounded-[16px] overflow-hidden select-none touch-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black transition-transform active:scale-[0.985] cursor-pointer"
             style={{
               backgroundColor: isUltra ? 'rgba(229, 56, 59, 0.15)' : 'rgba(245, 166, 35, 0.12)',
               border: isUltra ? '1px solid rgba(229, 56, 59, 0.35)' : '1px solid rgba(245, 166, 35, 0.30)',
@@ -659,14 +647,14 @@ export function LockdownSheet({
             />
 
             {/* Hold Button Content */}
-            <div className="relative z-10 w-full h-full flex items-center justify-center gap-2.5">
+            <div className="relative z-10 w-full h-full flex items-center justify-center gap-2">
               <Lock
                 className={`w-4 h-4 transition-transform duration-200 ${
                   isHolding ? 'scale-110' : ''
                 } ${isUltra ? 'text-white' : holdProgress > 0.5 ? 'text-[#1A1405]' : 'text-white'}`}
               />
               <span
-                className={`font-hud font-bold text-sm uppercase tracking-wider transition-colors duration-200 ${
+                className={`font-hud font-bold text-xs sm:text-sm uppercase tracking-wider transition-colors duration-200 ${
                   isUltra
                     ? 'text-white drop-shadow-sm'
                     : holdProgress > 0.5
@@ -680,26 +668,36 @@ export function LockdownSheet({
           </button>
 
           {/* Consequence Caption */}
-          <p className="text-[12.5px] text-white/50 text-center leading-snug px-2">
+          <p className="text-[12px] text-white/50 text-center leading-snug px-2">
             {confirmConsequence}
           </p>
 
-          {/* Quiet Cancel Text Button (44px min hit area) */}
+          {/* Quiet Cancel Text Button (40px hit area) */}
           <button
             type="button"
             onClick={() => {
               triggerHaptic('light');
               onCancel();
             }}
-            className="w-full h-11 flex items-center justify-center text-[14px] text-white/50 hover:text-white transition-colors cursor-pointer select-none font-medium mt-0.5"
+            className="w-full h-9 flex items-center justify-center text-[13.5px] text-white/50 hover:text-white transition-colors cursor-pointer select-none font-medium"
           >
             Cancel
           </button>
         </div>
       </div>
 
-      {/* Embedded CSS for custom keyframe animations */}
+      {/* Embedded CSS for custom keyframe animations & scrollbar removal */}
       <style jsx global>{`
+        /* Completely eliminate visible scrollbars */
+        .scrollbar-none::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+        }
+        .scrollbar-none {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
         @keyframes lockdownGlow {
           0%, 100% {
             opacity: 0.25;
