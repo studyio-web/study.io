@@ -442,6 +442,75 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.equal(phoneIsRemoteSession, true, 'Phone must mark session as remote');
   });
 
+  it('guarantees idle background polling and window focus do not reset Ultra Strict Mode', () => {
+    const store: Record<string, string> = {};
+    const originalLocalStorage = global.localStorage;
+    const originalWindow = (global as any).window;
+    (global as any).window = global;
+    (global as any).localStorage = {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, val: string) => {
+        store[key] = val;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    };
+
+    try {
+      let phoneTimerMode: 'stopwatch' | 'countdown' | 'pomodoro' = 'countdown';
+      let phoneIsUltraStrict = true;
+      let phoneIsStudying = false;
+      let phoneIsRemoteSession = false;
+
+      const handleRemoteSyncOnPhone = (
+        remotePayload: any,
+        myDeviceId: string
+      ) => {
+        const wasActive = phoneIsStudying || phoneIsRemoteSession;
+        if (!wasActive && (!remotePayload || remotePayload.status === 'stopped' || remotePayload.status === 'idle')) {
+          // Idle poll: must not reset user settings!
+          return;
+        }
+
+        if (!remotePayload || remotePayload.status === 'stopped' || remotePayload.status === 'idle') {
+          phoneIsStudying = false;
+          phoneIsRemoteSession = false;
+          // Restores to persisted local setting
+          phoneIsUltraStrict = loadUltraStrictEnabled();
+          return;
+        }
+
+        const rawDeviceId = String(remotePayload.device_id || '');
+        const baseDeviceId = rawDeviceId.split('#')[0];
+        const isRemote = Boolean(baseDeviceId && baseDeviceId !== myDeviceId);
+        phoneIsRemoteSession = isRemote;
+        phoneIsStudying = remotePayload.status === 'running';
+        phoneIsUltraStrict = Boolean(remotePayload.is_ultra_strict || rawDeviceId.includes('#ultra'));
+      };
+
+      saveUltraStrictEnabled(true);
+      assert.equal(loadUltraStrictEnabled(), true);
+
+      // 1. Phone is idle, user enabled Ultra Strict
+      assert.equal(phoneIsUltraStrict, true);
+
+      // 2. 25-second poll triggers with empty database (data = null)
+      handleRemoteSyncOnPhone(null, 'android-mobile-phone');
+      assert.equal(phoneIsUltraStrict, true, 'Ultra strict mode must not be reset by null poll');
+
+      // 3. User switches tabs or window focus triggers poll with stopped/idle row
+      handleRemoteSyncOnPhone({ status: 'stopped', device_id: 'remote' }, 'android-mobile-phone');
+      assert.equal(phoneIsUltraStrict, true, 'Ultra strict mode must not be reset by stopped row while idle');
+
+      handleRemoteSyncOnPhone({ status: 'idle' }, 'android-mobile-phone');
+      assert.equal(phoneIsUltraStrict, true, 'Ultra strict mode must not be reset by idle row');
+    } finally {
+      (global as any).localStorage = originalLocalStorage;
+      (global as any).window = originalWindow;
+    }
+  });
+
   it('guarantees PC displays Ultra Focus Mode and locks pause/stop controls during Ultra Strict sessions', () => {
     // Simulated PC state
     let pcTimerMode: 'stopwatch' | 'countdown' | 'pomodoro' = 'stopwatch';

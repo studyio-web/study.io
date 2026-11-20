@@ -1937,22 +1937,31 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         return;
       }
       const wasActive = isStudyingRef.current || isRemoteSessionRef.current;
+      // If neither local nor remote was active and there is no active session row,
+      // the timer is already idle. Do not execute teardown or wipe user settings!
+      if (!wasActive && (!remoteSession || remoteSession.status === 'stopped' || remoteSession.status === 'idle')) {
+        return;
+      }
+
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
       }
       startTimeRef.current = null;
-    clientSessionIdRef.current = null;
+      clientSessionIdRef.current = null;
       accumulatedSecondsRef.current = 0;
       sessionStartTimeRef.current = null;
-    clientSessionIdRef.current = null;
+      clientSessionIdRef.current = null;
       setElapsedSeconds(0);
       setIsStudying(false);
       setIsPaused(false);
       setIsRemoteSession(false);
       isRemoteSessionRef.current = false;
-      setIsUltraStrict(false);
-      isUltraStrictRef.current = false;
+      const localUltraPref = typeof window !== 'undefined'
+        ? localStorage.getItem('studyio_ultra_strict_enabled') === 'true'
+        : false;
+      setIsUltraStrict(localUltraPref);
+      isUltraStrictRef.current = localUltraPref;
       setPomodoroCompletedPhase(null);
       clearPersistedTimer();
 
