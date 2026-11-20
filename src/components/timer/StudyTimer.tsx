@@ -2532,7 +2532,6 @@ export function StudyTimer() {
               </span>
               {!isRemoteSession && (isStrictMode || isBlockShortsReels) && (
                 <span className="inline-flex items-center gap-1 ml-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                   {isStudying ? (
                     <Lock className="w-3 h-3 text-white/50 shrink-0" />
                   ) : isStrictMode && allowedApps.length > 0 ? (

@@ -217,20 +217,16 @@ export const TimerDial = React.memo(function TimerDial({
           </div>
         )}
 
-        {/* Status Line in sentence case with small dot */}
+        {/* Status Line in sentence case */}
         <div className="flex items-center justify-center gap-1.5">
+          {isRunning && !shouldReduceMotion && (
+            <span className="w-1.5 h-1.5 rounded-full timer-status-pulse bg-emerald-400 shrink-0" />
+          )}
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              statusText === 'Completed'
-                ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-                : isRunning && !shouldReduceMotion
-                ? 'timer-status-pulse bg-emerald-400'
-                : isPaused
-                ? 'bg-amber-400'
-                : 'bg-zinc-500'
+            className={`text-xs font-mono font-medium ${
+              statusText === 'Completed' ? 'text-emerald-400' : 'text-[var(--text-dim)]'
             }`}
-          />
-          <span className="text-xs font-mono text-[var(--text-dim)] font-medium">
+          >
             {statusText}
           </span>
         </div>
