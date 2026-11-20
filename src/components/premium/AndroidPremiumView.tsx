@@ -13,6 +13,7 @@ import {
 import { useReducedMotion } from 'framer-motion';
 import { triggerHaptic, registerBackButtonHandler, updateNativeStatusBar } from '../../lib/native-feel';
 import { DEMO_PREMIUM_THEMES } from '../../lib/premiumThemes';
+import { getSvgScene } from '../focus/scenes/svgScenes';
 import { useAuth } from '../../context/AuthContext';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { UserAvatar } from '../common/UserAvatar';
@@ -46,6 +47,58 @@ const PREMIUM_AVATARS = [
   { name: 'Void Walker', file: 'void-walker.png' },
 ];
 
+export interface DemoPremiumScene {
+  id: string;
+  name: string;
+  accent: string;
+  glow: string;
+  border: string;
+  desc: string;
+}
+
+export const DEMO_PREMIUM_SCENES: DemoPremiumScene[] = [
+  {
+    id: 'forest',
+    name: 'Moonlit Forest',
+    accent: '#10B981',
+    glow: 'rgba(16, 185, 129, 0.45)',
+    border: 'rgba(16, 185, 129, 0.35)',
+    desc: 'Pines, mist, and fireflies under the moon',
+  },
+  {
+    id: 'dusk',
+    name: 'Dusk Peaks',
+    accent: '#F58A69',
+    glow: 'rgba(245, 138, 105, 0.45)',
+    border: 'rgba(245, 138, 105, 0.35)',
+    desc: 'Sunset mountain ridges with warm glowing sky',
+  },
+  {
+    id: 'neon',
+    name: 'Neon Skyline',
+    accent: '#D946EF',
+    glow: 'rgba(217, 70, 239, 0.45)',
+    border: 'rgba(217, 70, 239, 0.35)',
+    desc: 'Rainy city night with illuminated skyline',
+  },
+  {
+    id: 'sakura',
+    name: 'Sakura Night',
+    accent: '#F472B6',
+    glow: 'rgba(244, 114, 182, 0.45)',
+    border: 'rgba(244, 114, 182, 0.35)',
+    desc: 'Moonlit cherry blossoms drifting in the night breeze',
+  },
+  {
+    id: 'campfire',
+    name: 'Campfire Night',
+    accent: '#FF9800',
+    glow: 'rgba(255, 152, 0, 0.45)',
+    border: 'rgba(255, 152, 0, 0.35)',
+    desc: 'Warm glowing embers rising into the starry forest sky',
+  },
+];
+
 export function AndroidPremiumView({
   isPremium,
   premiumUntil,
@@ -70,9 +123,13 @@ export function AndroidPremiumView({
   const [activeThemeId, setActiveThemeId] = useState<string>('sakura');
   const themeDotsRowRef = useRef<HTMLDivElement>(null);
 
+  // Selected scene in Animated Focus Scenes miniature
+  const [activeSceneId, setActiveSceneId] = useState<string>('forest');
+  const sceneDotsRowRef = useRef<HTMLDivElement>(null);
+
   // Intersection observers to pause off-screen animations
   const sceneRef = useRef<HTMLDivElement>(null);
-  const [isSceneVisible, setIsSceneVisible] = useState(false);
+  const [isSceneVisible, setIsSceneVisible] = useState(true);
   const avatarsRef = useRef<HTMLDivElement>(null);
   const [isAvatarsVisible, setIsAvatarsVisible] = useState(false);
 
@@ -147,6 +204,17 @@ export function AndroidPremiumView({
     });
   };
 
+  // Handle Scene Selection with haptic feedback & auto-scroll into view
+  const handleSelectScene = (sceneId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    triggerHaptic('selection');
+    setActiveSceneId(sceneId);
+    e.currentTarget.scrollIntoView({
+      behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    });
+  };
+
   // Primary CTA click
   const handleCtaClick = () => {
     triggerHaptic('medium');
@@ -163,6 +231,13 @@ export function AndroidPremiumView({
       DEMO_PREMIUM_THEMES[2] // Sakura fallback
     );
   }, [activeThemeId]);
+
+  const currentScene = useMemo(() => {
+    return (
+      DEMO_PREMIUM_SCENES.find((s) => s.id === activeSceneId) ||
+      DEMO_PREMIUM_SCENES[0] // Forest fallback
+    );
+  }, [activeSceneId]);
 
   return (
     <div
@@ -447,49 +522,87 @@ export function AndroidPremiumView({
         <div className="border-t border-white/[0.08] my-7" />
 
         <section className="flex flex-col gap-3.5">
-          {/* Big Visual: Moonlit Forest Scene Preview */}
+          {/* Big Visual: Animated Scene Preview */}
           <div
             ref={sceneRef}
-            className="w-full h-48 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 border border-emerald-500/25 select-none"
+            className={`w-full h-48 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 border select-none transition-all duration-300 ${
+              !isSceneVisible || shouldReduceMotion ? 'scene-hidden' : ''
+            }`}
             style={{
-              background: 'linear-gradient(135deg, #020C12 0%, #08222C 50%, #114243 100%)',
+              backgroundColor: '#030712',
+              borderColor: currentScene.border,
+              boxShadow: `0 0 24px ${currentScene.glow}`,
             }}
           >
+            {/* Background SVG Scene Renderer */}
+            <div
+              key={currentScene.id}
+              className="absolute inset-0 pointer-events-none select-none [&_svg]:w-full [&_svg]:h-full [&_svg]:object-cover"
+              dangerouslySetInnerHTML={{ __html: getSvgScene(currentScene.id) }}
+            />
+
+            {/* Dark vignette overlay for crisp legibility of headers and captions */}
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/85 via-black/10 to-black/50" />
+
             {/* PRO Badge in Corner */}
             <div className="absolute top-3.5 right-3.5 px-2.5 py-0.5 rounded-full bg-[#E6C15A]/15 border border-[#E6C15A]/35 text-[10px] font-mono font-bold text-[#E6C15A] z-20">
               PRO
             </div>
 
-            {/* Glowing Moon */}
-            <div className="absolute top-5 left-7 w-12 h-12 rounded-full bg-emerald-100/90 shadow-[0_0_35px_rgba(52,211,153,0.55)] pointer-events-none" />
-
-            {/* Animated Forest Fireflies / Embers (paused when off-screen) */}
-            {isSceneVisible && (
-              <>
-                <div className="firefly-1 absolute top-20 left-24 w-2 h-2 rounded-full bg-emerald-400 blur-[1px] pointer-events-none" />
-                <div className="firefly-2 absolute top-14 right-24 w-2.5 h-2.5 rounded-full bg-teal-300 blur-[1.5px] pointer-events-none" />
-                <div className="firefly-1 absolute bottom-12 left-44 w-1.5 h-1.5 rounded-full bg-emerald-300 blur-[1px] pointer-events-none" />
-              </>
-            )}
-
-            {/* Silhouetted Forest Mountain Treeline Vector at Bottom */}
-            <div className="absolute inset-x-0 bottom-0 h-20 opacity-80 pointer-events-none">
-              <svg viewBox="0 0 500 150" preserveAspectRatio="none" className="w-full h-full fill-[#031016]">
-                <path d="M0,150 L0,80 L35,50 L70,85 L110,40 L150,90 L200,30 L250,95 L300,45 L350,90 L400,25 L450,85 L500,50 L500,150 Z" />
-              </svg>
-            </div>
-
             {/* Scene Header */}
             <div className="relative z-10 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-              <span className="text-xs font-mono uppercase tracking-wider font-semibold text-emerald-300">
-                Moonlit Forest
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm transition-colors duration-300"
+                style={{
+                  backgroundColor: currentScene.accent,
+                  boxShadow: `0 0 8px ${currentScene.accent}`,
+                }}
+              />
+              <span className="text-xs font-mono uppercase tracking-wider font-semibold text-white/95">
+                {currentScene.name}
               </span>
             </div>
 
             {/* Scene Status caption */}
-            <div className="relative z-10 text-[11px] font-mono text-emerald-200/70">
-              Living ambient environment · Serene midnight flow
+            <div className="relative z-10 text-[11px] font-mono text-white/70">
+              {currentScene.desc}
+            </div>
+          </div>
+
+          {/* Horizontally scrollable single row of 28px colored dots with right-edge fade */}
+          <div className="relative w-full">
+            <div
+              ref={sceneDotsRowRef}
+              className="flex items-center gap-3 overflow-x-auto py-1.5 px-1 no-scrollbar scroll-smooth"
+              style={{
+                maskImage: 'linear-gradient(to right, black 86%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to right, black 86%, transparent 100%)',
+              }}
+            >
+              {DEMO_PREMIUM_SCENES.map((scene) => {
+                const isSelected = scene.id === activeSceneId;
+                return (
+                  <button
+                    key={scene.id}
+                    type="button"
+                    onClick={(e) => handleSelectScene(scene.id, e)}
+                    className="relative shrink-0 flex items-center justify-center p-1 rounded-full transition-transform active:scale-90 cursor-pointer"
+                    aria-label={`Select ${scene.name} scene`}
+                  >
+                    <span
+                      className={`w-7 h-7 rounded-full shrink-0 transition-all ${
+                        isSelected
+                          ? 'ring-2 ring-[#E6C15A] ring-offset-2 ring-offset-[#0A0A0B] scale-110'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: scene.accent,
+                        boxShadow: isSelected ? `0 0 12px ${scene.accent}` : 'none',
+                      }}
+                    />
+                  </button>
+                );
+              })}
             </div>
           </div>
 
