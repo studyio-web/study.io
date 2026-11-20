@@ -254,6 +254,37 @@ export function cacheMemberProfiles(
   } catch {}
 }
 
+// In-memory & localStorage room members cache to eliminate 1-second lag when entering rooms
+const memoryRoomMembersCache = new Map<string, RoomMemberInfo[]>();
+
+export function getCachedRoomMembers(roomId: string): RoomMemberInfo[] {
+  if (!roomId) return [];
+  if (memoryRoomMembersCache.has(roomId)) {
+    return memoryRoomMembersCache.get(roomId) || [];
+  }
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(`studyio_room_members_${roomId}`) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryRoomMembersCache.set(roomId, parsed);
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function cacheRoomMembers(roomId: string, members: RoomMemberInfo[]) {
+  if (!roomId || !Array.isArray(members) || members.length === 0) return;
+  memoryRoomMembersCache.set(roomId, members);
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`studyio_room_members_${roomId}`, JSON.stringify(members));
+    }
+  } catch {}
+}
+
 import { usePremium } from '../../context/PremiumContext';
 
 export default function ActiveRoom({ roomId, onBack, initialTab }: ActiveRoomProps) {
@@ -1013,7 +1044,8 @@ CREATE POLICY "Hosts can update their own study rooms"
     }
   }, [roomTab]);
 
-  const [dbMembers, setDbMembers] = useState<RoomMemberInfo[]>([]);
+  const [dbMembers, setDbMembers] = useState<RoomMemberInfo[]>(() => getCachedRoomMembers(roomId));
+  const [isInitialMembersLoading, setIsInitialMembersLoading] = useState<boolean>(() => getCachedRoomMembers(roomId).length === 0);
   const [presentUsers, setPresentUsers] = useState<any[]>([]);
   const [nowTick, setNowTick] = useState<number>(Date.now());
 
@@ -1356,12 +1388,21 @@ CREATE POLICY "Hosts can update their own study rooms"
     if (!supabase || !roomId) return;
 
     try {
-      // 1. Fetch room details
-      const { data: roomData } = await supabase
-        .from('study_rooms')
-        .select('*')
-        .eq('id', roomId)
-        .maybeSingle();
+      // 1 & 2. Fetch room details and registered members simultaneously in parallel
+      const [roomDataRes, membersDataRes] = await Promise.all([
+        supabase
+          .from('study_rooms')
+          .select('*')
+          .eq('id', roomId)
+          .maybeSingle(),
+        supabase
+          .from('room_members')
+          .select('user_id, is_muted')
+          .eq('room_id', roomId),
+      ]);
+
+      const roomData = roomDataRes.data;
+      const membersData = membersDataRes.data;
 
       if (roomData) {
         setRoomInfo(roomData);
@@ -1376,12 +1417,6 @@ CREATE POLICY "Hosts can update their own study rooms"
           setEditMaxCapacity(roomData.max_capacity || 4);
         }
       }
-
-      // 2. Fetch all registered room members
-      const { data: membersData } = await supabase
-        .from('room_members')
-        .select('user_id, is_muted')
-        .eq('room_id', roomId);
 
       if (membersData && user?.id) {
         const myMembership = membersData.find((m: any) => m.user_id === user.id);
@@ -1399,34 +1434,39 @@ CREATE POLICY "Hosts can update their own study rooms"
         ])
       ).filter(Boolean);
 
-      if (allUserIds.length === 0) return;
-
-      // 3. Fetch user profiles for all members
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, username, name, avatar_url')
-        .in('id', allUserIds);
-
-      if (profilesData && profilesData.length > 0) {
-        cacheMemberProfiles(profilesData);
+      if (allUserIds.length === 0) {
+        setIsInitialMembersLoading(false);
+        return;
       }
 
-      // 4. Fetch active study sessions for all members
-      const { data: activeSessionsData } = await supabase
-        .from('active_sessions')
-        .select('user_id, status, started_at, accumulated_seconds')
-        .in('user_id', allUserIds);
-
-      // 5. Fetch study sessions today for all members
+      // 3, 4, 5. Fetch profiles, active sessions, and today's sessions simultaneously in parallel
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const queryIso = new Date(startOfDay.getTime() - 12 * 3600 * 1000).toISOString();
 
-      const { data: todaySessionsData } = await supabase
-        .from('study_sessions')
-        .select('user_id, duration_seconds, started_at')
-        .in('user_id', allUserIds)
-        .gte('started_at', queryIso);
+      const [profilesRes, activeSessionsRes, todaySessionsRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, username, name, avatar_url')
+          .in('id', allUserIds),
+        supabase
+          .from('active_sessions')
+          .select('user_id, status, started_at, accumulated_seconds')
+          .in('user_id', allUserIds),
+        supabase
+          .from('study_sessions')
+          .select('user_id, duration_seconds, started_at')
+          .in('user_id', allUserIds)
+          .gte('started_at', queryIso),
+      ]);
+
+      const profilesData = profilesRes.data;
+      const activeSessionsData = activeSessionsRes.data;
+      const todaySessionsData = todaySessionsRes.data;
+
+      if (profilesData && profilesData.length > 0) {
+        cacheMemberProfiles(profilesData);
+      }
 
       const userTodayMap = new Map<string, number>();
       (todaySessionsData || []).forEach((s: any) => {
@@ -1476,6 +1516,8 @@ CREATE POLICY "Hosts can update their own study rooms"
       });
 
       setDbMembers(membersList);
+      cacheRoomMembers(roomId, membersList);
+      setIsInitialMembersLoading(false);
 
       // Seed liveFocusMap with active session members from DB if no fresher telemetry exists
       const nowTs = Date.now();
@@ -1540,6 +1582,8 @@ CREATE POLICY "Hosts can update their own study rooms"
       }
     } catch (err) {
       console.error('Error fetching room members:', err);
+    } finally {
+      setIsInitialMembersLoading(false);
     }
   }, [roomId, user?.id]);
 
@@ -3116,7 +3160,24 @@ CREATE POLICY "Hosts can update their own study rooms"
               );
             })}
 
-            {displayUsers.length === 0 && (
+            {isInitialMembersLoading && displayUsers.length <= 1 && (
+              <>
+                {[1, 2, 3].map((skeletonId) => (
+                  <div
+                    key={`skeleton-member-${skeletonId}`}
+                    className="flex flex-col items-center gap-2 select-none animate-pulse opacity-40 pointer-events-none"
+                  >
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-white/10" />
+                    </div>
+                    <div className="h-3 w-16 bg-white/10 rounded-full mt-1" />
+                    <div className="h-2 w-12 bg-white/5 rounded-full mt-1" />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {displayUsers.length === 0 && !isInitialMembersLoading && (
               <div className="text-slate-500 text-center w-full mt-10">
                 Waiting for scholars to join...
               </div>

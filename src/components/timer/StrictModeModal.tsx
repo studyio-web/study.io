@@ -746,11 +746,13 @@ export function StrictModeConfigModal({
 }: StrictConfigModalProps) {
   if (!isOpen) return null;
 
+  const isBlockShortsActive = Boolean(isBlockShortsReels && hasAccessibilityPermission);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 pb-[max(env(safe-area-inset-bottom,0px)+16px,24px)] mb-16 sm:mb-0 shadow-2xl text-[var(--text,#fff)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+76px),84px)] bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-5 sm:p-6 shadow-2xl text-[var(--text,#fff)] max-h-[82vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 text-white flex items-center justify-center">
               <Shield className="w-5 h-5" />
@@ -773,7 +775,7 @@ export function StrictModeConfigModal({
           </button>
         </div>
 
-        <div className="mt-5 space-y-3.5">
+        <div className="mt-4 space-y-3.5 overflow-y-auto flex-1 pr-1 -mr-1">
           {/* Active Session Lock Notice */}
           {isFocusing && (
             <div className={`p-3.5 rounded-2xl border text-white/90 text-xs flex items-center gap-3 ${
@@ -918,14 +920,14 @@ export function StrictModeConfigModal({
 
           {/* Block Reels & Shorts Card */}
           <div className={`p-4 rounded-2xl border transition-colors flex items-center justify-between gap-4 text-left ${
-            isBlockShortsReels
+            isBlockShortsActive
               ? 'bg-emerald-500/[0.06] border-emerald-500/30'
               : 'bg-white/[0.03] border-white/[0.06]'
           }`}>
             <div>
               <div className="flex items-center gap-2">
                 <span className={`text-[11px] font-hud font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border flex items-center gap-1.5 ${
-                  isBlockShortsReels
+                  isBlockShortsActive
                     ? 'text-emerald-300 bg-emerald-500/20 border-emerald-500/40'
                     : 'text-white/80 bg-white/10 border-white/15'
                 }`}>
@@ -936,6 +938,11 @@ export function StrictModeConfigModal({
               </div>
               <p className="text-[11px] text-white/50 mt-1 leading-snug">
                 Auto-exit Instagram Reels & YouTube Shorts when scrolling during study sessions.
+                {!hasAccessibilityPermission && (
+                  <span className="block text-amber-400 font-mono text-[10px] mt-0.5">
+                    Requires Accessibility permission (Grant below to enable)
+                  </span>
+                )}
               </p>
             </div>
             <button
@@ -944,12 +951,16 @@ export function StrictModeConfigModal({
               onClick={() => {
                 if (isFocusing) return;
                 triggerHaptic('medium');
+                if (!hasAccessibilityPermission) {
+                  onRequestAccessibilityPermission();
+                  return;
+                }
                 onToggleBlockShortsReels?.();
               }}
               className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                 isFocusing
                   ? 'opacity-40 cursor-not-allowed bg-emerald-500/40'
-                  : isBlockShortsReels
+                  : isBlockShortsActive
                   ? 'cursor-pointer bg-emerald-500'
                   : 'cursor-pointer bg-white/20'
               }`}
@@ -957,7 +968,7 @@ export function StrictModeConfigModal({
             >
               <span
                 className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                  isBlockShortsReels ? 'translate-x-5' : 'translate-x-0'
+                  isBlockShortsActive ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
             </button>
@@ -1061,12 +1072,12 @@ export function StrictModeConfigModal({
           </div>
         </div>
 
-        {/* Done / Keep Focusing Button */}
-        <div className="mt-6">
+        {/* Done / Keep Focusing Button (Anchored with safe bottom breathing room) */}
+        <div className="pt-3.5 border-t border-white/[0.08] mt-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-colors"
+            className="w-full h-11 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-colors flex items-center justify-center cursor-pointer active:scale-[0.98] shadow-sm"
           >
             {isFocusing ? 'Understood (Keep Focusing)' : 'Done'}
           </button>

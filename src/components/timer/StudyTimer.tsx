@@ -259,7 +259,13 @@ export function StudyTimer() {
     if (isAndroid) {
       StrictMode.hasUsagePermission().then(({ granted }) => setHasUsagePerm(granted)).catch(() => { });
       StrictMode.hasOverlayPermission().then(({ granted }) => setHasOverlayPerm(granted)).catch(() => { });
-      AccessibilityBlocker.isServiceEnabled().then((enabled) => setHasAccessibilityPerm(enabled)).catch(() => { });
+      AccessibilityBlocker.isServiceEnabled().then((enabled) => {
+        setHasAccessibilityPerm(enabled);
+        if (!enabled) {
+          setIsBlockShortsReels(false);
+          saveBlockShortsReelsEnabled(false);
+        }
+      }).catch(() => { });
       StrictMode.isDeviceAdminActive().then(({ active }) => setIsDeviceAdminActive(active)).catch(() => { });
       StrictMode.syncStrictConfig({
         enabled: isStrictMode && !isRemoteSession,
@@ -405,24 +411,27 @@ export function StudyTimer() {
       toast('Reels & Shorts Blocker cannot be changed during active focus sessions', { icon: '🔒' });
       return;
     }
+    const enabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
+    setHasAccessibilityPerm(enabled);
+    if (!enabled) {
+      toast('Accessibility permission required to block Reels & Shorts. Please grant below.', { icon: '⚙️' });
+      try {
+        await AccessibilityBlocker.openSettings();
+      } catch (e) {
+        console.warn('[AccessibilityBlocker] openSettings failed:', e);
+      }
+      setIsBlockShortsReels(false);
+      saveBlockShortsReelsEnabled(false);
+      return;
+    }
+
     const nextVal = !isBlockShortsReels;
     setIsBlockShortsReels(nextVal);
     saveBlockShortsReelsEnabled(nextVal);
     triggerHaptic('medium');
 
     if (nextVal) {
-      try {
-        const enabled = await AccessibilityBlocker.isServiceEnabled();
-        setHasAccessibilityPerm(enabled);
-        if (!enabled) {
-          toast('Please enable Study.io Accessibility Service in Android Settings', { icon: '⚙️' });
-          await AccessibilityBlocker.openSettings();
-        } else {
-          toast.success('Reels & Shorts Blocker enabled', { icon: '🛡️' });
-        }
-      } catch {
-        toast('Accessibility Service check failed', { icon: '⚠️' });
-      }
+      toast.success('Reels & Shorts Blocker enabled', { icon: '🛡️' });
     } else {
       toast('Reels & Shorts Blocker disabled');
     }
@@ -701,6 +710,7 @@ export function StudyTimer() {
 
   // Streamlined control handlers cleanly controlling synchronized StudyContext timer engine
   const handleStartSession = useCallback(() => {
+    isSavingRef.current = false;
     hasCountdownCompletedFiredRef.current = false;
     setIsCountdownCompleted(false);
     setIsCountdownHalfwayNotified(false);
@@ -789,6 +799,7 @@ export function StudyTimer() {
   }, [resumeTimer]);
 
   const handleReset = useCallback(() => {
+    isSavingRef.current = false;
     hasCountdownCompletedFiredRef.current = false;
     soundFx.stopTimerAlarm();
     setIsAlarmRinging(false);
@@ -814,81 +825,74 @@ export function StudyTimer() {
     isSavingRef.current = true;
     setIsSaving(true);
 
-    // Immediately silence & disarm any active timer alarm
-    hasCountdownCompletedFiredRef.current = false;
-    soundFx.stopTimerAlarm();
-    setIsAlarmRinging(false);
-    setAlarmModalData(null);
-
-    // Strict offline gate: User cannot stop and save when network is disconnected
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      toast.error('Network connection required to save session. Please reconnect.', {
-        id: 'offline-stop-blocked',
-        duration: 4000,
-      });
-      isSavingRef.current = false;
-      setIsSaving(false);
-      return;
-    }
-
-    triggerHaptic('medium');
-
-    // Anti-Exploit: Immediately purge timer seconds cache to prevent ghost resurrects
     try {
-      localStorage.removeItem('studyio_timer_seconds');
-      localStorage.removeItem('timer-start-time');
-      localStorage.removeItem('studyio_timer_start_time');
-      localStorage.removeItem('studyio_timer_countdown_completed');
-      localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-    } catch { }
+      // Immediately silence & disarm any active timer alarm
+      hasCountdownCompletedFiredRef.current = false;
+      soundFx.stopTimerAlarm();
+      setIsAlarmRinging(false);
+      setAlarmModalData(null);
 
-    // 1. Prevent race conditions: Capture exact real-time duration BEFORE mutating any state or resetting timer display
-    const rawSeconds = isRunning && startTimeRef?.current
-      ? Math.max(elapsedSeconds, Math.floor((Date.now() - startTimeRef.current) / 1000))
-      : elapsedSeconds;
+      // Strict offline gate: User cannot stop and save when network is disconnected
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        toast.error('Network connection required to save session. Please reconnect.', {
+          id: 'offline-stop-blocked',
+          duration: 4000,
+        });
+        return;
+      }
 
-    const seconds = typeof durationOverride === 'number'
-      ? durationOverride
-      : (isCountdownCompleted && countdownTarget > 0 ? countdownTarget : rawSeconds);
+      triggerHaptic('medium');
 
-    // Direct, fresh capture of active subject via ref and state/storage
-    let activeSubject =
-      activeSubjectRef.current ||
-      selectedSubject ||
-      activeSubjects.find(s => s && s.id === selectedSubjectId) ||
-      subjectList.find(s => s && s.id === selectedSubjectId) ||
-      null;
+      // Anti-Exploit: Immediately purge timer seconds cache to prevent ghost resurrects
+      try {
+        localStorage.removeItem('studyio_timer_seconds');
+        localStorage.removeItem('timer-start-time');
+        localStorage.removeItem('studyio_timer_start_time');
+        localStorage.removeItem('studyio_timer_countdown_completed');
+        localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+      } catch { }
 
+      // 1. Prevent race conditions: Capture exact real-time duration BEFORE mutating any state or resetting timer display
+      const rawSeconds = isRunning && startTimeRef?.current
+        ? Math.max(elapsedSeconds, Math.floor((Date.now() - startTimeRef.current) / 1000))
+        : elapsedSeconds;
 
-    if (!activeSubject || !activeSubject.id || (activeSubject.name || '').trim().toLowerCase() === 'unassigned') {
-      alert("Please choose a subject before recording focus time.");
-      setSubjectWarning(true);
-      setShowDropdown(true);
-      isSavingRef.current = false;
-      setIsSaving(false);
-      return;
-    }
+      const seconds = typeof durationOverride === 'number'
+        ? durationOverride
+        : (isCountdownCompleted && countdownTarget > 0 ? countdownTarget : rawSeconds);
 
-    const selectedSub = activeSubject;
-    const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    let subjectId = isUuid(selectedSub.id) ? selectedSub.id : null;
-    const currentMode = timerMode || 'stopwatch';
-    const notesToSave = currentNotes?.trim() || null;
-    const now = new Date();
-    const endedAt = now.toISOString();
-    const startedAt = new Date(now.getTime() - seconds * 1000).toISOString();
+      // Direct, fresh capture of active subject via ref and state/storage
+      let activeSubject =
+        activeSubjectRef.current ||
+        selectedSubject ||
+        activeSubjects.find(s => s && s.id === selectedSubjectId) ||
+        subjectList.find(s => s && s.id === selectedSubjectId) ||
+        null;
 
-    // Handle non-positive durations (allow any duration > 0 including short test sessions)
-    if (seconds <= 0) {
-      resetTimer();
-      clearPersistedTimer();
-      setShowRecoveryBanner(false);
-      isSavingRef.current = false;
-      setIsSaving(false);
-      return;
-    }
+      if (!activeSubject || !activeSubject.id || (activeSubject.name || '').trim().toLowerCase() === 'unassigned') {
+        alert("Please choose a subject before recording focus time.");
+        setSubjectWarning(true);
+        setShowDropdown(true);
+        return;
+      }
 
-    try {
+      const selectedSub = activeSubject;
+      const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let subjectId = isUuid(selectedSub.id) ? selectedSub.id : null;
+      const currentMode = timerMode || 'stopwatch';
+      const notesToSave = currentNotes?.trim() || null;
+      const now = new Date();
+      const endedAt = now.toISOString();
+      const startedAt = new Date(now.getTime() - seconds * 1000).toISOString();
+
+      // Handle non-positive durations (allow any duration > 0 including short test sessions)
+      if (seconds <= 0) {
+        resetTimer();
+        clearPersistedTimer();
+        setShowRecoveryBanner(false);
+        return;
+      }
+
       const supabase = getSupabase();
 
       // 2. Ensure active user is present via supabase.auth.getUser() or useAuth context
@@ -1313,6 +1317,7 @@ export function StudyTimer() {
         }
       }
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }, [
@@ -1488,6 +1493,7 @@ export function StudyTimer() {
       !hasCountdownCompletedFiredRef.current
     ) {
       hasCountdownCompletedFiredRef.current = true;
+      isSavingRef.current = false;
       setIsCountdownCompleted(true);
       hapticSuccess();
       try {
@@ -1542,10 +1548,11 @@ export function StudyTimer() {
 
   // Alarm action handlers
   const handleDismissAlarm = useCallback(() => {
+    isSavingRef.current = false;
     soundFx.stopTimerAlarm();
     setIsAlarmRinging(false);
     setAlarmModalData(null);
-  }, []);
+  }, [soundFx]);
 
   const handleSnoozeAlarm = useCallback(() => {
     handleDismissAlarm();
@@ -2047,7 +2054,7 @@ export function StudyTimer() {
                     setAlarmModalData(null);
                     await handleStopAndSave(countdownTarget);
                   }}
-                  disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
+                  disabled={isSaving || isRemoteTransitioning || !isOnline}
                   className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                     ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
                     : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
@@ -2111,7 +2118,7 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
                   : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm'
@@ -2151,7 +2158,7 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isRemoteTransitioning || !isOnline}
                 className="px-5 h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text)] font-medium text-sm active:scale-[0.98] transition-transform duration-120 cursor-pointer disabled:opacity-50"
               >
                 <span>Skip</span>
@@ -2260,7 +2267,7 @@ export function StudyTimer() {
               <button
                 type="button"
                 onClick={() => handleStopAndSave()}
-                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
@@ -2299,7 +2306,7 @@ export function StudyTimer() {
               <button
                 type="button"
                 onClick={() => handleStopAndSave()}
-                disabled={isSaving || isSavingRef.current || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isRemoteTransitioning || !isOnline}
                 className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
                   ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
