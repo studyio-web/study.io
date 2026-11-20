@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Shield,
   ShieldAlert,
@@ -48,10 +49,15 @@ export function StrictModeAllowedAppsModal({
   allowedApps,
   onSaveAllowedApps,
 }: AllowedAppsModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
   const [selectedPackages, setSelectedPackages] = useState<Set<string>>(new Set(allowedApps));
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -138,10 +144,10 @@ export function StrictModeAllowedAppsModal({
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg max-h-[82vh] mb-16 sm:mb-0 flex flex-col rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] shadow-2xl text-[var(--text,#fff)] overflow-hidden">
         {/* Header */}
         <div className="p-5 pb-3 border-b border-white/[0.08] flex items-center justify-between shrink-0">
@@ -315,7 +321,8 @@ export function StrictModeAllowedAppsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -333,10 +340,15 @@ export function StrictModePermissionModal({
   onClose,
   onRequestPermission,
 }: PermissionModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-6 shadow-2xl text-[var(--text,#fff)] text-center">
         <div className="w-14 h-14 rounded-3xl bg-white/10 border border-white/15 text-white flex items-center justify-center mx-auto mb-4">
           <ShieldAlert className="w-7 h-7" />
@@ -373,7 +385,8 @@ export function StrictModePermissionModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -399,7 +412,12 @@ export function StrictCountdownWarningModal({
   onConfirm,
   onCancel,
 }: StrictCountdownWarningModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -407,7 +425,7 @@ export function StrictCountdownWarningModal({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   const formattedDuration = (() => {
     const mins = Math.floor(countdownSeconds / 60);
@@ -422,9 +440,9 @@ export function StrictCountdownWarningModal({
     return `${secs}s`;
   })();
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onCancel}
     >
       <div
@@ -622,7 +640,8 @@ export function StrictCountdownWarningModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -644,10 +663,15 @@ export function StrictModeBlockedModal({
   onDismiss,
   onOpenSettings,
 }: BlockedAppModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-200">
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-200">
       <div className="relative w-full max-w-md rounded-3xl bg-zinc-950 border border-rose-500/30 p-6 shadow-[0_0_50px_rgba(239,68,68,0.2)] text-white text-center">
         <div className="w-16 h-16 rounded-3xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto mb-4 animate-bounce">
           <ShieldAlert className="w-8 h-8" />
@@ -694,7 +718,8 @@ export function StrictModeBlockedModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -744,13 +769,18 @@ export function StrictModeConfigModal({
   onRequestOverlayPermission,
   onRequestAccessibilityPermission,
 }: StrictConfigModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   const isBlockShortsActive = Boolean(isBlockShortsReels && hasAccessibilityPermission);
 
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-5 sm:p-6 shadow-2xl text-[var(--text,#fff)] max-h-[86vh] flex flex-col my-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6 pb-[max(calc(env(safe-area-inset-bottom,0px)+16px),24px)] bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-5 sm:p-6 shadow-2xl text-[var(--text,#fff)] max-h-[80vh] flex flex-col my-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08] shrink-0">
           <div className="flex items-center gap-3">
@@ -1083,6 +1113,7 @@ export function StrictModeConfigModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

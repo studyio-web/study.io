@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { BellOff, Coffee, Play, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { triggerHaptic } from '../../lib/native-feel';
 import { ALARM_MAX_DURATION_SECONDS, formatAlarmRemaining } from '../../lib/timerAlarm';
@@ -27,7 +28,12 @@ export function TimerAlarmModal({
   onStartBreak,
   onStartFocus,
 }: TimerAlarmModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(ALARM_MAX_DURATION_SECONDS);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Reset timer on open & tick down until auto-silence (5 minutes)
   useEffect(() => {
@@ -60,7 +66,7 @@ export function TimerAlarmModal({
     };
   }, [isOpen, onDismiss]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   const categoryLabel = (() => {
     if (isUltraStrict) return 'ULTRA LOCKDOWN PROTOCOL';
@@ -89,12 +95,12 @@ export function TimerAlarmModal({
     return 'Ready to start your next focus block?';
   })();
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="alarm-modal-title"
-      className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-[#050507]/90 backdrop-blur-2xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-[#050507]/90 backdrop-blur-2xl animate-in fade-in duration-200"
     >
       {/* Dynamic Ambient Spatial Halo */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -250,6 +256,7 @@ export function TimerAlarmModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
