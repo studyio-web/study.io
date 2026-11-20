@@ -34,33 +34,24 @@ const PremiumContext = createContext<PremiumContextType | undefined>(undefined);
 export function PremiumProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
 
-  const [rawIsPremium, setRawIsPremium] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = getCachedUserState();
-        if (cached && typeof cached.isPro === 'boolean') {
-          return cached.isPro;
-        }
-      } catch {}
-    }
-    return false;
-  });
+  const [rawIsPremium, setRawIsPremium] = useState<boolean>(false);
   const [premiumUntilDate, setPremiumUntilDate] = useState<Date | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('none');
   const [cancelAtCycleEnd, setCancelAtCycleEnd] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = getCachedUserState();
-        if (cached && typeof cached.isPro === 'boolean') {
-          return false;
-        }
-      } catch {}
-    }
-    return true;
-  });
+  const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  // Hydrate cached user state on client mount to guarantee zero SSR hydration mismatch
+  useEffect(() => {
+    try {
+      const cached = getCachedUserState();
+      if (cached && typeof cached.isPro === 'boolean') {
+        setRawIsPremium(cached.isPro);
+        setLoading(false);
+      }
+    } catch {}
+  }, []);
 
   // Single error logging guard
   const hasLoggedErrorRef = useRef(false);

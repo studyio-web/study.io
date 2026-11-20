@@ -870,15 +870,20 @@ export function StudyTimer() {
         null;
 
       if (!activeSubject || !activeSubject.id || (activeSubject.name || '').trim().toLowerCase() === 'unassigned') {
-        const fallbackSub =
+        const fallbackSub: Subject =
           activeSubjects.find(s => s && s.id && (s.name || '').trim().toLowerCase() !== 'unassigned') ||
           (Array.isArray(subjects) ? subjects.find(s => s && s.id && (s.name || '').trim().toLowerCase() !== 'unassigned') : null) ||
-          { id: 'default-study-session', name: 'General Study', color: '#10B981' };
+          {
+            id: 'default-study-session',
+            name: 'General Study',
+            color: '#10B981',
+            createdAt: new Date().toISOString(),
+          };
         activeSubject = fallbackSub;
         setSelectedSubjectId(fallbackSub.id);
       }
 
-      const selectedSub = activeSubject;
+      const selectedSub: Subject = activeSubject as Subject;
       const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       let subjectId = isUuid(selectedSub.id) ? selectedSub.id : null;
       const currentMode = timerMode || 'stopwatch';

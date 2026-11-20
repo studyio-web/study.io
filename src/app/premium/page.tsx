@@ -28,10 +28,11 @@ import { RankCrestBadge } from '../../components/common/RankCrestBadge';
 import { RankTierName } from '../../lib/rankedSystem';
 import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout';
 import { PAYMENTS_ENABLED } from '../../config/billing';
-import { updateNativeStatusBar, registerBackButtonHandler } from '../../lib/native-feel';
+import { updateNativeStatusBar, registerBackButtonHandler, isNativeApp } from '../../lib/native-feel';
 import { ProAvatarRing } from '../../components/ui/ProAvatarRing';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { FlairCrown } from '../../components/common/FlairBadge';
+import { AndroidPremiumView } from '../../components/premium/AndroidPremiumView';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM CONSTANTS & TOKENS
@@ -890,6 +891,35 @@ export default function PremiumPage() {
   // Dynamic Razorpay checkout & live plan rates
   const { plans, isProcessing, startCheckout } = useRazorpayCheckout();
 
+  // Android Capacitor native shell detection (UI-only scoping)
+  const [isNative, setIsNative] = useState(false);
+
+  useEffect(() => {
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    const isNativeCheck =
+      isNativeApp() ||
+      search.includes('native') ||
+      hash.includes('native') ||
+      (typeof document !== 'undefined' && document.documentElement.classList.contains('native-android'));
+    console.log('[PremiumPage isNative check]', { isNativeCheck, search, hash });
+    setIsNative(isNativeCheck);
+  }, []);
+
+  if (isNative) {
+    return (
+      <AndroidPremiumView
+        isPremium={isPremium}
+        premiumUntil={premiumUntil}
+        loading={premiumLoading}
+        plans={plans}
+        isProcessing={isProcessing}
+        startCheckout={startCheckout}
+        userRank={userRank}
+      />
+    );
+  }
+
   const monthlyFormatted = plans?.monthly?.formattedAmount || '₹499';
   const yearlyFormatted = plans?.yearly?.formattedAmount || '₹4,999';
   const monthlyAmount = plans?.monthly?.amount ? plans.monthly.amount / 100 : 499;
@@ -1004,7 +1034,7 @@ export default function PremiumPage() {
           </div>
 
           {/* Status chip with skeleton fallback while loading */}
-          <div>
+          <div suppressHydrationWarning>
             {premiumLoading ? (
               <div className="h-7 w-20 rounded-full bg-white/10 animate-pulse" />
             ) : isPremium ? (
@@ -1066,7 +1096,7 @@ export default function PremiumPage() {
             </p>
 
             {/* Action Buttons: Skeleton while loading to prevent upsell flash */}
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-7 flex flex-wrap items-center gap-3" suppressHydrationWarning>
               {premiumLoading ? (
                 <div className="h-11 w-36 rounded-2xl bg-white/10 animate-pulse" />
               ) : isPremium ? (

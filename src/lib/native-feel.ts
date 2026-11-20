@@ -131,6 +131,10 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
   let backListenerHandle: { remove: () => void } | null = null;
 
   try {
+    if (isNativeApp()) {
+      document.documentElement.classList.add('native-android');
+    }
+
     if (Capacitor.isNativePlatform()) {
       // 1. Initial Status Bar sync
       await updateNativeStatusBar(defaultColor, true);
@@ -230,4 +234,24 @@ export async function initNativeAndroidBridge(defaultColor = '#050507'): Promise
     }
   };
 }
+
+/**
+ * Detects whether the current execution environment is the native Capacitor Android app.
+ * Returns strictly false in desktop browsers, mobile browsers (Chrome/Safari), and SSR.
+ */
+export function isNativeApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const isNative =
+      Capacitor.isNativePlatform() ||
+      Boolean((window as any).Capacitor?.isNativePlatform?.());
+    const platform =
+      Capacitor.getPlatform() ||
+      (window as any).Capacitor?.getPlatform?.();
+    return isNative && platform === 'android';
+  } catch {
+    return false;
+  }
+}
+
 

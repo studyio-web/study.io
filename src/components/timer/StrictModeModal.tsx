@@ -952,7 +952,7 @@ export function StrictModeConfigModal({
                 if (isFocusing) return;
                 triggerHaptic('medium');
                 if (!hasAccessibilityPermission) {
-                  onRequestAccessibilityPermission();
+                  onRequestAccessibilityPermission?.();
                   return;
                 }
                 onToggleBlockShortsReels?.();
