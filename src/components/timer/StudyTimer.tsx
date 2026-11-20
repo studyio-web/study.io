@@ -870,10 +870,12 @@ export function StudyTimer() {
         null;
 
       if (!activeSubject || !activeSubject.id || (activeSubject.name || '').trim().toLowerCase() === 'unassigned') {
-        alert("Please choose a subject before recording focus time.");
-        setSubjectWarning(true);
-        setShowDropdown(true);
-        return;
+        const fallbackSub =
+          activeSubjects.find(s => s && s.id && (s.name || '').trim().toLowerCase() !== 'unassigned') ||
+          (Array.isArray(subjects) ? subjects.find(s => s && s.id && (s.name || '').trim().toLowerCase() !== 'unassigned') : null) ||
+          { id: 'default-study-session', name: 'General Study', color: '#10B981' };
+        activeSubject = fallbackSub;
+        setSelectedSubjectId(fallbackSub.id);
       }
 
       const selectedSub = activeSubject;
@@ -2041,7 +2043,8 @@ export function StudyTimer() {
                   type="button"
                   onClick={async () => {
                     toast.dismiss();
-                    if (!isOnline) {
+                    if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
+                      triggerHaptic('warning');
                       toast.error('Network connection required to save session. Please reconnect.', {
                         id: 'offline-stop-blocked',
                         duration: 4000,
@@ -2052,11 +2055,22 @@ export function StudyTimer() {
                     soundFx.stopTimerAlarm();
                     setIsAlarmRinging(false);
                     setAlarmModalData(null);
-                    await handleStopAndSave(countdownTarget);
+                    triggerHaptic('medium');
+                    const savingToastId = toast.loading('Saving focus session...', { id: 'saving-session' });
+                    try {
+                      await handleStopAndSave(countdownTarget);
+                    } catch (err: any) {
+                      console.error('[StudyTimer] Error in handleStopAndSave:', err);
+                      toast.error('Failed to save session. Retrying...', { id: savingToastId });
+                    } finally {
+                      toast.dismiss(savingToastId);
+                      setIsSaving(false);
+                      isSavingRef.current = false;
+                    }
                   }}
-                  disabled={isSaving || isRemoteTransitioning || !isOnline}
-                  className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
-                    ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
+                  disabled={isSaving}
+                  className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 relative z-20 cursor-pointer pointer-events-auto ${!isOnline
+                    ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
                     : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
                     }`}
                   title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
@@ -2266,10 +2280,19 @@ export function StudyTimer() {
               </button>
               <button
                 type="button"
-                onClick={() => handleStopAndSave()}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
-                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
+                onClick={() => {
+                  if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
+                    toast.error('Network connection required to save session. Please reconnect.', {
+                      id: 'offline-stop-blocked',
+                      duration: 4000,
+                    });
+                    return;
+                  }
+                  handleStopAndSave();
+                }}
+                disabled={isSaving}
+                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer ${!isOnline
+                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
                   }`}
                 title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
@@ -2305,10 +2328,19 @@ export function StudyTimer() {
               </button>
               <button
                 type="button"
-                onClick={() => handleStopAndSave()}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 ${!isOnline
-                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60 hover:bg-white/[0.04]'
+                onClick={() => {
+                  if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
+                    toast.error('Network connection required to save session. Please reconnect.', {
+                      id: 'offline-stop-blocked',
+                      duration: 4000,
+                    });
+                    return;
+                  }
+                  handleStopAndSave();
+                }}
+                disabled={isSaving}
+                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer ${!isOnline
+                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
                   : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
                   }`}
                 title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}

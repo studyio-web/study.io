@@ -77,7 +77,7 @@ class BlockedAppActivity : AppCompatActivity() {
         val iconView = ImageView(this).apply {
             setImageResource(R.drawable.ic_stat_studyio)
             setColorFilter(Color.parseColor("#EF4444"))
-            setBackgroundColor(Color.TRANSPARENT)
+            background = null
             val iconSize = dpToPx(56)
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                 topMargin = dpToPx(8)
@@ -90,7 +90,7 @@ class BlockedAppActivity : AppCompatActivity() {
         val titleView = TextView(this).apply {
             text = if (isUninstallShield) "Settings & Deletion Locked" else "Blocked by Study.io"
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.TRANSPARENT)
+            background = null
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -107,7 +107,7 @@ class BlockedAppActivity : AppCompatActivity() {
         subtitleView = TextView(this).apply {
             text = if (isUninstallShield) "Uninstall Protection Active" else "$blockedName is blocked"
             setTextColor(Color.parseColor("#F87171"))
-            setBackgroundColor(Color.TRANSPARENT)
+            background = null
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -128,7 +128,7 @@ class BlockedAppActivity : AppCompatActivity() {
                 else -> "Strict Mode is keeping you focused. You cannot open this app during your study session."
             }
             setTextColor(Color.parseColor("#A1A1AA"))
-            setBackgroundColor(Color.TRANSPARENT)
+            background = null
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
             setLineSpacing(0f, 1.25f)
