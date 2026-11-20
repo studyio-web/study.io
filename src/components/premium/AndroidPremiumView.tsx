@@ -19,9 +19,9 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
-import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
+import { triggerHaptic, registerBackButtonHandler, updateNativeStatusBar } from '../../lib/native-feel';
 import { PAYMENTS_ENABLED } from '../../config/billing';
-import { DEMO_PREMIUM_THEMES } from '../../app/premium/page';
+import { DEMO_PREMIUM_THEMES } from '../../lib/premiumThemes';
 import { ProAvatarRing } from '../ui/ProAvatarRing';
 import { UserAvatar } from '../common/UserAvatar';
 import { FlairCrown } from '../common/FlairBadge';
@@ -113,8 +113,9 @@ export function AndroidPremiumView({
     Math.round((1 - yearlyAmount / (monthlyAmount * 12)) * 100)
   );
 
-  // Hardware Back Button integration for Android
+  // Hardware Back Button integration & native status bar for Android
   useEffect(() => {
+    updateNativeStatusBar('#070709', true);
     return registerBackButtonHandler(() => {
       triggerHaptic('light');
       router.push('/dashboard');

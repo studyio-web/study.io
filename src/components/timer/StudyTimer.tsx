@@ -373,7 +373,7 @@ export function StudyTimer() {
         if (!granted) {
           setIsPermissionModalOpen(true);
         }
-      } catch {}
+      } catch { }
       toast.success('Ultra Strict enabled: Countdown mode only', { icon: '⚡' });
     } else {
       syncTimerMode(timerMode, false);
@@ -491,9 +491,9 @@ export function StudyTimer() {
   useEffect(() => {
     if (!isAndroid) return;
     if (isStudying && isBlockShortsReels && !isRemoteSession) {
-      AccessibilityBlocker.enable().catch(() => {});
+      AccessibilityBlocker.enable().catch(() => { });
     } else {
-      AccessibilityBlocker.disable().catch(() => {});
+      AccessibilityBlocker.disable().catch(() => { });
     }
   }, [isStudying, isBlockShortsReels, isAndroid, isRemoteSession]);
 
@@ -1512,7 +1512,7 @@ export function StudyTimer() {
       } catch { }
       pauseTimer();
       if (isNativeAndroid()) {
-        TimerNotification.stop().catch(() => {});
+        TimerNotification.stop().catch(() => { });
       }
       if (!isNativeAndroid()) {
         notify('countdown_completed', {
@@ -1573,7 +1573,7 @@ export function StudyTimer() {
       setIsCountdownCompleted(false);
       try {
         localStorage.removeItem('studyio_timer_countdown_completed');
-      } catch {}
+      } catch { }
       resumeTimer();
       toast.success('Snoozed for 5 minutes', { icon: '⏰' });
     }
@@ -2507,15 +2507,15 @@ export function StudyTimer() {
               className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isRemoteSession
                 ? 'border-sky-500/30 bg-sky-500/10 text-sky-400 font-medium'
                 : isStrictMode || isBlockShortsReels
-                ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
-                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+                  ? 'border-white/20 bg-white/10 text-white font-medium shadow-xs'
+                  : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
                 }`}
               title={
                 isRemoteSession
                   ? 'Remote session active from desktop (Strict Mode bypassed on phone)'
                   : isStudying && (isStrictMode || isBlockShortsReels)
-                  ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict / Blocker is active and locked during study')
-                  : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode & Reels Blocker')
+                    ? (isUltraStrict ? 'Ultra Strict Mode is active (all apps locked)' : 'Strict / Blocker is active and locked during study')
+                    : (isUltraStrict ? 'Ultra Strict Mode (Full Lockdown)' : 'Strict Mode & Reels Blocker')
               }
             >
               <Shield className={`w-3.5 h-3.5 shrink-0 ${isRemoteSession ? 'text-sky-400' : isStrictMode || isBlockShortsReels ? 'text-emerald-400' : 'text-[var(--text-dim)]'}`} />
@@ -2523,12 +2523,12 @@ export function StudyTimer() {
                 {isRemoteSession
                   ? 'Remote Focus'
                   : isUltraStrict && isStrictMode
-                  ? 'Ultra: ON'
-                  : isStrictMode
-                  ? 'Strict: ON'
-                  : isBlockShortsReels
-                  ? 'Reels: Block'
-                  : 'Strict: OFF'}
+                    ? 'Ultra: ON'
+                    : isStrictMode
+                      ? 'Strict: ON'
+                      : isBlockShortsReels
+                        ? 'Reels: Block'
+                        : 'Strict: OFF'}
               </span>
               {!isRemoteSession && (isStrictMode || isBlockShortsReels) && (
                 <span className="inline-flex items-center gap-1 ml-0.5">
