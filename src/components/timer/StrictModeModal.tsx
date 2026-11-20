@@ -941,6 +941,7 @@ export function StrictModeConfigModal({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!canToggle('admin')) return;
                       triggerHaptic('medium');
                       onRequestDeviceAdmin?.();
                     }}

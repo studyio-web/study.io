@@ -242,6 +242,7 @@ export function StudyTimer() {
   const allowedAppsRef = useRef(allowedApps);
   allowedAppsRef.current = allowedApps;
   const pendingEnableReelsRef = useRef(false);
+  const pendingEnableDeviceAdminRef = useRef(false);
   const isTogglingReelsRef = useRef(false);
   const lastReelsToggleTimeRef = useRef(0);
   const isTogglingStrictRef = useRef(false);
@@ -515,6 +516,7 @@ export function StudyTimer() {
 
   const handleRequestDeviceAdmin = async () => {
     if (!isAndroid) return;
+    pendingEnableDeviceAdminRef.current = true;
     try {
       await StrictMode.requestDeviceAdmin();
     } catch (e) {
@@ -550,6 +552,13 @@ export function StudyTimer() {
         }
         const { active: adminActive } = await StrictMode.isDeviceAdminActive();
         setIsDeviceAdminActive(adminActive);
+        if (adminActive && pendingEnableDeviceAdminRef.current) {
+          pendingEnableDeviceAdminRef.current = false;
+          toast.success('Uninstall Protection activated!', {
+            id: 'device-admin-status-toast',
+            icon: '🛡️',
+          });
+        }
 
         if (!isStrictModeRef.current && usageGranted && isPermissionModalOpen) {
           setIsPermissionModalOpen(false);

@@ -686,4 +686,13 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     assert.equal(attemptAfterSession.allowed, true);
     assert.equal(attemptAfterSession.warning, null);
   });
+
+  it('guarantees Device Admin activation contract is supported on StrictModePlugin interface', async () => {
+    const { StrictMode } = await import('../src/lib/strictModePlugin');
+    assert.equal(typeof StrictMode.requestDeviceAdmin, 'function');
+    assert.equal(typeof StrictMode.isDeviceAdminActive, 'function');
+
+    const adminStatus = await StrictMode.isDeviceAdminActive();
+    assert.equal(typeof adminStatus.active, 'boolean');
+  });
 });

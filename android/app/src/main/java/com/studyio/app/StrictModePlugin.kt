@@ -208,20 +208,54 @@ class StrictModePlugin : Plugin() {
     @PluginMethod
     fun requestDeviceAdmin(call: PluginCall) {
         try {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
             val comp = ComponentName(context, StudyDeviceAdminReceiver::class.java)
+            if (dpm != null && dpm.isAdminActive(comp)) {
+                val res = JSObject().apply { put("active", true) }
+                call.resolve(res)
+                return
+            }
+
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, comp)
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                     "Enables Uninstall Protection for Ultra Strict Mode so you cannot delete, uninstall, or force stop study.io during an active study countdown timer."
                 )
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            context.startActivity(intent)
-            call.resolve()
+
+            val currentActivity = activity ?: bridge?.activity
+            if (currentActivity != null) {
+                // DeviceAdminAdd checks (flags & FLAG_ACTIVITY_NEW_TASK) != 0 and immediately finishes if set.
+                // It must be launched from the foreground Activity without FLAG_ACTIVITY_NEW_TASK.
+                currentActivity.startActivity(intent)
+                call.resolve(JSObject().apply { put("launched", true) })
+            } else {
+                try {
+                    val fallbackIntent = Intent("android.settings.DEVICE_ADMIN_SETTINGS").apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(fallbackIntent)
+                    call.resolve(JSObject().apply { put("launched", true) })
+                } catch (e2: Exception) {
+                    val secIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(secIntent)
+                    call.resolve(JSObject().apply { put("launched", true) })
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error opening device admin activation screen", e)
-            call.reject("Cannot open device admin settings: ${e.message}", e)
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+                call.resolve(JSObject().apply { put("launched", true) })
+            } catch (e2: Exception) {
+                call.reject("Cannot open device admin settings: ${e.message}", e)
+            }
         }
     }
 
