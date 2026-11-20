@@ -749,8 +749,8 @@ export function StrictModeConfigModal({
   const isBlockShortsActive = Boolean(isBlockShortsReels && hasAccessibilityPermission);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+76px),84px)] bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-5 sm:p-6 shadow-2xl text-[var(--text,#fff)] max-h-[82vh] flex flex-col">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl bg-[var(--surface,#121214)] border border-[var(--border,rgba(255,255,255,0.12))] p-5 sm:p-6 shadow-2xl text-[var(--text,#fff)] max-h-[86vh] flex flex-col my-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08] shrink-0">
           <div className="flex items-center gap-3">
@@ -1073,11 +1073,11 @@ export function StrictModeConfigModal({
         </div>
 
         {/* Done / Keep Focusing Button (Anchored with safe bottom breathing room) */}
-        <div className="pt-3.5 border-t border-white/[0.08] mt-3 shrink-0">
+        <div className="pt-4 border-t border-white/[0.08] mt-3.5 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="w-full h-11 rounded-xl text-xs font-hud font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-colors flex items-center justify-center cursor-pointer active:scale-[0.98] shadow-sm"
+            className="w-full h-12 rounded-2xl text-xs font-hud font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-100 transition-all flex items-center justify-center cursor-pointer active:scale-[0.98] shadow-md"
           >
             {isFocusing ? 'Understood (Keep Focusing)' : 'Done'}
           </button>

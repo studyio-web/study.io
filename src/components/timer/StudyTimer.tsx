@@ -463,8 +463,12 @@ export function StudyTimer() {
         setHasUsagePerm(usageGranted);
         const { granted: overlayGranted } = await StrictMode.hasOverlayPermission();
         setHasOverlayPerm(overlayGranted);
-        const accessibilityEnabled = await AccessibilityBlocker.isServiceEnabled();
+        const accessibilityEnabled = await AccessibilityBlocker.isServiceEnabled().catch(() => false);
         setHasAccessibilityPerm(accessibilityEnabled);
+        if (!accessibilityEnabled) {
+          setIsBlockShortsReels(false);
+          saveBlockShortsReelsEnabled(false);
+        }
         const { active: adminActive } = await StrictMode.isDeviceAdminActive();
         setIsDeviceAdminActive(adminActive);
 
