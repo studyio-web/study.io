@@ -2600,6 +2600,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             const rankDetails = liveStats.rankTier;
 
             saveCachedUserState({
+              profile: userRef.current ? {
+                ...userRef.current,
+                seasonRp: currentSeasonRp,
+                rp: currentSeasonRp,
+                season_base_rp: carryoverRp,
+                carryover_rp: carryoverRp,
+                rank_title: rankDetails.name || rankDetails.fullTitle,
+                streakDays: realStreak,
+                totalStudySeconds: realTotalSeconds,
+              } : undefined,
               subjects: subjectList,
               streakCount: realStreak,
               rp: currentSeasonRp,

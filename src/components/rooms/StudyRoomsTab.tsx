@@ -76,7 +76,7 @@ export default function StudyRoomsTab({
     if (typeof window === 'undefined') return;
     try {
       setMutedRoomIds(JSON.parse(localStorage.getItem('studyio_muted_rooms') || '[]'));
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -186,7 +186,7 @@ export default function StudyRoomsTab({
       setMutedRoomIds(updated);
       try {
         localStorage.setItem('studyio_muted_rooms', JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       toast(
         nextMuted ? 'Room messages muted' : 'Room messages unmuted',
@@ -369,7 +369,7 @@ CREATE POLICY "Hosts can update their own study rooms"
         type: 'broadcast',
         event: 'room_changed',
         payload: { timestamp: Date.now() },
-      }).catch(() => {});
+      }).catch(() => { });
     } catch {
       // ignore
     }
@@ -409,9 +409,9 @@ CREATE POLICY "Hosts can update their own study rooms"
       // Fetch rooms joined by user
       const { data: joinedRooms, error: joinedError } = roomIds.length > 0
         ? await supabase
-            .from('study_rooms')
-            .select('*, room_members(count)')
-            .in('id', roomIds)
+          .from('study_rooms')
+          .select('*, room_members(count)')
+          .in('id', roomIds)
         : { data: [], error: null };
 
       if (joinedError) {
@@ -816,12 +816,12 @@ CREATE POLICY "Hosts can update their own study rooms"
             try {
               const parsed = JSON.parse(record.content.replace('[SYSTEM_BAN]:', ''));
               if (parsed.userId === user.id) isUserBanned = true;
-            } catch {}
+            } catch { }
           } else if (record.content.startsWith('[SYSTEM_UNBAN]:')) {
             try {
               const parsed = JSON.parse(record.content.replace('[SYSTEM_UNBAN]:', ''));
               if (parsed.userId === user.id) isUserBanned = false;
-            } catch {}
+            } catch { }
           }
         }
 
@@ -984,8 +984,8 @@ CREATE POLICY "Hosts can update their own study rooms"
       filterType === 'all'
         ? true
         : filterType === 'public'
-        ? !room.is_private
-        : room.is_private;
+          ? !room.is_private
+          : room.is_private;
 
     if (!matchesFilter) return false;
 
@@ -1117,18 +1117,17 @@ CREATE POLICY "Hosts can update their own study rooms"
                         key={ft}
                         type="button"
                         onClick={() => setFilterType(ft)}
-                        className={`px-2.5 py-1.5 rounded-lg font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
-                          filterType === ft
+                        className={`px-2.5 py-1.5 rounded-lg font-hud-mono text-[10px] sm:text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${filterType === ft
                             ? 'shadow-sm'
                             : 'bg-fg/[0.04] border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                        }`}
+                          }`}
                         style={filterType === ft ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
                       >
                         {ft === 'all'
                           ? `All (${explorerRooms.length})`
                           : ft === 'public'
-                          ? `Public (${explorerRooms.filter((r) => !r.is_private).length})`
-                          : `Protected (${explorerRooms.filter((r) => r.is_private).length})`}
+                            ? `Public (${explorerRooms.filter((r) => !r.is_private).length})`
+                            : `Protected (${explorerRooms.filter((r) => r.is_private).length})`}
                       </button>
                     ))}
                   </div>
@@ -1207,13 +1206,12 @@ CREATE POLICY "Hosts can update their own study rooms"
                           key={room.id}
                           onClick={() => handleJoinClick(room)}
                           onPointerDown={() => prefetchRoomsMembers([room])}
-                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
-                            isHost
+                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
                               : isMember
-                              ? 'border-l-emerald-400 bg-fg/[0.02] hover:bg-fg/[0.05]'
-                              : 'border-l-transparent hover:bg-fg/[0.02]'
-                          }`}
+                                ? 'border-l-emerald-400 bg-fg/[0.02] hover:bg-fg/[0.05]'
+                                : 'border-l-transparent hover:bg-fg/[0.02]'
+                            }`}
                         >
                           {/* Mobile Card (< sm) */}
                           <div className="flex sm:hidden items-center justify-between p-3.5 gap-3">
@@ -1247,11 +1245,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 <button
                                   type="button"
                                   onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
-                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                                    activeMenu?.roomId === room.id
+                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${activeMenu?.roomId === room.id
                                       ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
                                       : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                                  }`}
+                                    }`}
                                   aria-label={`Room actions for ${room.name}`}
                                   title="Room options"
                                 >
@@ -1378,11 +1375,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                                   <button
                                     type="button"
                                     onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
-                                    className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                                      activeMenu?.roomId === room.id
+                                    className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${activeMenu?.roomId === room.id
                                         ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
                                         : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                                    }`}
+                                      }`}
                                     aria-label={`Room actions for ${room.name}`}
                                     title="Room options"
                                   >
@@ -1540,11 +1536,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                           key={room.id}
                           onClick={() => setActiveRoomId(room.id)}
                           onPointerDown={() => prefetchRoomsMembers([room])}
-                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${
-                            isHost
+                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${isHost
                               ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
                               : 'border-l-transparent hover:bg-fg/[0.02]'
-                          }`}
+                            }`}
                         >
                           {/* Mobile Card (< sm) */}
                           <div className="flex sm:hidden items-center justify-between p-3.5 gap-3">
@@ -1577,11 +1572,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                               <button
                                 type="button"
                                 onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
-                                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                                  activeMenu?.roomId === room.id
+                                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${activeMenu?.roomId === room.id
                                     ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
                                     : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                                }`}
+                                  }`}
                                 aria-label={`Room actions for ${room.name}`}
                                 title="Room options"
                               >
@@ -1663,11 +1657,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                                 <button
                                   type="button"
                                   onClick={(e) => handleOpenRoomMenu(e, room, isHost, shortCode)}
-                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                                    activeMenu?.roomId === room.id
+                                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${activeMenu?.roomId === room.id
                                       ? 'bg-fg/[0.15] text-[var(--text)] ring-1 ring-fg/20'
                                       : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                                  }`}
+                                    }`}
                                   aria-label={`Room actions for ${room.name}`}
                                   title="Room options"
                                 >
@@ -1851,11 +1844,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                       setIsPrivateCreate(false);
                       setCreateRoomData(prev => ({ ...prev, password: '' }));
                     }}
-                    className={`px-3 py-1.5 rounded-lg font-hud-mono text-[10px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border cursor-pointer ${
-                      !isPrivateCreate
+                    className={`px-3 py-1.5 rounded-lg font-hud-mono text-[10px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border cursor-pointer ${!isPrivateCreate
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                         : 'bg-fg/[0.04] border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                    }`}
+                      }`}
                   >
                     <div className={`w-1.5 h-1.5 rounded-full ${!isPrivateCreate ? 'bg-emerald-400' : 'bg-neutral-500'}`} />
                     PUBLIC // OPEN
@@ -1863,11 +1855,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                   <button
                     type="button"
                     onClick={() => setIsPrivateCreate(true)}
-                    className={`px-3 py-1.5 rounded-lg font-hud-mono text-[10px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border cursor-pointer ${
-                      isPrivateCreate
+                    className={`px-3 py-1.5 rounded-lg font-hud-mono text-[10px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border cursor-pointer ${isPrivateCreate
                         ? 'bg-[var(--accent-soft)] border-[var(--border)] text-[var(--accent)]'
                         : 'bg-fg/[0.04] border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.08]'
-                    }`}
+                      }`}
                   >
                     <div className={`w-1.5 h-1.5 rounded-full ${isPrivateCreate ? 'bg-[var(--accent)]' : 'bg-neutral-500'}`} />
                     RESTRICTED // PASSWORD
@@ -2237,11 +2228,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                   <label className="font-hud-mono text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-widest block">
                     PASSWORD & PRIVACY
                   </label>
-                  <span className={`text-[10px] font-hud-mono font-bold px-2 py-0.5 rounded-full border ${
-                    editIsPrivate
+                  <span className={`text-[10px] font-hud-mono font-bold px-2 py-0.5 rounded-full border ${editIsPrivate
                       ? 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--border)]'
                       : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  }`}>
+                    }`}>
                     {editIsPrivate ? 'RESTRICTED' : 'PUBLIC'}
                   </span>
                 </div>
@@ -2250,11 +2240,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                   <button
                     type="button"
                     onClick={() => setEditIsPrivate(false)}
-                    className={`py-2 px-3 rounded-lg border font-hud-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      !editIsPrivate
+                    className={`py-2 px-3 rounded-lg border font-hud-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${!editIsPrivate
                         ? 'border-[var(--border)] shadow-sm'
                         : 'bg-fg/[0.04] border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)]'
-                    }`}
+                      }`}
                     style={!editIsPrivate ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
                   >
                     Public (Open)
@@ -2262,11 +2251,10 @@ CREATE POLICY "Hosts can update their own study rooms"
                   <button
                     type="button"
                     onClick={() => setEditIsPrivate(true)}
-                    className={`py-2 px-3 rounded-lg border font-hud-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      editIsPrivate
+                    className={`py-2 px-3 rounded-lg border font-hud-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${editIsPrivate
                         ? 'border-[var(--border)] shadow-sm'
                         : 'bg-fg/[0.04] border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)]'
-                    }`}
+                      }`}
                     style={editIsPrivate ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
                   >
                     Private (Password)
@@ -2375,13 +2363,12 @@ CREATE POLICY "Hosts can update their own study rooms"
                                   setIsCapacityDropdownOpen(false);
                                   hapticTick();
                                 }}
-                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-hud font-bold transition-all cursor-pointer select-none ${
-                                  isSelected
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-hud font-bold transition-all cursor-pointer select-none ${isSelected
                                     ? 'bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40'
                                     : isDisabled
-                                    ? 'opacity-30 text-[var(--text-faint)] cursor-not-allowed'
-                                    : 'text-[var(--text)] hover:bg-fg/[0.06]'
-                                }`}
+                                      ? 'opacity-30 text-[var(--text-faint)] cursor-not-allowed'
+                                      : 'text-[var(--text)] hover:bg-fg/[0.06]'
+                                  }`}
                               >
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-mono text-xs font-bold">{num}</span>
@@ -2413,13 +2400,12 @@ CREATE POLICY "Hosts can update their own study rooms"
                         type="button"
                         disabled={isDisabled}
                         onClick={() => setEditMaxCapacity(num)}
-                        className={`px-2.5 py-1 rounded-lg font-hud-mono text-xs font-bold transition-all border cursor-pointer ${
-                          isSelected
+                        className={`px-2.5 py-1 rounded-lg font-hud-mono text-xs font-bold transition-all border cursor-pointer ${isSelected
                             ? 'border-[var(--border)] shadow-sm'
                             : isDisabled
-                            ? 'opacity-30 bg-fg/[0.02] border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
-                            : 'bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text-dim)] border border-[var(--border)]'
-                        }`}
+                              ? 'opacity-30 bg-fg/[0.02] border-[var(--border)] text-[var(--text-faint)] cursor-not-allowed'
+                              : 'bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text-dim)] border border-[var(--border)]'
+                          }`}
                         style={isSelected ? { backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' } : undefined}
                       >
                         {num}

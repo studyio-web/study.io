@@ -15,6 +15,7 @@ import { getRankTier, getNextTier, RankTier, HARD_RESET_CAP_RP } from '@/lib/ran
 import { getSupabase } from '@/lib/supabase';
 import { LeaderboardEntry } from '@/types';
 import { useDevRankPreview } from '@/lib/devRankPreview';
+import { getCachedUserState, saveCachedUserState } from '@/lib/userCache';
 
 export interface UserRankState {
   seasonRp: number;
@@ -70,7 +71,46 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
 
   const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [currentUserEntry, setCurrentUserEntry] = useState<LeaderboardEntry | null>(null);
+  const [currentUserEntry, setCurrentUserEntry] = useState<LeaderboardEntry | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const uid = user?.id;
+      if (uid && !uid.startsWith('user-scholar') && uid !== 'guest') {
+        const stored = localStorage.getItem(`studyio_cached_user_entry_${uid}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object' && parsed.season_rp) {
+            return parsed as LeaderboardEntry;
+          }
+        }
+      }
+      const cachedState = getCachedUserState();
+      const rp = Number(cachedState?.rp || user?.seasonRp || (user as any)?.season_rp || 0);
+      if (rp > 0) {
+        const tier = getRankTier(rp);
+        return {
+          user_id: uid || cachedState?.profile?.id || 'me',
+          name: cachedState?.profile?.displayName || user?.displayName || 'Scholar',
+          display_name: cachedState?.profile?.displayName || user?.displayName || null,
+          username: cachedState?.profile?.username || user?.username || null,
+          avatar_url: cachedState?.profile?.avatarUrl || user?.avatarUrl || null,
+          level: Number(cachedState?.profile?.level ?? user?.level ?? 1),
+          lifetime_xp: Number(cachedState?.profile?.lifetime_xp ?? cachedState?.profile?.xp ?? user?.lifetime_xp ?? user?.xp ?? 0),
+          rank_title: cachedState?.rankTitle || tier.name,
+          tier: tier.tier,
+          division: tier.division,
+          badge: tier.badge,
+          badge_url: tier.imagePath,
+          season_rp: rp,
+          this_month_seconds: rp * 36,
+          total_seconds: rp * 36,
+          focus_minutes: Math.floor(rp * 0.6),
+          is_current_user: true,
+        };
+      }
+    } catch {}
+    return null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFetching, setIsFetching] = useState<boolean>(false);
 
@@ -81,10 +121,24 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const currentId = user?.id || null;
     if (prevUserIdRef.current && prevUserIdRef.current !== currentId) {
-      clearRankCache(prevUserIdRef.current);
-      clearRankCache();
-      setLeaderboard([]);
-      setCurrentUserEntry(null);
+      const wasRealUser = prevUserIdRef.current && !prevUserIdRef.current.startsWith('user-scholar') && prevUserIdRef.current !== 'guest';
+      const isRealUser = currentId && !currentId.startsWith('user-scholar') && currentId !== 'guest';
+      if (wasRealUser && isRealUser && prevUserIdRef.current !== currentId) {
+        clearRankCache(prevUserIdRef.current);
+        clearRankCache();
+        setLeaderboard([]);
+        setCurrentUserEntry(null);
+      } else if (isRealUser) {
+        try {
+          const stored = localStorage.getItem(`studyio_cached_user_entry_${currentId}`);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.season_rp) {
+              setCurrentUserEntry(parsed);
+            }
+          }
+        } catch {}
+      }
     }
     prevUserIdRef.current = currentId;
   }, [user?.id]);
@@ -137,6 +191,16 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
                 timestamp: Date.now(),
                 timeframe,
               };
+              if (myEntry) {
+                try {
+                  localStorage.setItem(`studyio_cached_user_entry_${user.id}`, JSON.stringify(myEntry));
+                  saveCachedUserState({
+                    rp: myEntry.season_rp,
+                    rankBadge: myEntry.badge,
+                    rankTitle: myEntry.rank_title,
+                  });
+                } catch {}
+              }
             }
           }
         }
@@ -204,7 +268,18 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
                 e.rank = i + 1;
               });
               setLeaderboard(mapped);
-              setCurrentUserEntry(mapped.find((e) => e.is_current_user) || null);
+              const myFbEntry = mapped.find((e) => e.is_current_user) || null;
+              setCurrentUserEntry(myFbEntry);
+              if (myFbEntry && user?.id) {
+                try {
+                  localStorage.setItem(`studyio_cached_user_entry_${user.id}`, JSON.stringify(myFbEntry));
+                  saveCachedUserState({
+                    rp: myFbEntry.season_rp,
+                    rankBadge: myFbEntry.badge,
+                    rankTitle: myFbEntry.rank_title,
+                  });
+                } catch {}
+              }
             }
           }
         } catch (fbErr) {
@@ -276,9 +351,8 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
     const entrySeasonRp = Number(currentUserEntry?.season_rp || 0);
     const userSeasonRp = Number(user?.seasonRp ?? (user as any)?.season_rp ?? user?.rp ?? 0);
     const userBaseRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(user?.season_base_rp ?? user?.carryover_rp ?? 0)));
-    const authoritativeRp = entrySeasonRp > 0
-      ? Math.max(entrySeasonRp, userBaseRp)
-      : Math.max(userSeasonRp, userBaseRp);
+    const cachedStateRp = Number(getCachedUserState()?.rp || 0);
+    const authoritativeRp = Math.max(entrySeasonRp, userSeasonRp, userBaseRp, cachedStateRp);
 
     const tier = getRankTier(authoritativeRp);
     const nextTier = getNextTier(tier.name);

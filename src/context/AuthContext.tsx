@@ -48,12 +48,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const resolvedDisplayName = profile.username || profile.displayName || profile.name || 'Focus Scholar';
           profile.avatarUrl = resolveAppAvatar(profile.avatarUrl, resolvedDisplayName);
           profile.streakDays = cached.streakCount ?? profile.streakDays ?? 0;
+          if (typeof cached.rp === 'number' && cached.rp > 0) {
+            profile.seasonRp = Math.max(Number(profile.seasonRp || 0), cached.rp);
+            profile.rp = Math.max(Number(profile.rp || 0), cached.rp);
+          }
+          if (cached.rankTitle && !profile.rank_title) {
+            profile.rank_title = cached.rankTitle;
+          }
           return profile;
         }
         const saved = localStorage.getItem('studypulse_active_user');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') return parsed;
+          if (parsed && typeof parsed === 'object') {
+            if (typeof cached?.rp === 'number' && cached.rp > 0) {
+              parsed.seasonRp = Math.max(Number(parsed.seasonRp || 0), cached.rp);
+              parsed.rp = Math.max(Number(parsed.rp || 0), cached.rp);
+            }
+            if (cached?.rankTitle && !parsed.rank_title) {
+              parsed.rank_title = cached.rankTitle;
+            }
+            return parsed;
+          }
         }
       } catch {}
     }
@@ -587,9 +603,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (live.startingRp > 0) {
             parsed.season_base_rp = Math.max(Number(parsed.season_base_rp || 0), live.startingRp);
             parsed.carryover_rp = Math.max(Number(parsed.carryover_rp || 0), live.startingRp);
-            parsed.seasonRp = live.seasonRp;
-            parsed.rp = live.seasonRp;
-            parsed.rank_title = live.rankTitle;
+          }
+          // Preserve highest verified RP: never drop or downgrade existing earned season RP to baseline carryover
+          const cachedState = getCachedUserState();
+          const existingRp = Math.max(
+            Number(parsed.seasonRp || 0),
+            Number(parsed.rp || 0),
+            Number(cachedState?.rp || 0)
+          );
+          const bestRp = Math.max(existingRp, live.startingRp);
+          if (bestRp > 0) {
+            parsed.seasonRp = bestRp;
+            parsed.rp = bestRp;
+            parsed.rank_title = getRankTier(bestRp).name.toUpperCase();
           }
           if (!parsed.user_metadata) parsed.user_metadata = {};
           if (parsed.level && !parsed.user_metadata.level) {
@@ -965,6 +991,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         localStorage.setItem('studypulse_active_user', JSON.stringify(updated));
+        saveCachedUserState({
+          profile: updated,
+          streakCount: updated.streakDays,
+          rankBadge: getRankTier(updated.seasonRp || 0).badge,
+          rankTitle: updated.rank_title || getRankTier(updated.seasonRp || 0).name.toUpperCase(),
+          rp: updated.seasonRp,
+        });
       } catch {}
 
       // Only send valid columns in the update payload to Supabase matching verified schema:
