@@ -522,7 +522,7 @@ export function FocusModeModal() {
         {/* Compact Timer Playback Controls (Start / Pause only) positioned right above scene pills */}
         {!isCountdownCompleted && (
           <div className="flex items-center justify-center">
-            {isUltraStrict && isStudying ? null : isStudying && !isPaused ? (
+            {isUltraStrict && isStudying && !isPaused ? null : isStudying && !isPaused ? (
               <button
                 type="button"
                 onClick={() => {
@@ -551,7 +551,7 @@ export function FocusModeModal() {
                 title={isStudying ? "Resume timer (Space)" : "Start timer (Space)"}
               >
                 <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                <span>Start</span>
+                <span>{isStudying ? "Resume" : "Start"}</span>
               </button>
             )}
           </div>

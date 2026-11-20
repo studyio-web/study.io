@@ -1856,7 +1856,7 @@ export function StudyTimer() {
   if (isCountdownCompleted) {
     statusText = 'Completed';
   } else if (isUltraStrict) {
-    statusText = isStudying ? 'Ultra Focus' : 'Ultra Focus Mode';
+    statusText = isStudying ? (isPaused ? 'Paused' : 'Ultra Focus') : 'Ultra Focus Mode';
   } else if (timerMode === 'pomodoro') {
     if (isPaused) {
       statusText = 'Paused';
@@ -2461,6 +2461,19 @@ export function StudyTimer() {
                   <span>Start session</span>
                 </button>
               )}
+            </div>
+          ) : isUltraStrict && isPaused ? (
+            /* Ultra Strict Session Paused: Provide Resume button so the user can continue their countdown session */
+            <div className="flex items-center justify-center w-[min(280px,85vw)] sm:w-[260px]">
+              <button
+                type="button"
+                onClick={handleResume}
+                disabled={isSaving || isRemoteTransitioning}
+                className="w-full h-[52px] rounded-full font-semibold text-sm text-[var(--accent-contrast)] bg-[var(--accent)] shadow-sm hover:brightness-105 active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Resume session</span>
+              </button>
             </div>
           ) : isUltraStrict ? (
             /* Ultra Strict Session Running: No Stop, Pause, or Reset buttons until countdown completes */

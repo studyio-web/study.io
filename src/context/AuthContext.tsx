@@ -1152,6 +1152,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Prevent logging out if Ultra Strict Mode is enabled or timer is actively running
+    if (typeof window !== 'undefined') {
+      const isUltra = localStorage.getItem('studyio_ultra_strict_enabled') === 'true';
+      const isTimerActive =
+        localStorage.getItem('timer-is-active') === 'true' ||
+        localStorage.getItem('studyio_timer_seconds') !== null;
+      if (isUltra || isTimerActive) {
+        console.warn('[AuthContext] Sign out blocked: Ultra Strict Mode or focus timer is active.');
+        return;
+      }
+    }
+
     const supabase = getSupabase();
     if (supabase) {
       try {
@@ -1186,6 +1198,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [saveUser]);
 
   const resetAllData = useCallback(async () => {
+    // Block reset if Ultra Strict Mode is enabled or timer is actively running
+    if (typeof window !== 'undefined') {
+      const isUltra = localStorage.getItem('studyio_ultra_strict_enabled') === 'true';
+      const isTimerActive =
+        localStorage.getItem('timer-is-active') === 'true' ||
+        localStorage.getItem('studyio_timer_seconds') !== null;
+      if (isUltra || isTimerActive) {
+        console.warn('[AuthContext] Reset data blocked: Ultra Strict Mode or focus timer is active.');
+        return;
+      }
+    }
+
     const supabase = getSupabase();
     setUser(prev => {
       if (supabase && prev.id) {
@@ -1217,6 +1241,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [saveUser]);
 
   const deleteAccount = useCallback(async () => {
+    // Block account deletion if Ultra Strict Mode is enabled or timer is actively running
+    if (typeof window !== 'undefined') {
+      const isUltra = localStorage.getItem('studyio_ultra_strict_enabled') === 'true';
+      const isTimerActive =
+        localStorage.getItem('timer-is-active') === 'true' ||
+        localStorage.getItem('studyio_timer_seconds') !== null;
+      if (isUltra || isTimerActive) {
+        alert('Cannot delete account while in Ultra Strict Mode or while focus timer is active.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     const supabase = getSupabase();
     

@@ -20,6 +20,7 @@ import {
   Users,
   Check,
   HelpCircle,
+  Lock,
 } from 'lucide-react';
 import { ProCrown } from './ProCrown';
 import { usePremium } from '../../context/PremiumContext';
@@ -80,9 +81,15 @@ export function Navbar({
   hideBottomBar = false,
 }: NavbarProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const { isStudying, setIsFocusModeOpen, gamification, sessions } = useStudy();
+  const { isStudying, isUltraStrict, setIsFocusModeOpen, gamification, sessions } = useStudy();
   const { theme, userRank, totalRP } = useRankTheme();
   const { isPremium } = usePremium();
+
+  const isUltra = Boolean(
+    isUltraStrict ||
+    (typeof window !== 'undefined' && localStorage.getItem('studyio_ultra_strict_enabled') === 'true')
+  );
+  const isSignOutBlocked = isUltra || isStudying;
 
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -772,14 +779,16 @@ export function Navbar({
                   </button>
 
                   {!isAuthenticated ? (
-                    <button
-                      onClick={() => { onOpenAuth(); setShowPersonaMenu(false); }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <LogIn className="w-3.5 h-3.5" />
-                      <span>SIGN IN / SWITCH ACCOUNT</span>
-                    </button>
-                  ) : (
+                    !isSignOutBlocked && (
+                      <button
+                        onClick={() => { onOpenAuth(); setShowPersonaMenu(false); }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <LogIn className="w-3.5 h-3.5" />
+                        <span>SIGN IN / SWITCH ACCOUNT</span>
+                      </button>
+                    )
+                  ) : !isSignOutBlocked ? (
                     <button
                       onClick={() => { logout(); setShowPersonaMenu(false); }}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-hud font-semibold tracking-wider text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex items-center gap-2.5 cursor-pointer"
@@ -787,6 +796,11 @@ export function Navbar({
                       <LogOut className="w-3.5 h-3.5" />
                       <span>SIGN OUT</span>
                     </button>
+                  ) : (
+                    <div className="w-full px-3 py-2 rounded-xl text-[11px] font-hud font-semibold tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 select-none">
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{isUltra ? 'LOCKDOWN ACTIVE' : 'FOCUS IN PROGRESS'}</span>
+                    </div>
                   )}
                 </div>
               </motion.div>

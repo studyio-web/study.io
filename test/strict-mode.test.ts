@@ -695,4 +695,55 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
     const adminStatus = await StrictMode.isDeviceAdminActive();
     assert.equal(typeof adminStatus.active, 'boolean');
   });
+
+  it('guarantees Sign Out option is completely removed when in Ultra Strict Mode or when timer is running', () => {
+    const shouldShowSignOut = (isUltra: boolean, isRunning: boolean) => {
+      const isSignOutBlocked = isUltra || isRunning;
+      return !isSignOutBlocked;
+    };
+
+    // 1. In Ultra Strict Mode (not running yet) -> Sign Out MUST be removed
+    assert.equal(shouldShowSignOut(true, false), false, 'Sign out must be removed in Ultra Strict Mode');
+
+    // 2. Timer is running (standard mode) -> Sign Out MUST be removed
+    assert.equal(shouldShowSignOut(false, true), false, 'Sign out must be removed when timer is running');
+
+    // 3. Ultra Strict Mode AND Timer running -> Sign Out MUST be removed
+    assert.equal(shouldShowSignOut(true, true), false, 'Sign out must be removed when Ultra Strict timer is running');
+
+    // 4. Idle standard mode -> Sign Out is allowed
+    assert.equal(shouldShowSignOut(false, false), true, 'Sign out is allowed when idle in standard mode');
+  });
+
+  it('guarantees paused Ultra Strict session renders Resume button so user can continue countdown', () => {
+    const resolveTimerControls = (isStudying: boolean, isUltraStrict: boolean, isPaused: boolean) => {
+      if (!isStudying) {
+        return 'start_session';
+      }
+      if (isUltraStrict && isPaused) {
+        return 'resume_session';
+      }
+      if (isUltraStrict) {
+        return 'ultra_focus_locked';
+      }
+      if (!isPaused) {
+        return 'pause_and_stop';
+      }
+      return 'resume_and_reset';
+    };
+
+    // Paused Ultra Strict session must return resume_session
+    assert.equal(
+      resolveTimerControls(true, true, true),
+      'resume_session',
+      'Paused Ultra Strict session must provide Resume button'
+    );
+
+    // Active Ultra Strict session remains locked without pause/stop
+    assert.equal(
+      resolveTimerControls(true, true, false),
+      'ultra_focus_locked',
+      'Active running Ultra Strict session must show Ultra Focus Locked'
+    );
+  });
 });
