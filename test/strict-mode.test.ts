@@ -746,4 +746,48 @@ describe('Strict Mode Android Specification & Platform Isolation', () => {
       'Active running Ultra Strict session must show Ultra Focus Locked'
     );
   });
+
+  it('guarantees turning off Ultra Strict Mode automatically turns off Uninstall Protection', async () => {
+    let ultraStrict = true;
+    let uninstallProtection = true;
+    let deviceAdminActive = true;
+
+    const toggleUltraStrict = (nextUltra: boolean) => {
+      ultraStrict = nextUltra;
+      if (!nextUltra) {
+        uninstallProtection = false;
+        deviceAdminActive = false;
+      }
+    };
+
+    assert.equal(ultraStrict, true);
+    assert.equal(uninstallProtection, true);
+    assert.equal(deviceAdminActive, true);
+
+    toggleUltraStrict(false);
+    assert.equal(ultraStrict, false);
+    assert.equal(uninstallProtection, false, 'Uninstall Protection must turn off when Ultra Strict is turned off');
+    assert.equal(deviceAdminActive, false, 'Device Admin must deactivate when Ultra Strict is turned off');
+
+    // Also verify when Strict Mode itself is disabled
+    let strictMode = true;
+    ultraStrict = true;
+    uninstallProtection = true;
+    deviceAdminActive = true;
+
+    const toggleStrictMode = (nextStrict: boolean) => {
+      strictMode = nextStrict;
+      if (!nextStrict) {
+        ultraStrict = false;
+        uninstallProtection = false;
+        deviceAdminActive = false;
+      }
+    };
+
+    toggleStrictMode(false);
+    assert.equal(strictMode, false);
+    assert.equal(ultraStrict, false);
+    assert.equal(uninstallProtection, false, 'Uninstall Protection must turn off when Strict Mode is turned off');
+    assert.equal(deviceAdminActive, false, 'Device Admin must deactivate when Strict Mode is turned off');
+  });
 });

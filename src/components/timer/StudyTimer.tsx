@@ -57,6 +57,7 @@ import {
   saveStrictModeEnabled,
   loadUltraStrictEnabled,
   saveUltraStrictEnabled,
+  saveUninstallProtectionEnabled,
   loadAllowedApps,
   saveAllowedApps,
 } from '../../lib/strictModePlugin';
@@ -286,7 +287,7 @@ export function StudyTimer() {
         enabled: isStrictMode && !isRemoteSession,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict && !isRemoteSession,
-        uninstallProtection: true,
+        uninstallProtection: Boolean(isUltraStrict && !isRemoteSession && isDeviceAdminActive),
       }).catch(() => { });
     }
   }, [isAndroid, isStrictMode, allowedApps, isUltraStrict, isRemoteSession]);
@@ -360,6 +361,18 @@ export function StudyTimer() {
         saveStrictModeEnabled(false);
         setIsUltraStrict(false);
         saveUltraStrictEnabled(false);
+        saveUninstallProtectionEnabled(false);
+        setIsDeviceAdminActive(false);
+        if (isAndroid) {
+          StrictMode.setUninstallProtectionEnabled({ enabled: false }).catch(() => { });
+          StrictMode.deactivateDeviceAdmin().catch(() => { });
+          StrictMode.syncStrictConfig({
+            enabled: false,
+            allowedPackages: allowedApps,
+            isUltraStrict: false,
+            uninstallProtection: false,
+          }).catch(() => { });
+        }
         triggerHaptic('light');
         toast('Strict Mode disabled', { id: STRICT_MODE_TOAST_ID });
       } else {
@@ -421,6 +434,18 @@ export function StudyTimer() {
         toast.success('Ultra Strict enabled: Countdown mode only', { id: ULTRA_STRICT_TOAST_ID, icon: '⚡' });
       } else {
         syncTimerMode(timerMode, false);
+        saveUninstallProtectionEnabled(false);
+        setIsDeviceAdminActive(false);
+        if (isAndroid) {
+          StrictMode.setUninstallProtectionEnabled({ enabled: false }).catch(() => { });
+          StrictMode.deactivateDeviceAdmin().catch(() => { });
+          StrictMode.syncStrictConfig({
+            enabled: isStrictMode,
+            allowedPackages: allowedApps,
+            isUltraStrict: false,
+            uninstallProtection: false,
+          }).catch(() => { });
+        }
         toast('Ultra Strict disabled', { id: ULTRA_STRICT_TOAST_ID });
       }
       triggerHaptic('medium');
@@ -551,13 +576,24 @@ export function StudyTimer() {
           pendingEnableReelsRef.current = false;
         }
         const { active: adminActive } = await StrictMode.isDeviceAdminActive();
-        setIsDeviceAdminActive(adminActive);
-        if (adminActive && pendingEnableDeviceAdminRef.current) {
-          pendingEnableDeviceAdminRef.current = false;
-          toast.success('Uninstall Protection activated!', {
-            id: 'device-admin-status-toast',
-            icon: '🛡️',
-          });
+        if (!isUltraStrictRef.current) {
+          setIsDeviceAdminActive(false);
+          saveUninstallProtectionEnabled(false);
+          if (adminActive) {
+            StrictMode.setUninstallProtectionEnabled({ enabled: false }).catch(() => { });
+            StrictMode.deactivateDeviceAdmin().catch(() => { });
+          }
+        } else {
+          setIsDeviceAdminActive(adminActive);
+          if (adminActive && pendingEnableDeviceAdminRef.current) {
+            pendingEnableDeviceAdminRef.current = false;
+            saveUninstallProtectionEnabled(true);
+            StrictMode.setUninstallProtectionEnabled({ enabled: true }).catch(() => { });
+            toast.success('Uninstall Protection activated!', {
+              id: 'device-admin-status-toast',
+              icon: '🛡️',
+            });
+          }
         }
 
         if (!isStrictModeRef.current && usageGranted && isPermissionModalOpen) {
@@ -882,7 +918,7 @@ export function StudyTimer() {
         enabled: isStrictMode,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict,
-        uninstallProtection: true,
+        uninstallProtection: Boolean(isUltraStrict && isDeviceAdminActive),
       }).catch(() => { });
 
       if (timerMode === 'countdown' && typeof window !== 'undefined') {
@@ -914,7 +950,7 @@ export function StudyTimer() {
         enabled: isStrictMode,
         allowedPackages: allowedApps,
         isUltraStrict: isUltraStrict,
-        uninstallProtection: true,
+        uninstallProtection: Boolean(isUltraStrict && isDeviceAdminActive),
       }).catch(() => { });
     }
     hapticMedium();
