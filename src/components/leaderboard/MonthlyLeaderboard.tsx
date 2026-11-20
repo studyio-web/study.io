@@ -481,7 +481,10 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
           display_name: user?.displayName || user?.name || 'You',
           username: user?.username || null,
           avatar_url: user?.avatarUrl || null,
-          level: user?.level || 1,
+          level: Math.max(
+            Number(user?.level || 1),
+            getLevelFromLifetimeXP(Number(user?.lifetime_xp ?? user?.lifetimeXp ?? user?.xp ?? 0))
+          ),
           lifetime_xp: Number(user?.lifetime_xp ?? user?.lifetimeXp ?? user?.xp ?? 0),
           rank_title: activeRankName,
           total_seconds: 0,

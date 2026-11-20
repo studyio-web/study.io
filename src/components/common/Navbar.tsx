@@ -387,7 +387,11 @@ export function Navbar({
   ]);
 
   // Prevent level/title flicker by falling back to stored user_metadata / user profile
-  const effectiveLevel = gamification.level || (user?.user_metadata as any)?.level || user?.level || 1;
+  const effectiveLevel = Math.max(
+    Number(gamification.level || 1),
+    Number((user?.user_metadata as any)?.level || 0),
+    Number(user?.level || 0)
+  );
   const effectiveTitle = gamification.title || (user?.user_metadata as any)?.levelTitle || user?.levelTitle || getLevelTitle(effectiveLevel);
   const effectiveTierBadge = gamification.tierBadge || getTierBadge(effectiveLevel);
 

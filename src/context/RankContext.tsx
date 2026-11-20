@@ -16,6 +16,7 @@ import { getSupabase } from '@/lib/supabase';
 import { LeaderboardEntry } from '@/types';
 import { useDevRankPreview } from '@/lib/devRankPreview';
 import { getCachedUserState, saveCachedUserState } from '@/lib/userCache';
+import { getLevelFromLifetimeXP } from '@/lib/gamification';
 
 export interface UserRankState {
   seasonRp: number;
@@ -248,7 +249,7 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
                   display_name: p.name || p.username || null,
                   username: p.username || null,
                   avatar_url: p.avatar_url || null,
-                  level: p.level ? Number(p.level) : undefined,
+                  level: Math.max(Number(p.level || 1), getLevelFromLifetimeXP(Number(p.lifetime_xp || 0))),
                   lifetime_xp: Number(p.lifetime_xp || 0),
                   rank_title: tierObj.name,
                   tier: tierObj.tier,

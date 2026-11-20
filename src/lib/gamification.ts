@@ -71,7 +71,13 @@ export function getCumulativeXPForLevel(level: number): number {
  */
 export function getLevelFromLifetimeXP(lifetimeXP: number): number {
   if (!lifetimeXP || lifetimeXP <= 0) return 1;
-  const calculatedLevel = Math.floor(Math.pow(lifetimeXP / 60, 1 / 2.4)) + 1;
+  let calculatedLevel = Math.floor(Math.pow((lifetimeXP + 1e-6) / 60, 1 / 2.4)) + 1;
+  while (getCumulativeXPForLevel(calculatedLevel + 1) <= lifetimeXP) {
+    calculatedLevel++;
+  }
+  while (calculatedLevel > 1 && getCumulativeXPForLevel(calculatedLevel) > lifetimeXP) {
+    calculatedLevel--;
+  }
   return Math.max(1, calculatedLevel);
 }
 

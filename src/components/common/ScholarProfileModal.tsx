@@ -13,6 +13,7 @@ import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak } from '../../lib/mockData';
 import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
 import { ClassicNudgeButton } from '../rooms/ClassicNudgeButton';
+import { getLevelFromLifetimeXP } from '../../lib/gamification';
 
 export interface ScholarModalData {
   userId: string;
@@ -222,7 +223,18 @@ export function ScholarProfileModal({
   // Derived display attributes
   const displayName = scholar?.displayName || scholar?.name || scholar?.username || 'Scholar';
   const handle = scholar?.username || displayName.toLowerCase().replace(/\s+/g, '');
-  const level = profileDetails.level ?? scholar?.level ?? 1;
+  const calculatedLevelFromXP = getLevelFromLifetimeXP(
+    Math.max(
+      Number(profileDetails.xp || 0),
+      Number(scholar?.lifetimeXp || 0),
+      Math.floor(totalStudySeconds / 60) * 10
+    )
+  );
+  const level = Math.max(
+    Number(profileDetails.level || 1),
+    Number(scholar?.level || 1),
+    calculatedLevelFromXP
+  );
   const streak = profileDetails.streakDays ?? scholar?.streakDays ?? 0;
   const rankTitle = useMemo(() => {
     if (typeof scholar?.seasonRp === 'number') {

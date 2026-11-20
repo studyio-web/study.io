@@ -1365,9 +1365,14 @@ export function StudyTimer() {
       const totalEarnedXP = focusXP + (appliedStreakBonus ? 100 : 0);
 
       // Permanently increment lifetime_xp (never resets across seasons)
-      const prevLifetimeXP = Number(user?.lifetime_xp ?? user?.lifetimeXp ?? user?.xp ?? 0);
+      const prevLifetimeXP = Math.max(
+        Number(user?.lifetime_xp ?? 0),
+        Number(user?.lifetimeXp ?? 0),
+        Number(user?.xp ?? 0)
+      );
       const newLifetimeXP = prevLifetimeXP + totalEarnedXP;
-      const newLevel = getLevelFromLifetimeXP(newLifetimeXP);
+      const prevLevel = Math.max(getLevelFromLifetimeXP(prevLifetimeXP), Number(user?.level || 1));
+      const newLevel = Math.max(getLevelFromLifetimeXP(newLifetimeXP), prevLevel);
       const newScholarTitle = getScholarTitle(newLevel);
 
       // Trigger celebratory XP gain notification
@@ -1379,7 +1384,6 @@ export function StudyTimer() {
         triggerXpEarned(totalEarnedXP, reason, 'focus');
       }
 
-      const prevLevel = getLevelFromLifetimeXP(prevLifetimeXP);
       if (newLevel > prevLevel) {
         triggerLevelUp(prevLevel, newLevel, newScholarTitle);
       }

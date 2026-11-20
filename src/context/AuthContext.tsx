@@ -31,6 +31,7 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string, name?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  refetchProfile: (force?: boolean) => Promise<void>;
   logout: () => void;
   resetAllData: () => void;
   deleteAccount: () => Promise<void>;
@@ -198,11 +199,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const syncedRP = calculatedRP;
-      let currentLifetimeXP = Number(profile?.lifetime_xp ?? profile?.xp ?? 0);
-      if (currentLifetimeXP === 0 && totalStudySeconds > 0) {
-        currentLifetimeXP = Math.floor(totalStudySeconds / 60) * 10;
-      }
-      const calculatedLevel = getLevelFromLifetimeXP(currentLifetimeXP);
+      const focusTimeXP = Math.floor(totalStudySeconds / 60) * 10;
+      let currentLifetimeXP = Math.max(
+        Number(profile?.lifetime_xp ?? 0),
+        Number(profile?.xp ?? 0),
+        focusTimeXP
+      );
+      const calculatedLevel = Math.max(
+        Number(profile?.level ?? 1),
+        getLevelFromLifetimeXP(currentLifetimeXP)
+      );
       const calculatedTitle = getScholarTitle(calculatedLevel);
 
       const mappedDbSessions = (dbSessions || []).map((s: any) => ({
@@ -218,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needsRepair = true;
       }
 
-      if ((needsRepair || calculatedLevel > (profile?.level || 1)) && authUser.id && !authUser.id.startsWith('user-scholar')) {
+      if ((needsRepair || calculatedLevel > (profile?.level || 1) || currentLifetimeXP > Number(profile?.lifetime_xp || 0)) && authUser.id && !authUser.id.startsWith('user-scholar')) {
         try {
           const updatePayload: any = { 
             level: Math.round(calculatedLevel), 
@@ -280,8 +286,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             avatarUrl: cleanAvatar,
             dailyGoalHours: Number(profile.daily_goal_hours ?? prev.dailyGoalHours ?? 4.0),
             streakDays: finalStreak,
-            level: Number(profile.level ?? calculatedLevel),
-            levelTitle: profile.level_title || calculatedTitle || prev.levelTitle,
+            level: calculatedLevel,
+            levelTitle: calculatedTitle,
             xp: currentLifetimeXP,
             lifetime_xp: currentLifetimeXP,
             lifetimeXp: currentLifetimeXP,
@@ -309,8 +315,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ...(authUser.user_metadata || {}),
               avatar_url: undefined,
               picture: undefined,
-              level: Number(profile.level ?? calculatedLevel),
-              levelTitle: profile.level_title || calculatedTitle || prev.levelTitle,
+              level: calculatedLevel,
+              levelTitle: calculatedTitle,
             },
           };
           try {
@@ -444,142 +450,200 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [syncSupabaseProfile]);
 
-  const hasFetchedProfileRef = useRef<string | null>(null);
+  const lastProfileFetchTimeRef = useRef<number>(0);
 
-  useEffect(() => {
+  const refetchUserProfile = useCallback(async (force = false) => {
     const supabase = getSupabase();
     if (!supabase || !user?.id || user.id.startsWith('user-scholar') || user.id.startsWith('guest')) return;
-    if (hasFetchedProfileRef.current === user.id) return;
-    hasFetchedProfileRef.current = user.id;
 
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
+    const now = Date.now();
+    if (!force && now - lastProfileFetchTimeRef.current < 2500) {
+      return; // Throttled to prevent spamming
+    }
+    lastProfileFetchTimeRef.current = now;
 
-        if (data && !error) {
-          const currentMonthStr = new Date().toISOString().substring(0, 7);
-          const { data: dbSessions } = await supabase
-            .from('study_sessions')
-            .select('id, user_id, duration_seconds, started_at')
-            .eq('user_id', user.id);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
 
-          const liveStats = resolveLiveSeasonStats(data, dbSessions || []);
-          const userReset = resolveUserSeasonReset(data, dbSessions || []);
-          const newStartingRP = liveStats.startingRp;
-          const resolvedSeasonRp = liveStats.seasonRp;
-          const resolvedRankTitle = liveStats.rankTitle || userReset.newRankTitle;
-          const prevRankTitle = userReset.previousRankTitle;
-          const newBadge = liveStats.rankTier.badge;
-          let lastResetMonth = data.last_reset_month;
+      if (data && !error) {
+        const currentMonthStr = new Date().toISOString().substring(0, 7);
+        const { data: dbSessions } = await supabase
+          .from('study_sessions')
+          .select('id, user_id, duration_seconds, started_at')
+          .eq('user_id', user.id);
 
-          const mappedSess = (dbSessions || []).map((s: any) => ({
-            id: s.id,
-            startTime: s.started_at,
-            durationSeconds: Number(s.duration_seconds || 0),
-          })) as any;
-          const computedStreak = calculateStreak(mappedSess);
-          setCachedStreak(computedStreak);
-          if (Number(data.streak_days ?? 0) !== computedStreak) {
-            data.streak_days = computedStreak;
-            try {
-              await supabase.from('profiles').update({ streak_days: computedStreak }).eq('id', user.id);
-            } catch {}
-          }
+        const liveStats = resolveLiveSeasonStats(data, dbSessions || []);
+        const userReset = resolveUserSeasonReset(data, dbSessions || []);
+        const newStartingRP = liveStats.startingRp;
+        const resolvedSeasonRp = liveStats.seasonRp;
+        const resolvedRankTitle = liveStats.rankTitle || userReset.newRankTitle;
+        const prevRankTitle = userReset.previousRankTitle;
+        const newBadge = liveStats.rankTier.badge;
+        let lastResetMonth = data.last_reset_month;
 
-          if (
-            lastResetMonth !== currentMonthStr ||
-            Number(data.season_base_rp ?? 0) !== newStartingRP ||
-            Number(data.season_rp ?? 0) !== resolvedSeasonRp
-          ) {
-            lastResetMonth = currentMonthStr;
-
-            try {
-              await supabase.from('profiles').update({
-                season_rp: resolvedSeasonRp,
-                season_base_rp: newStartingRP,
-                last_reset_month: lastResetMonth,
-                rank_title: resolvedRankTitle,
-                rank_badge: newBadge,
-                current_rank: resolvedRankTitle,
-                last_season_rank: prevRankTitle,
-              }).eq('id', user.id);
-            } catch (syncErr) {
-              console.warn('[AuthContext] Profile update sync warning:', syncErr);
-            }
-
-            data.season_rp = resolvedSeasonRp;
-            data.season_base_rp = newStartingRP;
-            data.last_reset_month = lastResetMonth;
-            data.rank_title = resolvedRankTitle;
-            data.rank_badge = newBadge;
-            data.current_rank = resolvedRankTitle;
-            data.last_season_rank = prevRankTitle;
-            if (data.level_title) data.level_title = resolvedRankTitle;
-
-            const pendingResetAlert = {
-              needs_reset: true,
-              previous_rank: prevRankTitle,
-              new_rank: resolvedRankTitle,
-              starting_rp: newStartingRP,
-              month_name: new Date().toLocaleString('en-US', { month: 'long' }),
-            };
-            try {
-              localStorage.setItem(`studypulse_pending_season_reset_${currentMonthStr.replace('-', '_')}`, JSON.stringify(pendingResetAlert));
-            } catch {}
-          }
-          const resolvedAvatar = resolveAppAvatar(data.avatar_url, data.username || user.username || user.displayName || user.id);
-          if (!isAppAvatar(data.avatar_url)) {
-            supabase.from('profiles').update({ avatar_url: resolvedAvatar }).eq('id', user.id).then();
-          }
-
-          setUser(prev => {
-            const finalStreak = computedStreak;
-            setCachedStreak(finalStreak);
-            const updated = {
-              ...prev,
-              displayName: data.username || data.display_name || data.name || prev.username || prev.displayName,
-              avatarUrl: resolvedAvatar,
-              dailyGoalHours: data.daily_goal_hours ?? prev.dailyGoalHours,
-              streakDays: finalStreak,
-              level: data.level ?? prev.level,
-              rp: resolvedSeasonRp,
-              seasonRp: resolvedSeasonRp,
-              season_base_rp: newStartingRP,
-              carryover_rp: newStartingRP,
-              rank_title: resolvedRankTitle,
-              xp: data.lifetime_xp ?? data.xp ?? prev.xp,
-              lifetime_xp: data.lifetime_xp ?? data.xp ?? prev.lifetime_xp,
-              lifetimeXp: data.lifetime_xp ?? data.xp ?? prev.lifetimeXp,
-              totalStudySeconds: data.total_study_seconds ?? prev.totalStudySeconds,
-              total_focus_minutes: Math.floor((data.total_study_seconds ?? prev.totalStudySeconds ?? 0) / 60),
-              totalFocusMinutes: Math.floor((data.total_study_seconds ?? prev.totalStudySeconds ?? 0) / 60),
-              total_study_seconds: data.total_study_seconds ?? prev.totalStudySeconds,
-              levelTitle: resolvedRankTitle || data.level_title || prev.levelTitle,
-              study_mode: (data.study_mode as StudyMode) ?? prev.study_mode ?? null,
-              studyMode: (data.study_mode as StudyMode) ?? prev.studyMode ?? null,
-              intro_completed_at: data.intro_completed_at ?? prev.intro_completed_at ?? null,
-              introCompletedAt: data.intro_completed_at ?? prev.introCompletedAt ?? null,
-              is_onboarded: data.is_onboarded ?? prev.is_onboarded,
-              user_metadata: {
-                ...(prev.user_metadata || {}),
-                level: data.level ?? prev.level,
-                levelTitle: resolvedRankTitle || data.level_title || prev.levelTitle
-              }
-            };
-            try { localStorage.setItem('studypulse_active_user', JSON.stringify(updated)); } catch {}
-            return updated;
-          });
+        const mappedSess = (dbSessions || []).map((s: any) => ({
+          id: s.id,
+          startTime: s.started_at,
+          durationSeconds: Number(s.duration_seconds || 0),
+        })) as any;
+        const computedStreak = calculateStreak(mappedSess);
+        setCachedStreak(computedStreak);
+        if (Number(data.streak_days ?? 0) !== computedStreak) {
+          data.streak_days = computedStreak;
+          try {
+            await supabase.from('profiles').update({ streak_days: computedStreak }).eq('id', user.id);
+          } catch {}
         }
-      } catch (err) {
+
+        if (
+          lastResetMonth !== currentMonthStr ||
+          Number(data.season_base_rp ?? 0) !== newStartingRP ||
+          Number(data.season_rp ?? 0) !== resolvedSeasonRp
+        ) {
+          lastResetMonth = currentMonthStr;
+
+          try {
+            await supabase.from('profiles').update({
+              season_rp: resolvedSeasonRp,
+              season_base_rp: newStartingRP,
+              last_reset_month: lastResetMonth,
+              rank_title: resolvedRankTitle,
+              rank_badge: newBadge,
+              current_rank: resolvedRankTitle,
+              last_season_rank: prevRankTitle,
+            }).eq('id', user.id);
+          } catch (syncErr) {
+            console.warn('[AuthContext] Profile update sync warning:', syncErr);
+          }
+
+          data.season_rp = resolvedSeasonRp;
+          data.season_base_rp = newStartingRP;
+          data.last_reset_month = lastResetMonth;
+          data.rank_title = resolvedRankTitle;
+          data.rank_badge = newBadge;
+          data.current_rank = resolvedRankTitle;
+          data.last_season_rank = prevRankTitle;
+        }
+
+        const resolvedAvatar = resolveAppAvatar(data.avatar_url, data.username || user.username || user.displayName || user.id);
+        if (!isAppAvatar(data.avatar_url)) {
+          supabase.from('profiles').update({ avatar_url: resolvedAvatar }).eq('id', user.id).then();
+        }
+
+        const sessionsTotalSeconds = (dbSessions || []).reduce(
+          (acc: number, s: any) => acc + Number(s.duration_seconds || 0),
+          0
+        );
+        const sessionsXP = Math.floor(sessionsTotalSeconds / 60) * 10;
+
+        setUser(prev => {
+          const finalStreak = computedStreak;
+          setCachedStreak(finalStreak);
+
+          const resolvedLifetimeXP = Math.max(
+            Number(data.lifetime_xp ?? 0),
+            Number(data.xp ?? 0),
+            Number(prev.lifetime_xp ?? 0),
+            Number(prev.xp ?? 0),
+            sessionsXP
+          );
+          const resolvedLevel = Math.max(
+            Number(data.level || 1),
+            Number(prev.level || 1),
+            getLevelFromLifetimeXP(resolvedLifetimeXP)
+          );
+          const resolvedScholarTitle = getScholarTitle(resolvedLevel);
+
+          // If database was holding stale lower values, silently repair it
+          if (resolvedLevel > Number(data.level || 1) || resolvedLifetimeXP > Number(data.lifetime_xp || 0)) {
+            supabase.from('profiles').update({
+              level: resolvedLevel,
+              lifetime_xp: resolvedLifetimeXP,
+              xp: resolvedLifetimeXP,
+            }).eq('id', user.id).then();
+          }
+
+          const updated: UserProfile = {
+            ...prev,
+            displayName: data.username || data.display_name || data.name || prev.username || prev.displayName,
+            avatarUrl: resolvedAvatar,
+            dailyGoalHours: data.daily_goal_hours ?? prev.dailyGoalHours,
+            streakDays: finalStreak,
+            level: resolvedLevel,
+            levelTitle: resolvedScholarTitle,
+            rp: resolvedSeasonRp,
+            seasonRp: resolvedSeasonRp,
+            season_base_rp: newStartingRP,
+            carryover_rp: newStartingRP,
+            rank_title: resolvedRankTitle,
+            xp: resolvedLifetimeXP,
+            lifetime_xp: resolvedLifetimeXP,
+            lifetimeXp: resolvedLifetimeXP,
+            totalStudySeconds: Math.max(Number(data.total_study_seconds || 0), sessionsTotalSeconds, Number(prev.totalStudySeconds || 0)),
+            total_focus_minutes: Math.floor(Math.max(Number(data.total_study_seconds || 0), sessionsTotalSeconds, Number(prev.totalStudySeconds || 0)) / 60),
+            totalFocusMinutes: Math.floor(Math.max(Number(data.total_study_seconds || 0), sessionsTotalSeconds, Number(prev.totalStudySeconds || 0)) / 60),
+            total_study_seconds: Math.max(Number(data.total_study_seconds || 0), sessionsTotalSeconds, Number(prev.totalStudySeconds || 0)),
+            study_mode: (data.study_mode as StudyMode) ?? prev.study_mode ?? null,
+            studyMode: (data.study_mode as StudyMode) ?? prev.studyMode ?? null,
+            intro_completed_at: data.intro_completed_at ?? prev.intro_completed_at ?? null,
+            introCompletedAt: data.intro_completed_at ?? prev.introCompletedAt ?? null,
+            is_onboarded: data.is_onboarded ?? prev.is_onboarded,
+            user_metadata: {
+              ...(prev.user_metadata || {}),
+              level: resolvedLevel,
+              levelTitle: resolvedScholarTitle,
+            }
+          };
+          try { localStorage.setItem('studypulse_active_user', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
       }
+    } catch (err) {
+      console.warn('[AuthContext] refetchUserProfile error:', err);
+    }
+  }, [user?.id, user?.username, user?.displayName]);
+
+  // Initial fetch and automatic sync across devices (on window focus, visibility, Capacitor app resume, remote session saved)
+  useEffect(() => {
+    if (!user?.id || user.id.startsWith('user-scholar') || user.id.startsWith('guest')) return;
+
+    refetchUserProfile(true);
+
+    const handleResume = () => {
+      refetchUserProfile(false);
     };
 
-    fetchProfile();
-  }, [user?.id]);
+    window.addEventListener('focus', handleResume);
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        handleResume();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('studyio_remote_session_saved', handleResume);
+
+    let appStateHandle: any = null;
+    try {
+      CapacitorApp.addListener('appStateChange', (state) => {
+        if (state.isActive) {
+          handleResume();
+        }
+      }).then((h) => {
+        appStateHandle = h;
+      }).catch(() => {});
+    } catch {}
+
+    return () => {
+      window.removeEventListener('focus', handleResume);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('studyio_remote_session_saved', handleResume);
+      appStateHandle?.remove?.();
+    };
+  }, [user?.id, refetchUserProfile]);
 
   // Clean legacy demo data and setup Supabase Auth Listener
   useEffect(() => {
@@ -974,11 +1038,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updated.avatarUrl = resolveAppAvatar(updates.avatarUrl, prev.username || prev.displayName || prev.id);
       }
 
-      if (updates.level !== undefined) {
-        updated.level = updates.level;
-      } else if (updates.lifetime_xp !== undefined || updates.xp !== undefined) {
-        const xpVal = Number(updates.lifetime_xp ?? updates.xp ?? 0);
-        updated.level = getLevelFromLifetimeXP(xpVal);
+      // Level and lifetime XP are strictly monotonic — never allow stale clients/fallbacks to downgrade them
+      const calculatedIncomingLevel = updates.lifetime_xp !== undefined || updates.xp !== undefined
+        ? getLevelFromLifetimeXP(Number(updates.lifetime_xp ?? updates.xp ?? 0))
+        : 1;
+      const safeLevel = Math.max(
+        Number(prev.level || 1),
+        Number(updates.level ?? 1),
+        calculatedIncomingLevel
+      );
+      updated.level = safeLevel;
+
+      if (updates.lifetime_xp !== undefined || updates.lifetimeXp !== undefined || updates.xp !== undefined) {
+        const incomingXp = Number(updates.lifetime_xp ?? updates.lifetimeXp ?? updates.xp ?? 0);
+        const safeXp = Math.max(Number(prev.lifetime_xp ?? 0), Number(prev.xp ?? 0), incomingXp);
+        updated.lifetime_xp = safeXp;
+        updated.lifetimeXp = safeXp;
+        updated.xp = safeXp;
       }
       updated.levelTitle = updates.levelTitle || getScholarTitle(updated.level);
 
@@ -1182,6 +1258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginWithEmail,
         loginWithGoogle,
         updateProfile,
+        refetchProfile: refetchUserProfile,
         logout,
         resetAllData,
         deleteAccount,

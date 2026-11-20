@@ -19,6 +19,7 @@ import {
   calculateFocusXP,
   getLevelTitle,
   getLevelFromLifetimeXP,
+  getCumulativeXPForLevel,
   getScholarTitle,
   LevelProgress,
 } from '../lib/gamification';
@@ -1028,9 +1029,23 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   // Derive real-time Gamification level progress from lifetime XP (Uncapped 7-Year Exponential Engine)
   const gamification = useMemo(() => {
     const fallbackXP = Math.floor(totalStudySeconds / 60) * 10;
-    const currentLifetimeXP = Number(user?.lifetime_xp ?? user?.lifetimeXp ?? user?.xp ?? fallbackXP);
-    return getLevelProgress(currentLifetimeXP);
-  }, [user?.lifetime_xp, user?.lifetimeXp, user?.xp, totalStudySeconds]);
+    const currentLifetimeXP = Math.max(
+      Number(user?.lifetime_xp ?? 0),
+      Number(user?.lifetimeXp ?? 0),
+      Number(user?.xp ?? 0),
+      fallbackXP
+    );
+    const progress = getLevelProgress(currentLifetimeXP);
+    const guaranteedLevel = Math.max(
+      progress.level,
+      Number(user?.level || 1),
+      Number((user?.user_metadata as any)?.level || 1)
+    );
+    if (guaranteedLevel > progress.level) {
+      return getLevelProgress(getCumulativeXPForLevel(guaranteedLevel));
+    }
+    return progress;
+  }, [user?.lifetime_xp, user?.lifetimeXp, user?.xp, user?.level, (user?.user_metadata as any)?.level, totalStudySeconds]);
 
   // Monitor level changes to trigger celebratory modal and keep profile state synced
   const hasHydratedLevelRef = useRef(false);
@@ -1078,11 +1093,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    // Synchronize level and XP onto active user profile
-    if (user?.level !== gamification.level || user?.xp !== gamification.totalXP) {
+    // Synchronize level and XP onto active user profile (strictly non-downgrading)
+    if (
+      (gamification.level > Number(user?.level || 1)) ||
+      (gamification.totalXP > Number(user?.xp || 0))
+    ) {
       updateProfile({
-        level: gamification.level,
-        xp: gamification.totalXP,
+        level: Math.max(gamification.level, Number(user?.level || 1)),
+        xp: Math.max(gamification.totalXP, Number(user?.xp || 0)),
         levelTitle: gamification.title,
       });
     }
@@ -2618,8 +2636,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             });
 
             // Baseline sync for Supabase sessions to guarantee no false level-up on login
-            const currentLifetimeXP = Number(userRef.current?.lifetime_xp ?? userRef.current?.lifetimeXp ?? userRef.current?.xp ?? 0) || Math.floor(realTotalSeconds / 60) * 10;
-            const computedLevel = getLevelFromLifetimeXP(currentLifetimeXP);
+            const focusTimeXP = Math.floor(realTotalSeconds / 60) * 10;
+            const currentLifetimeXP = Math.max(
+              Number(userRef.current?.lifetime_xp ?? 0),
+              Number(userRef.current?.lifetimeXp ?? 0),
+              Number(userRef.current?.xp ?? 0),
+              focusTimeXP
+            );
+            const computedLevel = Math.max(
+              getLevelFromLifetimeXP(currentLifetimeXP),
+              Number(user.level || 1)
+            );
             const scholarTitle = getScholarTitle(computedLevel);
             const storedLevel = getStoredLastSeenLevel(user.id);
             const updatedBaseline = Math.max(storedLevel ?? 0, computedLevel, user.level || 1);
@@ -2860,8 +2887,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const carryoverRp = liveStats.startingRp;
         const rankDetails = liveStats.rankTier;
 
-        const currentLifetimeXP = Number(currentUser?.lifetime_xp ?? currentUser?.lifetimeXp ?? currentUser?.xp ?? 0) || Math.floor(realTotalSeconds / 60) * 10;
-        const computedLevel = getLevelFromLifetimeXP(currentLifetimeXP);
+        const focusTimeXP = Math.floor(realTotalSeconds / 60) * 10;
+        const currentLifetimeXP = Math.max(
+          Number(currentUser?.lifetime_xp ?? 0),
+          Number(currentUser?.lifetimeXp ?? 0),
+          Number(currentUser?.xp ?? 0),
+          focusTimeXP
+        );
+        const computedLevel = Math.max(
+          getLevelFromLifetimeXP(currentLifetimeXP),
+          Number(currentUser?.level || 1)
+        );
         const scholarTitle = getScholarTitle(computedLevel);
 
         updateProfile({
@@ -3651,10 +3687,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const totalEarnedXP = focusXP + (appliedStreakBonus ? 100 : 0);
 
       // Permanently increment lifetime_xp (never resets across seasons)
-      const prevLifetimeXP = Number(currentUser?.lifetime_xp ?? currentUser?.lifetimeXp ?? currentUser?.xp ?? 0);
+      const prevLifetimeXP = Math.max(
+        Number(currentUser?.lifetime_xp ?? 0),
+        Number(currentUser?.lifetimeXp ?? 0),
+        Number(currentUser?.xp ?? 0)
+      );
       const newLifetimeXP = prevLifetimeXP + totalEarnedXP;
-      const prevLevel = getLevelFromLifetimeXP(prevLifetimeXP);
-      const newLevel = getLevelFromLifetimeXP(newLifetimeXP);
+      const prevLevel = Math.max(getLevelFromLifetimeXP(prevLifetimeXP), Number(currentUser?.level || 1));
+      const newLevel = Math.max(getLevelFromLifetimeXP(newLifetimeXP), prevLevel);
       const newScholarTitle = getScholarTitle(newLevel);
 
       // Trigger celebratory XP gain notification
