@@ -23,6 +23,8 @@ class AudioEngine {
   private alarmInterval: number | null = null;
   private alarmTimeout: number | null = null;
   private alarmNodes: (AudioNode & { stop?: () => void })[] = [];
+  private alarmSource: AudioBufferSourceNode | null = null;
+  private alarmGain: GainNode | null = null;
   private isAlarmActive: boolean = false;
   private isAmbientPaused: boolean = false;
   private pausedAmbientType: AmbientSoundType | null = null;
@@ -937,47 +939,87 @@ class AudioEngine {
 
     const alarmStartEpoch = Date.now();
 
+    // 1. Attempt to load and play studio-mastered audio file (/audio/alarm_sound.wav)
+    try {
+      const ctx = this.getContext();
+      if (ctx) {
+        this.getAmbientBuffer(ctx, '/audio/alarm_sound.wav')
+          .then((buffer) => {
+            if (!this.isAlarmActive) return;
+
+            // Stop any temporary synth chime interval
+            if (this.alarmInterval) {
+              clearInterval(this.alarmInterval);
+              this.alarmInterval = null;
+            }
+
+            // Create looped source
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+
+            const gain = ctx.createGain();
+            const now = ctx.currentTime;
+            // Smooth 20-second volume escalation ramp
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.linearRampToValueAtTime(1.0, now + 20);
+
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.start(0);
+
+            this.alarmSource = source;
+            this.alarmGain = gain;
+          })
+          .catch((err) => {
+            console.warn('[AudioEngine] Could not load /audio/alarm_sound.wav, using procedural synth:', err);
+          });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Procedural crystal chime phrase (fallback / instant onset while buffer fetches)
     const playChimePhrase = () => {
-      if (!this.isAlarmActive) return;
+      if (!this.isAlarmActive || this.alarmSource) return;
       try {
         const ctx = this.getContext();
         if (!ctx) return;
         const now = ctx.currentTime;
 
-        // 20-second gradual volume ramp: start at 25% and scale smoothly to 100%
         const elapsedSec = (Date.now() - alarmStartEpoch) / 1000;
-        const rampMultiplier = Math.min(1.0, 0.25 + 0.75 * Math.min(1.0, elapsedSec / 20));
+        const rampMultiplier = Math.min(1.0, 0.35 + 0.65 * Math.min(1.0, elapsedSec / 20));
 
-        // Warm organic acoustic mallet & singing chime progression:
-        // Soft wooden body (triangle wave) + gentle lowpass warm filter + natural exponential acoustic tail
+        // Uplifting crystal chime progression (Dmaj9 -> F#m9 -> Gmaj9 -> Aadd9)
         const notes = [
-          { freq: 392.00, offset: 0.00, duration: 1.2 }, // G4
-          { freq: 587.33, offset: 0.20, duration: 1.1 }, // D5
-          { freq: 880.00, offset: 0.40, duration: 1.4 }, // A5
-          { freq: 1174.66, offset: 0.60, duration: 1.6 }, // D6
+          { freq: 587.33, offset: 0.00, duration: 1.2 }, // D5
+          { freq: 739.99, offset: 0.00, duration: 1.0 }, // F#5
+          { freq: 880.00, offset: 0.40, duration: 0.9 }, // A5
+          { freq: 1108.73, offset: 0.70, duration: 0.8 }, // C#6
+          { freq: 1318.51, offset: 1.10, duration: 1.2 }, // E6
+          { freq: 1479.98, offset: 1.80, duration: 1.0 }, // F#6
+          { freq: 1174.66, offset: 2.30, duration: 1.4 }, // D6
         ];
 
-        // Shared warm acoustic low-pass filter to remove digital harshness
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1400, now);
-        filter.Q.setValueAtTime(1.2, now);
+        filter.frequency.setValueAtTime(2800, now);
+        filter.Q.setValueAtTime(1.0, now);
         filter.connect(ctx.destination);
         this.alarmNodes.push(filter);
 
         notes.forEach(({ freq, offset, duration }) => {
           const startTime = now + offset;
 
-          // Warm resonant mallet body (triangle wave with natural acoustic harmonics)
+          // Crystalline mallet body
           const osc1 = ctx.createOscillator();
           const gain1 = ctx.createGain();
           osc1.type = 'triangle';
           osc1.frequency.setValueAtTime(freq, startTime);
 
-          // Natural felt mallet envelope with volume escalation ramp
-          const peakGain = 0.18 * rampMultiplier;
+          const peakGain = 0.16 * rampMultiplier;
           gain1.gain.setValueAtTime(0.0001, startTime);
-          gain1.gain.linearRampToValueAtTime(peakGain, startTime + 0.008);
+          gain1.gain.linearRampToValueAtTime(peakGain, startTime + 0.006);
           gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
           osc1.connect(gain1);
@@ -986,27 +1028,26 @@ class AudioEngine {
           osc1.start(startTime);
           osc1.stop(startTime + duration + 0.05);
 
-          // Gentle sine sub-chime for rich spatial depth
+          // Glass sparkle overtone
           const osc2 = ctx.createOscillator();
           const gain2 = ctx.createGain();
           osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(freq * 0.5, startTime);
+          osc2.frequency.setValueAtTime(freq * 2.756, startTime);
 
-          const subPeakGain = 0.04 * rampMultiplier;
+          const subPeakGain = 0.035 * rampMultiplier;
           gain2.gain.setValueAtTime(0.0001, startTime);
-          gain2.gain.linearRampToValueAtTime(subPeakGain, startTime + 0.01);
-          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.7);
+          gain2.gain.linearRampToValueAtTime(subPeakGain, startTime + 0.004);
+          gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35);
 
           osc2.connect(gain2);
           gain2.connect(filter);
 
           osc2.start(startTime);
-          osc2.stop(startTime + duration * 0.7 + 0.05);
+          osc2.stop(startTime + 0.40);
 
           this.alarmNodes.push(osc1, osc2, gain1, gain2);
         });
 
-        // Clean up finished nodes from alarmNodes
         setTimeout(() => {
           this.alarmNodes = this.alarmNodes.filter((n) => {
             try {
@@ -1015,17 +1056,17 @@ class AudioEngine {
               return false;
             }
           });
-        }, 2200);
+        }, 2800);
       } catch (err) {
         console.warn('[AudioEngine] startTimerAlarm chime error:', err);
       }
     };
 
-    // Play immediately
+    // Play initial phrase if buffer hasn't loaded yet
     playChimePhrase();
 
-    // Repeat every 3.2 seconds for an organic, mindful, soothing acoustic cadence
-    this.alarmInterval = window.setInterval(playChimePhrase, 3200);
+    // Repeat every 3.8 seconds
+    this.alarmInterval = window.setInterval(playChimePhrase, 3800);
 
     // Auto-silence after maxDurationSeconds (default 5 minutes = 300 seconds)
     this.alarmTimeout = window.setTimeout(() => {
@@ -1042,6 +1083,21 @@ class AudioEngine {
     if (this.alarmTimeout) {
       clearTimeout(this.alarmTimeout);
       this.alarmTimeout = null;
+    }
+
+    if (this.alarmSource) {
+      try {
+        this.alarmSource.stop();
+        this.alarmSource.disconnect();
+      } catch {}
+      this.alarmSource = null;
+    }
+
+    if (this.alarmGain) {
+      try {
+        this.alarmGain.disconnect();
+      } catch {}
+      this.alarmGain = null;
     }
 
     // Stop and disconnect any currently sounding nodes
