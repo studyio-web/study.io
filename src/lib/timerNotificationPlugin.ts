@@ -42,6 +42,7 @@ export interface ServiceTimerState {
   isServiceActive: boolean;
   isRunning: boolean;
   isPaused: boolean;
+  isCompleted?: boolean;
   mode: string;
   phase: string;
   startTime: number;

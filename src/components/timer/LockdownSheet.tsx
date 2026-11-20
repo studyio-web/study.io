@@ -340,14 +340,14 @@ export function LockdownSheet({
         />
 
         {/* Sheet Content (Completely hidden scrollbar, optimized vertical fit) */}
-        <div className="overflow-y-auto px-5 sm:px-6 pt-1 pb-3 space-y-4 z-10 relative scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="overflow-y-auto px-5 sm:px-6 pt-1 pb-2 space-y-3 z-10 relative lockdown-scroll-container scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {/* Header Section */}
           <div className="flex flex-col items-center text-center pt-1">
-            {/* Custom Shield Lock Glyph (Inline SVG, ~60px) */}
-            <div className="relative mb-2.5 flex items-center justify-center">
+            {/* Custom Shield Lock Glyph (Inline SVG, ~52px) */}
+            <div className="relative mb-2 flex items-center justify-center">
               <svg
-                width="60"
-                height="60"
+                width="52"
+                height="52"
                 viewBox="0 0 72 72"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -688,15 +688,20 @@ export function LockdownSheet({
 
       {/* Embedded CSS for custom keyframe animations & scrollbar removal */}
       <style jsx global>{`
-        /* Completely eliminate visible scrollbars */
+        /* Completely eliminate visible scrollbars across all engines */
+        .lockdown-scroll-container::-webkit-scrollbar,
         .scrollbar-none::-webkit-scrollbar {
           display: none !important;
           width: 0 !important;
           height: 0 !important;
+          background: transparent !important;
+          -webkit-appearance: none !important;
         }
+        .lockdown-scroll-container,
         .scrollbar-none {
           -ms-overflow-style: none !important;
           scrollbar-width: none !important;
+          -webkit-overflow-scrolling: touch !important;
         }
         @keyframes lockdownGlow {
           0%, 100% {

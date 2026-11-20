@@ -263,7 +263,7 @@ self.addEventListener('notificationclose', function(event) {
 
 // ─── Lifecycle & Static Asset Caching (Cache-First) ───────────────────────────
 
-const CACHE_NAME = 'studyio-static-v2';
+const CACHE_NAME = 'studyio-static-v3';
 const STATIC_ASSET_REGEX = /\.(js|css|woff|woff2|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$/i;
 
 self.addEventListener('install', function() {

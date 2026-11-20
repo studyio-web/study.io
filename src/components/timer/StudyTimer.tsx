@@ -1620,9 +1620,12 @@ export function StudyTimer() {
             }
 
             // Check if countdown target was completed while away
-            if (validatedMode === 'countdown' && serviceTarget > 0 && currentElapsed >= serviceTarget) {
-              currentElapsed = serviceTarget;
-              restoreTimerSession(serviceTarget, validatedMode, serviceSubject, false);
+            if (
+              (validatedMode === 'countdown' && serviceTarget > 0 && currentElapsed >= serviceTarget) ||
+              Boolean((serviceState as any).isCompleted)
+            ) {
+              const completedElapsed = serviceTarget > 0 ? serviceTarget : currentElapsed;
+              restoreTimerSession(completedElapsed, validatedMode, serviceSubject, false);
               setIsCountdownCompleted(true);
               return;
             }
@@ -1787,9 +1790,7 @@ export function StudyTimer() {
         localStorage.setItem('studyio_timer_countdown_completed', 'true');
       } catch { }
       pauseTimer();
-      if (isNativeAndroid()) {
-        TimerNotification.stop().catch(() => { });
-      }
+      // Keep native completed notification and persisted state alive until session is saved or discarded
       if (!isNativeAndroid()) {
         notify('countdown_completed', {
           body: 'Your timer is up! Click Save session to record your progress.',

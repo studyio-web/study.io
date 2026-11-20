@@ -472,6 +472,7 @@ class TimerForegroundService : Service() {
             Log.d(TAG, "onStartCommand with null intent (system restart). Checking persisted state...")
             val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
             val wasRunning = prefs.getBoolean("is_running", false)
+            val wasCompleted = prefs.getBoolean("is_completed", false)
             if (wasRunning) {
                 isRunning = true
                 isPaused = prefs.getBoolean("is_paused", false)
@@ -493,6 +494,16 @@ class TimerForegroundService : Service() {
                     startStrictMonitoring()
                 }
                 return START_STICKY
+            } else if (wasCompleted) {
+                mode = prefs.getString("mode", "countdown") ?: "countdown"
+                phase = prefs.getString("phase", "work") ?: "work"
+                targetSeconds = prefs.getInt("target_seconds", 0)
+                baseElapsedSeconds = targetSeconds
+                subject = prefs.getString("subject", "") ?: ""
+                val completedNotification = buildCompletedNotification()
+                val notificationManager = NotificationManagerCompat.from(this)
+                notificationManager.notify(NOTIFICATION_ID_RUNNING, completedNotification)
+                return START_NOT_STICKY
             } else {
                 handleStop()
                 return START_NOT_STICKY
@@ -1030,20 +1041,71 @@ class TimerForegroundService : Service() {
             updateNotification()
             scheduleFinishCheckIfNeeded()
         } else if (mode == "countdown") {
-            Log.d(TAG, "Countdown completed: stopping ongoing foreground timer notification")
+            Log.d(TAG, "Countdown completed: preserving completed state and updating notification")
             baseElapsedSeconds = targetSeconds
             isPaused = true
             isRunning = false
-            isServiceRunning = false
             cancelScheduledFinishCheck()
             releaseWakeLock()
             stopStrictMonitoring()
-            clearPersistedState()
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+
+            // Persist completed state so app restores finished session when opened
+            try {
+                val prefs = getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+                prefs.edit().apply {
+                    putBoolean("is_running", false)
+                    putBoolean("is_paused", true)
+                    putBoolean("is_completed", true)
+                    putString("mode", mode)
+                    putString("phase", phase)
+                    putLong("start_time", startedAtMs)
+                    putInt("elapsed_seconds", targetSeconds)
+                    putInt("target_seconds", targetSeconds)
+                    putString("subject", subject)
+                    apply()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to persist completed countdown state", e)
+            }
+
+            // Update running notification to a completed notification instead of removing it!
+            val completedNotification = buildCompletedNotification()
             val notificationManager = NotificationManagerCompat.from(this)
-            notificationManager.cancel(NOTIFICATION_ID_RUNNING)
-            stopSelf()
+            notificationManager.notify(NOTIFICATION_ID_RUNNING, completedNotification)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
         }
+    }
+
+    private fun buildCompletedNotification(): Notification {
+        val subjectDisplay = if (subject.isNotBlank()) subject else "Study Session"
+        val title = "🎉 Focus Session Complete!"
+        val body = "$subjectDisplay (${formatSeconds(targetSeconds)}) · Tap to view and save session"
+
+        val contentIntent = createContentPendingIntent()
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_studyio)
+            .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setOngoing(false)
+            .setContentIntent(contentIntent)
+
+        if (subject.isNotBlank()) {
+            builder.setSubText(subject)
+        }
+
+        try {
+            val largeIcon = android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+            if (largeIcon != null) {
+                builder.setLargeIcon(largeIcon)
+            }
+        } catch (_: Exception) {}
+
+        return builder.build()
     }
 
     private fun postFinishAlertNotification(wasUltra: Boolean = false) {

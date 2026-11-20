@@ -125,7 +125,7 @@ export function SettingsPlanSection() {
                 onClick={openPremiumModal}
                 className="px-4 py-2 rounded-xl text-xs font-hud font-bold tracking-wider uppercase bg-[#E6C15A] text-[#1A1405] hover:brightness-105 active:scale-95 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
-                <ProCrown size={14} variant="mono" />
+                <ProCrown size={15} variant="mono" />
                 <span>Upgrade to Premium</span>
               </button>
             ) : (

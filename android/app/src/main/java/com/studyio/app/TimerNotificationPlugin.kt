@@ -182,6 +182,7 @@ class TimerNotificationPlugin : Plugin() {
             val prefs = context.getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
             val wasRunning = prefs.getBoolean("is_running", false)
             val isPaused = prefs.getBoolean("is_paused", false)
+            val isCompleted = prefs.getBoolean("is_completed", false)
             val mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
             val phase = prefs.getString("phase", "work") ?: "work"
             val startTime = prefs.getLong("start_time", 0L)
@@ -189,12 +190,13 @@ class TimerNotificationPlugin : Plugin() {
             val targetSeconds = prefs.getInt("target_seconds", 0)
             val subject = prefs.getString("subject", "") ?: ""
 
-            val isServiceActive = (TimerForegroundService.isServiceRunning || wasRunning) && (wasRunning || isPaused)
+            val isServiceActive = (TimerForegroundService.isServiceRunning || wasRunning || isCompleted) && (wasRunning || isPaused || isCompleted)
 
             val ret = JSObject().apply {
                 put("isServiceActive", isServiceActive)
-                put("isRunning", wasRunning && !isPaused)
+                put("isRunning", wasRunning && !isPaused && !isCompleted)
                 put("isPaused", isPaused)
+                put("isCompleted", isCompleted)
                 put("mode", mode)
                 put("phase", phase)
                 put("startTime", startTime.toDouble())
