@@ -1,4 +1,5 @@
 import { UserProfile, Subject } from '../types';
+import { resolveScholarName, resolveScholarHandle } from './scholarIdentity';
 
 export interface CachedUserState {
   profile: Partial<UserProfile> | null;
@@ -69,6 +70,10 @@ export function getCachedUserState(): CachedUserState | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
+      if (parsed.profile) {
+        parsed.profile.displayName = resolveScholarName(parsed.profile);
+        parsed.profile.username = resolveScholarHandle(parsed.profile);
+      }
       return parsed as CachedUserState;
     }
   } catch (err) {

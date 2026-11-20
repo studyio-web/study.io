@@ -30,6 +30,7 @@ import {
   PREMIUM_GOLD_GLOW,
 } from '../../lib/premium';
 import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
+import { resolveScholarName, resolveScholarHandle } from '@/lib/scholarIdentity';
 import { HelpFeedbackModal } from './HelpFeedbackModal';
 
 import { Logo } from '../Logo';
@@ -363,35 +364,19 @@ export function Navbar({
   const [cachedName, setCachedName] = useState<string>('');
 
   useEffect(() => {
-    // If we get a valid database profile name (username or name), lock it in.
-    if (user?.username || user?.name) {
-      setCachedName(user.username || user.name || '');
+    const resolved = resolveScholarName(user);
+    if (resolved) {
+      setCachedName(resolved);
     }
-    // Only use Google metadata if we have NO cached name yet.
-    else if (!cachedName && user?.user_metadata?.full_name) {
-      const metaName = user.user_metadata.full_name as string;
-      setCachedName(metaName.includes('(') ? metaName.split(' (')[0].trim() : metaName);
-    } else if (!cachedName && user?.displayName) {
-      setCachedName(user.displayName);
-    }
-  }, [user, cachedName]);
+  }, [user]);
 
   const displayName = useMemo(() => {
-    return (
-      cachedName ||
-      user?.displayName ||
-      user?.user_metadata?.full_name ||
-      (user as any)?.user_metadata?.name ||
-      (user as any)?.user_metadata?.display_name ||
-      (user?.email ? user.email.split('@')[0] : 'Focus Scholar')
-    );
-  }, [
-    cachedName,
-    user?.displayName,
-    user?.user_metadata?.full_name,
-    (user as any)?.user_metadata?.name,
-    (user as any)?.user_metadata?.display_name,
-  ]);
+    return resolveScholarName({ ...user, displayName: cachedName || user?.displayName });
+  }, [cachedName, user]);
+
+  const scholarHandle = useMemo(() => {
+    return resolveScholarHandle(user);
+  }, [user]);
 
   // Prevent level/title flicker by falling back to stored user_metadata / user profile
   const effectiveLevel = Math.max(
@@ -674,7 +659,7 @@ export function Navbar({
                         )}
                       </div>
                       <div className="text-[10px] font-mono text-[var(--text-dim)] truncate mt-0.5">
-                        {user?.username ? `@${user.username} • ` : ''}{user?.email}
+                        {scholarHandle ? `@${scholarHandle} • ` : ''}{user?.email}
                       </div>
                     </div>
                     <span className="text-base flex-shrink-0">{effectiveTierBadge.icon}</span>

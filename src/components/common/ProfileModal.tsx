@@ -16,6 +16,7 @@ import { toast } from 'react-hot-toast';
 import { isAppropriateHandle, isValidHandleFormat, sanitizeHandleInput } from '../../lib/validation';
 import { updateScholarProfile } from '../../app/actions/profile';
 import { PRESET_AVATARS, VAULT_CATEGORIES, PREMIUM_AVATAR_MAP, resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
+import { resolveScholarName, resolveScholarHandle, isRawOAuthName } from '@/lib/scholarIdentity';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -54,8 +55,11 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   const { userRank: sharedRank } = useRank();
   const userRank = sharedRank.tier;
 
-  const [displayName, setDisplayName] = useState(user.name || user.displayName || '');
-  const [username, setUsername] = useState(user.username || '');
+  const [displayName, setDisplayName] = useState(() => {
+    const resolved = resolveScholarName(user);
+    return resolved === 'Scholar' ? '' : resolved;
+  });
+  const [username, setUsername] = useState(() => resolveScholarHandle(user));
   const [dailyGoalHours, setDailyGoalHours] = useState(user.dailyGoalHours);
   const [avatarUrl, setAvatarUrl] = useState('');
   
@@ -100,16 +104,18 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   // Sync state whenever user or modal open status changes
   useEffect(() => {
     if (isOpen) {
-      setDisplayName(user.name || user.displayName || '');
-      setUsername(user.username || '');
+      const currentResolvedName = resolveScholarName(user);
+      const currentResolvedHandle = resolveScholarHandle(user);
+      setDisplayName(currentResolvedName === 'Scholar' && !user.is_onboarded ? '' : currentResolvedName);
+      setUsername(currentResolvedHandle);
       setDailyGoalHours(user.dailyGoalHours);
       
-      const effectiveAvatarUrl = resolveAppAvatar(user.avatarUrl, user.username || user.displayName || user.id);
+      const effectiveAvatarUrl = resolveAppAvatar(user.avatarUrl, currentResolvedHandle || currentResolvedName || user.id);
       setAvatarUrl(effectiveAvatarUrl);
       
       setErrorMsg('');
 
-      if (!user.is_onboarded && !(user.username || '')) {
+      if (!user.is_onboarded && !currentResolvedHandle) {
         rollNewIdentity();
       }
     }
@@ -293,7 +299,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                   />
                 ) : (
                   <div className="w-full h-full rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center font-bold text-lg text-white">
-                    {getInitials(displayName || user.displayName || 'Scholar')}
+                    {getInitials(displayName || resolveScholarName(user))}
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -301,8 +307,8 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                 </div>
               </button>
               <div className="min-w-0">
-                <div className="font-bold text-base text-white truncate">{displayName || user.displayName || 'Scholar'}</div>
-                <div className="text-sm text-neutral-400 font-mono truncate mt-0.5">@{cleanedHandle || 'handle'}</div>
+                <div className="font-bold text-base text-white truncate">{displayName || resolveScholarName(user)}</div>
+                <div className="text-sm text-neutral-400 font-mono truncate mt-0.5">@{cleanedHandle || resolveScholarHandle(user) || 'handle'}</div>
                 
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded border bg-white/[0.05] backdrop-blur-sm" style={{ borderColor: getRankTheme(userRank.tier).accent, color: getRankTheme(userRank.tier).accent }}>
                   <span className="text-[10px] font-black uppercase tracking-wider">

@@ -12,6 +12,7 @@ import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '..
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
 import { resolveAppAvatar, isAppAvatar, getDeterministicDefaultAvatar } from '../lib/avatars';
 import { getCachedUserState, saveCachedUserState, clearCachedUserState, isRealUserAccount, hasValidCachedSession } from '../lib/userCache';
+import { resolveScholarName, resolveScholarHandle, isRawOAuthName } from '../lib/scholarIdentity';
 
 export type StoredAccount = {
   id: string;
@@ -46,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cached = getCachedUserState();
         if (cached?.profile && isRealUserAccount(cached.profile.id)) {
           const profile = { ...INITIAL_USER, ...cached.profile } as UserProfile;
-          const resolvedDisplayName = profile.username || profile.displayName || profile.name || 'Scholar';
+          const resolvedDisplayName = resolveScholarName(profile);
+          profile.displayName = resolvedDisplayName;
+          profile.username = resolveScholarHandle(profile);
           profile.avatarUrl = resolveAppAvatar(profile.avatarUrl, resolvedDisplayName);
           profile.streakDays = cached.streakCount ?? profile.streakDays ?? 0;
           if (typeof cached.rp === 'number' && cached.rp > 0) {
@@ -62,6 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object' && isRealUserAccount(parsed.id)) {
+            parsed.displayName = resolveScholarName(parsed);
+            parsed.username = resolveScholarHandle(parsed);
             if (typeof cached?.rp === 'number' && cached.rp > 0) {
               parsed.seasonRp = Math.max(Number(parsed.seasonRp || 0), cached.rp);
               parsed.rp = Math.max(Number(parsed.rp || 0), cached.rp);
@@ -122,14 +127,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setUser(prev => {
       // Prioritize existing local state to prevent flickering back to raw oauth names during background refetches
-      const resolvedDisplayName = prev.username || prev.displayName || (authUser.user_metadata?.custom_username as string) || cleanMetaName || 'Focus Scholar';
-      const cleanAvatar = resolveAppAvatar(prev.avatarUrl, prev.username || prev.displayName || cleanMetaName || authUser.id);
+      const resolvedDisplayName = resolveScholarName({ ...prev, user_metadata: authUser.user_metadata });
+      const resolvedHandle = resolveScholarHandle({ ...prev, user_metadata: authUser.user_metadata });
+      const cleanAvatar = resolveAppAvatar(prev.avatarUrl, resolvedHandle || resolvedDisplayName || authUser.id);
       
       const merged: UserProfile = {
         ...prev,
         id: authUser.id,
         email: authUser.email || prev.email || '',
         displayName: resolvedDisplayName,
+        username: resolvedHandle || prev.username,
         avatarUrl: cleanAvatar,
         user_metadata: {
           ...(authUser.user_metadata || {}),
@@ -265,12 +272,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(prev => {
           const finalStreak = computedStreak;
           setCachedStreak(finalStreak);
+          const cleanHandle = resolveScholarHandle({ username: profile.username || prev.username, user_metadata: authUser.user_metadata });
+          const cleanDisplayName = resolveScholarName({
+            name: profile.name,
+            username: profile.username,
+            displayName: profile.display_name || prev.displayName,
+            user_metadata: authUser.user_metadata,
+          });
           const synced: UserProfile = {
             id: profile.id,
             email: authUser.email || prev.email || '',
-            username: profile.username || prev.username,
-            name: profile.name || prev.name,
-            displayName: profile.username || profile.display_name || profile.name || prev.username || prev.displayName || (authUser.user_metadata?.custom_username as string) || cleanMetaName || 'Focus Scholar',
+            username: cleanHandle || '',
+            name: profile.name && !isRawOAuthName(profile.name, authUser.user_metadata?.full_name as string) ? profile.name : undefined,
+            displayName: cleanDisplayName,
             avatarUrl: cleanAvatar,
             dailyGoalHours: Number(profile.daily_goal_hours ?? prev.dailyGoalHours ?? 4.0),
             streakDays: finalStreak,
@@ -320,10 +334,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return synced;
         });
       } else {
-        const defaultAvatar = getDeterministicDefaultAvatar(cleanMetaName || authUser.id);
+        const defaultAvatar = getDeterministicDefaultAvatar(authUser.id);
         await supabase.from('profiles').upsert({
           id: authUser.id,
-          username: cleanMetaName || 'Scholar',
+          username: 'Scholar',
           avatar_url: defaultAvatar,
           xp: 0,
           lifetime_xp: 0,
