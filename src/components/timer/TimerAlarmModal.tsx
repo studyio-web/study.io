@@ -1,21 +1,39 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { BellOff, Coffee, Play, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Bell, Check, ShieldCheck, Clock, Coffee, Plus, ChevronRight, BellOff, Sparkles } from 'lucide-react';
 import { triggerHaptic } from '../../lib/native-feel';
 import { ALARM_MAX_DURATION_SECONDS, formatAlarmRemaining } from '../../lib/timerAlarm';
+import { getRankTier, getNextTier } from '../../lib/ranks';
+import { calculateSessionRP } from '../../lib/rankedSystem';
+import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 
-interface TimerAlarmModalProps {
+export interface TimerAlarmModalProps {
   isOpen: boolean;
   mode: 'countdown' | 'pomodoro';
   phase?: 'work' | 'break';
   isUltraStrict?: boolean;
   subjectName?: string;
+  focusedDurationSeconds?: number;
+  seasonRp?: number;
   onDismiss: () => void;
   onSnooze?: () => void;
+  onSave?: () => void;
   onStartBreak?: () => void;
   onStartFocus?: () => void;
+}
+
+function formatDurationFocused(totalSeconds: number): string {
+  const safeSec = Math.max(0, Math.round(totalSeconds || 0));
+  const hours = Math.floor(safeSec / 3600);
+  const mins = Math.floor((safeSec % 3600) / 60);
+
+  if (hours > 0) {
+    return mins > 0 ? `${hours}h ${mins}m focused` : `${hours}h focused`;
+  }
+  const displayMins = Math.max(1, mins);
+  return `${displayMins}m focused`;
 }
 
 export function TimerAlarmModal({
@@ -24,36 +42,90 @@ export function TimerAlarmModal({
   phase = 'work',
   isUltraStrict = false,
   subjectName,
+  focusedDurationSeconds = 0,
+  seasonRp = 0,
   onDismiss,
+  onSnooze,
+  onSave,
   onStartBreak,
   onStartFocus,
 }: TimerAlarmModalProps) {
   const [mounted, setMounted] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(ALARM_MAX_DURATION_SECONDS);
+  const [elapsedRinging, setElapsedRinging] = useState<number>(0);
+  const [isCompletedSlide, setIsCompletedSlide] = useState(false);
+  const [sliderDragX, setSliderDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  const sliderTrackRef = useRef<HTMLDivElement>(null);
+  const startDragXRef = useRef<number>(0);
+  const currentDragXRef = useRef<number>(0);
+  const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      setPrefersReducedMotion(mediaQuery.matches);
+      const listener = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+      mediaQuery.addEventListener?.('change', listener);
+      return () => mediaQuery.removeEventListener?.('change', listener);
+    }
   }, []);
 
-  // Reset timer on open & tick down until auto-silence (5 minutes)
+  // Web Screen Wake Lock API while alarm screen is open
+  useEffect(() => {
+    if (!isOpen || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+
+    let released = false;
+    async function requestWakeLock() {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      } catch (err) {
+        // Wake lock may fail if low battery or background tab
+      }
+    }
+
+    requestWakeLock();
+
+    return () => {
+      released = true;
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  // Reset state on open & tick down until auto-silence (5 minutes)
   useEffect(() => {
     if (!isOpen) {
       setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
+      setElapsedRinging(0);
+      setIsCompletedSlide(false);
+      setSliderDragX(0);
       return;
     }
 
     setSecondsRemaining(ALARM_MAX_DURATION_SECONDS);
+    setElapsedRinging(0);
+    setIsCompletedSlide(false);
+    setSliderDragX(0);
 
-    // Periodic gentle haptic pulse matching acoustic chime cadence (3.2s)
+    // Initial and periodic gentle haptic pulse
+    triggerHaptic('medium');
     const hapticInterval = setInterval(() => {
-      triggerHaptic('medium');
-    }, 3200);
+      triggerHaptic('light');
+    }, 3600);
 
     const timer = setInterval(() => {
+      setElapsedRinging((prev) => prev + 1);
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          onDismiss();
+          clearInterval(hapticInterval);
+          handleStopAlarm();
           return 0;
         }
         return prev - 1;
@@ -64,196 +136,412 @@ export function TimerAlarmModal({
       clearInterval(timer);
       clearInterval(hapticInterval);
     };
-  }, [isOpen, onDismiss]);
+  }, [isOpen]);
+
+  const handleStopAlarm = useCallback(() => {
+    triggerHaptic('heavy');
+    // If native Android, instruct native plugin to stop native AlarmService
+    if (isNativeAndroid()) {
+      TimerNotification.stop().catch(() => {});
+    }
+    onDismiss();
+  }, [onDismiss]);
+
+  // Slide-To-Stop Drag Logic (Touch & Pointer events)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isCompletedSlide) return;
+    setIsDragging(true);
+    startDragXRef.current = e.clientX - currentDragXRef.current;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || isCompletedSlide || !sliderTrackRef.current) return;
+    const trackWidth = sliderTrackRef.current.clientWidth;
+    const knobWidth = 56;
+    const maxDrag = Math.max(1, trackWidth - knobWidth - 8);
+
+    let nextX = e.clientX - startDragXRef.current;
+    if (nextX < 0) nextX = 0;
+    if (nextX > maxDrag) nextX = maxDrag;
+
+    currentDragXRef.current = nextX;
+    setSliderDragX(nextX);
+
+    // If dragged >= 85% of track width: trigger stop completion
+    if (nextX >= maxDrag * 0.85) {
+      setIsCompletedSlide(true);
+      setIsDragging(false);
+      setSliderDragX(maxDrag);
+      triggerHaptic('heavy');
+
+      setTimeout(() => {
+        handleStopAlarm();
+      }, 350);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || isCompletedSlide) return;
+    setIsDragging(false);
+    // Snap back to 0 if not completed
+    currentDragXRef.current = 0;
+    setSliderDragX(0);
+  };
+
+  // Color scheme: warm amber for focus completion, cool teal for break completion
+  const isBreakPhase = mode === 'pomodoro' && phase === 'break';
+  const accentColor = isBreakPhase ? '#14b8a6' : '#f59e0b'; // teal-500 vs amber-500
+
+  // Escalation: subtle glow increase over the first 20 seconds (0.25 to 0.45)
+  const escalationProgress = Math.min(1.0, elapsedRinging / 20);
+  const baseGlowOpacity = 0.25 + 0.20 * escalationProgress;
+
+  // Rank and RP calculations
+  const isEligibleForRP = !isBreakPhase && focusedDurationSeconds >= 60;
+  const gainedRP = useMemo(() => {
+    if (!isEligibleForRP) return 0;
+    return calculateSessionRP(focusedDurationSeconds).totalGained;
+  }, [isEligibleForRP, focusedDurationSeconds]);
+
+  const currentTier = useMemo(() => getRankTier(seasonRp), [seasonRp]);
+  const nextTier = useMemo(() => getNextTier(currentTier.name), [currentTier.name]);
+
+  const rankProgress = useMemo(() => {
+    if (!nextTier) return null;
+    const range = Math.max(1, currentTier.maxRp - currentTier.minRp);
+    const progress = Math.max(0, seasonRp - currentTier.minRp);
+    const percent = Math.min(100, Math.max(0, (progress / range) * 100));
+    return {
+      currentRp: seasonRp,
+      targetRp: currentTier.maxRp,
+      nextTierName: nextTier.name,
+      percent,
+    };
+  }, [currentTier, nextTier, seasonRp]);
 
   if (!isOpen || !mounted || typeof document === 'undefined') return null;
-
-  const categoryLabel = (() => {
-    if (isUltraStrict) return 'ULTRA LOCKDOWN PROTOCOL';
-    if (mode === 'countdown') return 'COUNTDOWN TIMER';
-    if (phase === 'work') return 'FOCUS SESSION';
-    return 'BREAK PERIOD';
-  })();
-
-  const title = (() => {
-    if (isUltraStrict) return 'Session Complete';
-    if (mode === 'countdown') return 'Time is Up';
-    if (phase === 'work') return 'Focus Complete';
-    return 'Break Finished';
-  })();
-
-  const subtitle = (() => {
-    if (isUltraStrict) {
-      return 'Lockdown lifted. Your session is ready to save.';
-    }
-    if (mode === 'countdown') {
-      return 'Your focus target has been reached.';
-    }
-    if (phase === 'work') {
-      return 'Time for a quick break or your next focus round.';
-    }
-    return 'Ready to start your next focus block?';
-  })();
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="alarm-modal-title"
-      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-[#050507]/90 backdrop-blur-2xl animate-in fade-in duration-200"
+      aria-label="Timer Complete Alarm"
+      className="fixed inset-0 z-[150] w-screen h-dvh bg-[#05070B] text-white flex flex-col justify-between overflow-hidden select-none"
+      style={{
+        paddingTop: 'max(1.25rem, env(safe-area-inset-top, 1.25rem))',
+        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 1.25rem))',
+        paddingLeft: 'max(1.5rem, env(safe-area-inset-left, 1.5rem))',
+        paddingRight: 'max(1.5rem, env(safe-area-inset-right, 1.5rem))',
+      }}
     >
-      {/* Dynamic Ambient Spatial Halo */}
+      <style>{`
+        @keyframes alarmGlowBreathe {
+          0%, 100% { transform: scale(0.95); opacity: ${baseGlowOpacity}; }
+          50% { transform: scale(1.15); opacity: ${baseGlowOpacity + 0.15}; }
+        }
+        @keyframes alarmBellWobble {
+          0%, 100% { transform: rotate(0deg); }
+          20% { transform: rotate(-8deg); }
+          40% { transform: rotate(8deg); }
+          60% { transform: rotate(-6deg); }
+          80% { transform: rotate(6deg); }
+        }
+        @keyframes alarmWaveRipple1 {
+          0% { transform: scale(0.8); opacity: 0.8; }
+          100% { transform: scale(2.4); opacity: 0; }
+        }
+        @keyframes alarmWaveRipple2 {
+          0% { transform: scale(0.8); opacity: 0.6; }
+          100% { transform: scale(3.0); opacity: 0; }
+        }
+        .alarm-glow-breathe {
+          animation: ${prefersReducedMotion ? 'none' : 'alarmGlowBreathe 4s ease-in-out infinite'};
+        }
+        .alarm-bell-wobble {
+          animation: ${prefersReducedMotion ? 'none' : 'alarmBellWobble 2s ease-in-out infinite'};
+        }
+        .alarm-ripple-1 {
+          animation: ${prefersReducedMotion ? 'none' : 'alarmWaveRipple1 3.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite'};
+        }
+        .alarm-ripple-2 {
+          animation: ${prefersReducedMotion ? 'none' : 'alarmWaveRipple2 3.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.9s'};
+        }
+      `}</style>
+
+      {/* Large Soft Breathing Radial Glow behind content */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
         <div
-          className={`w-[360px] h-[360px] sm:w-[500px] sm:h-[500px] rounded-full blur-[120px] opacity-40 animate-pulse ${
-            isUltraStrict ? 'bg-red-500/20' : 'bg-emerald-500/15'
-          }`}
-          style={{ animationDuration: '3.2s' }}
+          className="alarm-glow-breathe w-[min(520px,95vw)] h-[min(520px,95vw)] rounded-full blur-[110px]"
+          style={{
+            background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
+          }}
         />
       </div>
 
-      {/* Main Glass Shell */}
-      <div
-        className={`relative w-full max-w-sm rounded-[32px] bg-[#0A0D14]/95 border p-7 sm:p-8 text-center animate-in zoom-in-95 duration-150 overflow-hidden ${
-          isUltraStrict
-            ? 'border-red-500/30 shadow-[0_20px_60px_rgba(239,68,68,0.25)]'
-            : 'border-white/[0.08] shadow-[0_20px_60px_rgba(0,0,0,0.85)]'
-        }`}
-      >
-        {/* Subtle Top Accent Highlight */}
-        <div
-          className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent ${
-            isUltraStrict ? 'via-red-500/50' : 'via-emerald-400/40'
-          } to-transparent`}
-        />
+      {/* TOP BAR: Status Chip */}
+      <div className="relative z-10 w-full flex items-center justify-center pt-2">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-md shadow-sm">
+          {isUltraStrict ? (
+            <>
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-medium text-amber-300/90 tracking-wide">
+                Lockdown lifted
+              </span>
+            </>
+          ) : isBreakPhase ? (
+            <>
+              <Coffee className="w-3.5 h-3.5 text-teal-400" />
+              <span className="text-xs font-medium text-teal-300/90 tracking-wide">
+                Break finished
+              </span>
+            </>
+          ) : (
+            <>
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-medium text-amber-300/90 tracking-wide">
+                Focus target reached
+              </span>
+            </>
+          )}
+        </div>
+      </div>
 
-        {/* Hero Completion Ring & Dial */}
-        <div className="relative w-24 h-24 mx-auto mb-5 flex items-center justify-center">
-          {/* Breathing ambient ring */}
+      {/* CENTER HERO: Bell with Expanding Ripples, Title & Big Stats */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center my-auto px-2 max-w-md mx-auto w-full">
+        {/* Animated Bell Hero with Ripples */}
+        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center mb-6">
+          {/* Wave Ripple 1 */}
           <div
-            className={`absolute inset-0 rounded-full border animate-ping opacity-30 ${
-              isUltraStrict ? 'border-red-500' : 'border-emerald-400'
-            }`}
-            style={{ animationDuration: '3.2s' }}
+            className="alarm-ripple-1 absolute w-24 h-24 rounded-full border pointer-events-none"
+            style={{ borderColor: accentColor }}
           />
-          {/* Static frosted ring */}
+          {/* Wave Ripple 2 */}
           <div
-            className={`absolute -inset-2 rounded-full border ${
-              isUltraStrict ? 'border-red-500/15' : 'border-emerald-500/15'
-            }`}
+            className="alarm-ripple-2 absolute w-24 h-24 rounded-full border pointer-events-none"
+            style={{ borderColor: accentColor }}
           />
-          {/* Core circular HUD emblem */}
+
+          {/* Central Bell Container */}
           <div
-            className={`relative w-24 h-24 rounded-full border flex flex-col items-center justify-center shadow-lg transition-transform ${
-              isUltraStrict
-                ? 'bg-red-500/10 border-red-500/35 text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.25)]'
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
-            }`}
+            className="alarm-bell-wobble relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center shadow-2xl border"
+            style={{
+              backgroundColor: isBreakPhase ? 'rgba(20, 184, 166, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+              borderColor: isBreakPhase ? 'rgba(20, 184, 166, 0.35)' : 'rgba(245, 158, 11, 0.35)',
+              boxShadow: `0 0 45px ${isBreakPhase ? 'rgba(20, 184, 166, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
+            }}
           >
-            {isUltraStrict ? (
-              <ShieldCheck className="w-10 h-10 text-red-400 stroke-[1.75]" />
+            {isBreakPhase ? (
+              <Coffee className="w-10 h-10 sm:w-12 sm:h-12 text-teal-300 stroke-[1.8]" />
             ) : (
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 stroke-[1.75]" />
+              <Bell className="w-10 h-10 sm:w-12 sm:h-12 text-amber-400 stroke-[1.8]" />
             )}
-            <span className="text-[10px] font-mono tracking-wider text-white/50 mt-0.5">00:00</span>
           </div>
         </div>
 
-        {/* Minimalist Monospace Category Tag */}
-        <div className="flex items-center justify-center gap-1.5 mb-2">
-          <span
-            className={`w-1.5 h-1.5 rounded-full animate-ping ${
-              isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
-            }`}
-          />
-          <p
-            className={`text-[10px] font-mono uppercase tracking-[0.22em] font-semibold ${
-              isUltraStrict ? 'text-red-400/90' : 'text-emerald-400/90'
-            }`}
-          >
-            {categoryLabel}
-          </p>
-        </div>
+        {/* Display Title */}
+        <h1 className="font-hud text-4xl sm:text-5xl font-black tracking-tight text-white mb-2 leading-none">
+          {isBreakPhase ? 'Break over' : "Time's up"}
+        </h1>
 
-        {/* Clean Modern Title */}
-        <h2 id="alarm-modal-title" className="font-hud text-3xl font-bold tracking-tight text-white mb-2">
-          {title}
-        </h2>
-
-        {/* Subject Badge */}
-        {subjectName && (
-          <div className="mb-2.5 inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-xs text-white/90">
+        {/* Subject Chip (if available) */}
+        {subjectName ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-xs font-mono text-zinc-300 mb-5">
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
-              }`}
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: accentColor }}
             />
-            <span className="font-medium truncate max-w-[200px]">{subjectName}</span>
+            <span className="truncate max-w-[220px]">{subjectName}</span>
           </div>
+        ) : (
+          <div className="mb-4" />
         )}
 
-        {/* Subtitle Description */}
-        <p className="text-xs text-white/60 leading-relaxed max-w-[260px] mx-auto mb-5">
-          {subtitle}
-        </p>
+        {/* Big Stat Line */}
+        {!isBreakPhase ? (
+          <div className="w-full flex flex-col items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 sm:p-5 backdrop-blur-sm">
+            {/* Focused duration in tabular numerals */}
+            <div className="text-2xl sm:text-3xl font-mono tabular-nums font-bold text-white tracking-tight">
+              {formatDurationFocused(focusedDurationSeconds)}
+            </div>
 
-        {/* Auto-silence Countdown Indicator */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-[11px] font-mono text-white/50 mb-6">
-          <span
-            className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-              isUltraStrict ? 'bg-red-400' : 'bg-emerald-400'
-            }`}
+            {/* RP Reward chip */}
+            {isEligibleForRP && gainedRP > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-mono font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>+{gainedRP} RP</span>
+              </div>
+            )}
+
+            {/* Rank Progress Bar to Next Tier */}
+            {rankProgress && (
+              <div className="w-full mt-1">
+                <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-1.5">
+                  <span>{rankProgress.currentRp} RP</span>
+                  <span>{rankProgress.targetRp} to {rankProgress.nextTierName}</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 ease-out"
+                    style={{
+                      width: `${rankProgress.percent}%`,
+                      backgroundColor: accentColor,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm font-mono text-zinc-400 max-w-xs">
+            Ready to jump back into your next focus block?
+          </p>
+        )}
+      </div>
+
+      {/* BOTTOM ACTION CONTROLS */}
+      <div className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center gap-4 pb-2">
+        {/* Slide-to-Stop Control */}
+        <div
+          ref={sliderTrackRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative w-full h-14 sm:h-16 rounded-full bg-white/[0.07] border border-white/15 p-1 flex items-center overflow-hidden cursor-grab active:cursor-grabbing touch-none select-none shadow-lg"
+          style={{
+            boxShadow: `0 0 24px ${isCompletedSlide ? accentColor : 'transparent'}`,
+          }}
+        >
+          {/* Draggable Progress Fill */}
+          <div
+            className="absolute left-0 top-0 bottom-0 rounded-full transition-colors"
+            style={{
+              width: `${sliderDragX + 56}px`,
+              backgroundColor: isCompletedSlide
+                ? accentColor
+                : isBreakPhase
+                ? 'rgba(20, 184, 166, 0.22)'
+                : 'rgba(245, 158, 11, 0.22)',
+            }}
           />
-          <span>Auto-silences in {formatAlarmRemaining(secondsRemaining)}</span>
+
+          {/* Centered Track Label */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span
+              className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-white/70 transition-opacity"
+              style={{
+                opacity: Math.max(0.1, 1 - sliderDragX / 140),
+              }}
+            >
+              {isCompletedSlide ? 'Alarm stopped' : 'Slide to stop'}
+            </span>
+          </div>
+
+          {/* Draggable Knob */}
+          <div
+            className="relative z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-transform shadow-md"
+            style={{
+              transform: `translateX(${sliderDragX}px)`,
+              backgroundColor: isCompletedSlide ? '#ffffff' : accentColor,
+              color: isCompletedSlide ? accentColor : '#000000',
+              transition: isDragging ? 'none' : 'transform 0.25s ease-out',
+            }}
+          >
+            {isCompletedSlide ? (
+              <Check className="w-6 h-6 stroke-[3] animate-in zoom-in" />
+            ) : (
+              <ChevronRight className="w-6 h-6 stroke-[2.75]" />
+            )}
+          </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-col gap-2.5">
-          {/* Primary Dismiss Button */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('heavy');
-              onDismiss();
-            }}
-            className={`w-full h-13 rounded-2xl font-hud font-bold text-sm uppercase tracking-wider active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              isUltraStrict
-                ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]'
-                : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_28px_rgba(16,185,129,0.35)]'
-            }`}
-          >
-            <BellOff className="w-4 h-4 stroke-[2.5]" />
-            <span>Stop Alarm</span>
-          </button>
+        {/* Accessible Keyboard / Screen-Reader Stop Button */}
+        <button
+          type="button"
+          onClick={handleStopAlarm}
+          aria-label="Stop alarm"
+          className="sr-only focus:not-sr-only focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded-lg focus:font-bold focus:z-50"
+        >
+          Stop alarm
+        </button>
 
-          {/* Pomodoro Transitions */}
-          {mode === 'pomodoro' && phase === 'work' && onStartBreak && (
+        {/* Secondary Actions: +5 min (Snooze) & Save & continue */}
+        <div className="w-full flex items-center justify-around px-2 text-xs font-mono">
+          {onSnooze && (
             <button
               type="button"
               onClick={() => {
-                triggerHaptic('medium');
-                onStartBreak();
+                triggerHaptic('light');
+                handleStopAlarm();
+                onSnooze();
               }}
-              className="w-full h-11 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-emerald-400 font-mono text-xs uppercase tracking-wider active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="px-4 py-2 rounded-full text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Coffee className="w-3.5 h-3.5" />
-              <span>Start Break</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>+5 min</span>
             </button>
           )}
 
-          {mode === 'pomodoro' && phase === 'break' && onStartFocus && (
+          {isBreakPhase && onStartFocus && (
             <button
               type="button"
               onClick={() => {
                 triggerHaptic('medium');
+                handleStopAlarm();
                 onStartFocus();
               }}
-              className="w-full h-11 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-emerald-400 font-mono text-xs uppercase tracking-wider active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="px-4 py-2 rounded-full text-teal-300 hover:text-teal-200 bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
               <span>Start Focus Round</span>
             </button>
           )}
+
+          {!isBreakPhase && onSave && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                handleStopAlarm();
+                onSave();
+              }}
+              className="px-4 py-2 rounded-full text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Save &amp; continue</span>
+            </button>
+          )}
+
+          {!isBreakPhase && onStartBreak && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                handleStopAlarm();
+                onStartBreak();
+              }}
+              className="px-4 py-2 rounded-full text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Coffee className="w-3.5 h-3.5" />
+              <span>Take a Break</span>
+            </button>
+          )}
+        </div>
+
+        {/* Auto-silence Draining Progress Line & Caption */}
+        <div className="w-full flex flex-col items-center gap-1 mt-1">
+          <div className="w-full h-1 bg-white/[0.08] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-linear"
+              style={{
+                width: `${(secondsRemaining / ALARM_MAX_DURATION_SECONDS) * 100}%`,
+                backgroundColor: accentColor,
+              }}
+            />
+          </div>
+          <span className="text-[11px] font-mono text-zinc-400">
+            Silences in {formatAlarmRemaining(secondsRemaining)}
+          </span>
         </div>
       </div>
     </div>,

@@ -120,6 +120,49 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- Alarm Foreground Service for Countdown & Pomodoro Alarm -->
+        <service
+            android:name=".AlarmService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Focus session completion alarm audio playback and vibration" />
+        </service>
+
+        <!-- Broadcast Receiver triggered by AlarmManager.setAlarmClock() -->
+        <receiver
+            android:name=".AlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.studyio.app.ACTION_TRIGGER_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Broadcast Receiver for Alarm Notification Actions (Stop, Snooze, Save) -->
+        <receiver
+            android:name=".AlarmActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.studyio.app.ACTION_ALARM_STOP" />
+                <action android:name="com.studyio.app.ACTION_ALARM_SNOOZE" />
+                <action android:name="com.studyio.app.ACTION_ALARM_SAVE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Boot Receiver to re-arm pending countdown alarms after reboot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
@@ -129,6 +172,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />

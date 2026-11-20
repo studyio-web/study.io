@@ -43,10 +43,32 @@ public class MainActivity extends BridgeActivity {
         // Lock default app orientation strictly to portrait on launch
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
+        // Enable showing over lock screen and turning screen on when alarm triggers
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+        }
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+        );
+
         // Ensure social notification channels exist natively for FCM background delivery
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = getSystemService(NotificationManager.class);
             if (notificationManager != null) {
+                NotificationChannel alarmChannel = new NotificationChannel(
+                    "timer_alarm",
+                    "Session Complete Alarm",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                alarmChannel.setDescription("Ringing alarm for study countdown and pomodoro completion");
+                alarmChannel.setSound(null, null);
+                alarmChannel.enableVibration(false);
+                alarmChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                notificationManager.createNotificationChannel(alarmChannel);
+
                 NotificationChannel nudgesChannel = new NotificationChannel(
                     "social_nudges",
                     "Study Room Nudges",
@@ -250,6 +272,32 @@ public class MainActivity extends BridgeActivity {
             String action = intent.getStringExtra("timerAction");
             if (action != null) {
                 TimerNotificationPlugin.Companion.emitTimerAction(action);
+            }
+        }
+
+        if (intent.hasExtra("alarmAction")) {
+            String action = intent.getStringExtra("alarmAction");
+            if (action != null) {
+                TimerNotificationPlugin.Companion.emitAlarmAction(action);
+            }
+        }
+
+        if (intent.getBooleanExtra("openAlarm", false)) {
+            String mode = intent.getStringExtra("alarmMode");
+            String phase = intent.getStringExtra("alarmPhase");
+            String subject = intent.getStringExtra("alarmSubject");
+            long duration = intent.getLongExtra("alarmDuration", 0);
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().post(() -> {
+                    getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('studyio:open-alarm', { detail: { " +
+                        "mode: '" + (mode != null ? mode : "countdown") + "', " +
+                        "phase: '" + (phase != null ? phase : "work") + "', " +
+                        "subject: '" + (subject != null ? subject : "") + "', " +
+                        "duration: " + duration + " } }));",
+                        null
+                    );
+                });
             }
         }
     }

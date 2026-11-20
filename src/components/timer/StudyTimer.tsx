@@ -48,6 +48,7 @@ import {
 import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
 import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import { TimerAlarmModal } from './TimerAlarmModal';
+import { AlarmSetupModal } from './AlarmSetupModal';
 import { App } from '@capacitor/app';
 import {
   StrictMode,
@@ -205,11 +206,13 @@ export function StudyTimer() {
   // Optional Timer Alarm state for Countdown, Ultra Strict & Pomodoro modes
   const [isAlarmEnabled, setIsAlarmEnabled] = useState<boolean>(() => loadTimerAlarmEnabled());
   const [isAlarmRinging, setIsAlarmRinging] = useState(false);
+  const [isAlarmSetupOpen, setIsAlarmSetupOpen] = useState(false);
   const [alarmModalData, setAlarmModalData] = useState<{
     mode: 'countdown' | 'pomodoro';
     phase?: 'work' | 'break';
     isUltraStrict?: boolean;
     subjectName?: string;
+    focusedDurationSeconds?: number;
   } | null>(null);
   const hasCountdownCompletedFiredRef = useRef(false);
   const isSavingRef = useRef(false);
@@ -757,6 +760,14 @@ export function StudyTimer() {
         isUltraStrict: isUltraStrict,
         uninstallProtection: true,
       }).catch(() => { });
+
+      if (timerMode === 'countdown' && typeof window !== 'undefined') {
+        try {
+          if (!localStorage.getItem('studyio_alarm_setup_checked')) {
+            setIsAlarmSetupOpen(true);
+          }
+        } catch {}
+      }
     }
     startTimer(activeSub.id);
   }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager, isAndroid, isStrictMode, allowedApps, isUltraStrict, timerMode]);
@@ -1531,6 +1542,7 @@ export function StudyTimer() {
           mode: 'countdown',
           isUltraStrict,
           subjectName: selectedSubject?.name,
+          focusedDurationSeconds: countdownTarget,
         });
       }
     }
@@ -1551,11 +1563,12 @@ export function StudyTimer() {
           mode: 'pomodoro',
           phase: pomodoroCompletedPhase === 'work' ? 'work' : 'break',
           subjectName: selectedSubject?.name,
+          focusedDurationSeconds: pomodoroCompletedPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration,
         });
       }
     }
     prevPomodoroCompletedPhaseRef.current = pomodoroCompletedPhase;
-  }, [timerMode, pomodoroCompletedPhase, isAlarmEnabled, selectedSubject?.name]);
+  }, [timerMode, pomodoroCompletedPhase, isAlarmEnabled, selectedSubject?.name, pomodoroWorkDuration, pomodoroBreakDuration]);
 
   // Alarm action handlers
   const handleDismissAlarm = useCallback(() => {
@@ -1589,6 +1602,59 @@ export function StudyTimer() {
     setPomodoroCompletedPhase(null);
     handleStartSession();
   }, [handleDismissAlarm, setPomodoroCompletedPhase, handleStartSession]);
+
+  const handleSaveAndContinueFromAlarm = useCallback(async () => {
+    handleDismissAlarm();
+    triggerHaptic('medium');
+    if (timerMode === 'countdown') {
+      const savingToastId = toast.loading('Saving focus session...', { id: 'saving-session' });
+      try {
+        await handleStopAndSave(countdownTarget);
+      } catch (err: any) {
+        console.error('[StudyTimer] Error in handleSaveAndContinueFromAlarm:', err);
+      } finally {
+        toast.dismiss(savingToastId);
+        setIsSaving(false);
+        isSavingRef.current = false;
+      }
+    } else if (timerMode === 'pomodoro') {
+      if (alarmModalData?.phase === 'work') {
+        saveAndStartBreak();
+      } else {
+        handleStartSession();
+      }
+    }
+  }, [handleDismissAlarm, timerMode, countdownTarget, handleStopAndSave, alarmModalData?.phase, saveAndStartBreak, handleStartSession]);
+
+  // Synchronize native Android alarm actions & intent deep link events with WebView
+  useEffect(() => {
+    const handleSnooze = () => {
+      handleSnoozeAlarm();
+    };
+    const handleSave = () => {
+      handleSaveAndContinueFromAlarm();
+    };
+    const handleOpenAlarm = (e: any) => {
+      const detail = e.detail;
+      setIsAlarmRinging(true);
+      setAlarmModalData({
+        mode: detail?.mode || 'countdown',
+        phase: detail?.phase || 'work',
+        subjectName: detail?.subject || selectedSubject?.name,
+        focusedDurationSeconds: detail?.duration || countdownTarget,
+      });
+    };
+
+    window.addEventListener('studyio:alarm-snooze', handleSnooze);
+    window.addEventListener('studyio:alarm-save', handleSave);
+    window.addEventListener('studyio:open-alarm', handleOpenAlarm);
+
+    return () => {
+      window.removeEventListener('studyio:alarm-snooze', handleSnooze);
+      window.removeEventListener('studyio:alarm-save', handleSave);
+      window.removeEventListener('studyio:open-alarm', handleOpenAlarm);
+    };
+  }, [handleSnoozeAlarm, handleSaveAndContinueFromAlarm, selectedSubject?.name, countdownTarget]);
 
   // Filtered sessions for Today (browser-local timezone)
   const todaySessions = useMemo(() => {
@@ -2631,6 +2697,14 @@ export function StudyTimer() {
         />
       )}
 
+      {/* One-Time Android Alarm Verification & Setup Modal */}
+      {isAndroid && (
+        <AlarmSetupModal
+          isOpen={isAlarmSetupOpen}
+          onClose={() => setIsAlarmSetupOpen(false)}
+        />
+      )}
+
       {/* Optional 5-Minute Timer Alarm Ringing Modal */}
       <TimerAlarmModal
         isOpen={isAlarmRinging}
@@ -2638,8 +2712,11 @@ export function StudyTimer() {
         phase={alarmModalData?.phase || 'work'}
         isUltraStrict={Boolean(alarmModalData?.isUltraStrict)}
         subjectName={alarmModalData?.subjectName}
+        focusedDurationSeconds={alarmModalData?.focusedDurationSeconds ?? (timerMode === 'countdown' ? countdownTarget : pomodoroWorkDuration)}
+        seasonRp={user?.seasonRp ?? 0}
         onDismiss={handleDismissAlarm}
         onSnooze={alarmModalData?.mode === 'countdown' ? handleSnoozeAlarm : undefined}
+        onSave={handleSaveAndContinueFromAlarm}
         onStartBreak={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'work' ? handleStartBreakFromAlarm : undefined}
         onStartFocus={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'break' ? handleStartFocusFromAlarm : undefined}
       />

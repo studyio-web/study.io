@@ -95,11 +95,12 @@ export function TimerSWBridge() {
     return null;
   }, [timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration, countdownTarget]);
 
-  // Listen for native Android notification actions (Pause, Resume, Stop)
+  // Listen for native Android notification actions (Pause, Resume, Stop) & Alarm actions
   useEffect(() => {
     if (!isNativeAndroid()) return;
 
-    let cleanupHandle: { remove: () => Promise<void> } | null = null;
+    let timerActionHandle: { remove: () => Promise<void> } | null = null;
+    let alarmActionHandle: { remove: () => Promise<void> } | null = null;
 
     TimerNotification.addListener('onTimerAction', (data: { action: 'pause' | 'resume' | 'stop' }) => {
       console.log('[Native Timer Bridge] Received onTimerAction:', data.action);
@@ -111,13 +112,29 @@ export function TimerSWBridge() {
         stopTimer();
       }
     }).then((h) => {
-      cleanupHandle = h;
+      timerActionHandle = h;
     }).catch((err) => {
       console.warn('[Native Timer Bridge] Could not attach onTimerAction listener:', err);
     });
 
+    TimerNotification.addListener('onAlarmAction', (data: { action: 'stop' | 'snooze' | 'save' }) => {
+      console.log('[Native Timer Bridge] Received onAlarmAction:', data.action);
+      if (data.action === 'stop') {
+        stopTimer();
+      } else if (data.action === 'snooze') {
+        window.dispatchEvent(new CustomEvent('studyio:alarm-snooze'));
+      } else if (data.action === 'save') {
+        window.dispatchEvent(new CustomEvent('studyio:alarm-save'));
+      }
+    }).then((h) => {
+      alarmActionHandle = h;
+    }).catch((err) => {
+      console.warn('[Native Timer Bridge] Could not attach onAlarmAction listener:', err);
+    });
+
     return () => {
-      cleanupHandle?.remove?.();
+      timerActionHandle?.remove?.();
+      alarmActionHandle?.remove?.();
     };
   }, [pauseTimer, resumeTimer, stopTimer]);
 
@@ -158,6 +175,27 @@ export function TimerSWBridge() {
         }).catch((err) =>
           console.warn('[Native Timer Bridge] start failed:', err)
         );
+
+        // Schedule exact AlarmManager alarm for countdown or pomodoro completion
+        if (timerMode === 'countdown' || timerMode === 'pomodoro') {
+          const remainingSeconds = Math.max(0, target - elapsedSeconds);
+          if (remainingSeconds > 0) {
+            const isBreak = pomodoroPhase === 'shortBreak' || pomodoroPhase === 'longBreak';
+            const alarmPhase: 'work' | 'break' = isBreak ? 'break' : 'work';
+            const triggerAtMs = Date.now() + (remainingSeconds * 1000);
+            TimerNotification.scheduleAlarm({
+              id: 'studyio_active_timer',
+              triggerAtMs,
+              label: timerMode === 'pomodoro' && isBreak ? 'Break Finished' : 'Session Complete',
+              mode: timerMode as 'countdown' | 'pomodoro',
+              phase: alarmPhase,
+              subject: subjectName,
+              durationSeconds: target,
+            }).catch((err) =>
+              console.warn('[Native Timer Bridge] scheduleAlarm failed:', err)
+            );
+          }
+        }
 
         // Check for battery optimization on native Android so background timer is never restricted after 2 mins
         if (!localStorage.getItem('studyio_battery_prompt_checked')) {
@@ -203,6 +241,9 @@ export function TimerSWBridge() {
         TimerNotification.pause().catch((err) =>
           console.warn('[Native Timer Bridge] pause failed:', err)
         );
+        TimerNotification.cancelAlarm().catch((err) =>
+          console.warn('[Native Timer Bridge] cancelAlarm failed:', err)
+        );
       } else {
         postToSW({ type: 'TIMER_PAUSE', elapsed: elapsedSeconds });
       }
@@ -211,6 +252,9 @@ export function TimerSWBridge() {
       if (isNative) {
         TimerNotification.stop().catch((err) =>
           console.warn('[Native Timer Bridge] stop failed:', err)
+        );
+        TimerNotification.cancelAlarm().catch((err) =>
+          console.warn('[Native Timer Bridge] cancelAlarm failed:', err)
         );
       } else {
         postToSW({ type: 'TIMER_STOP' });
@@ -226,6 +270,24 @@ export function TimerSWBridge() {
         }).catch((err) =>
           console.warn('[Native Timer Bridge] update phase failed:', err)
         );
+
+        const remainingSeconds = Math.max(0, target - elapsedSeconds);
+        if (remainingSeconds > 0) {
+          const isBreak = pomodoroPhase === 'shortBreak' || pomodoroPhase === 'longBreak';
+          const alarmPhase: 'work' | 'break' = isBreak ? 'break' : 'work';
+          const triggerAtMs = Date.now() + (remainingSeconds * 1000);
+          TimerNotification.scheduleAlarm({
+            id: 'studyio_active_timer',
+            triggerAtMs,
+            label: isBreak ? 'Break Finished' : 'Session Complete',
+            mode: timerMode as 'countdown' | 'pomodoro',
+            phase: alarmPhase,
+            subject: subjectName,
+            durationSeconds: target,
+          }).catch((err) =>
+            console.warn('[Native Timer Bridge] scheduleAlarm phase update failed:', err)
+          );
+        }
       }
     }
   }, [isRunning, isStudying, isPaused, pomodoroPhase, timerMode, selectedSubject?.name, getTarget, elapsedSeconds, postToSW, startTimeRef]);

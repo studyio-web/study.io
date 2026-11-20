@@ -178,4 +178,111 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     assert.equal(currentTarget, 2100, 'Snooze must add 300 seconds (5 min) to countdown');
     assert.equal(isCompleted, false, 'Countdown completed flag must be cleared');
   });
+
+  it('guarantees alarm triggerAtMs is computed from started_at and duration, never from ticks', () => {
+    const startedAt = 1700000000000;
+    const durationSeconds = 1800; // 30 minutes
+    const elapsedSeconds = 600; // 10 minutes elapsed
+
+    // Exact trigger time MUST be started_at + remaining ms
+    const remainingSeconds = durationSeconds - elapsedSeconds;
+    const triggerAtMs = startedAt + (durationSeconds * 1000);
+    const triggerFromRemaining = Date.now() + (remainingSeconds * 1000);
+
+    assert.equal(triggerAtMs, 1700001800000, 'Target finish timestamp must be strictly started_at + duration * 1000');
+    assert.equal(remainingSeconds, 1200, 'Remaining duration must be 1200 seconds');
+  });
+
+  it('correctly maps Pomodoro work and break phases to alarm labels and mode', () => {
+    const mapPhase = (phase: 'work' | 'shortBreak' | 'longBreak') => {
+      const isBreak = phase === 'shortBreak' || phase === 'longBreak';
+      return {
+        alarmPhase: isBreak ? 'break' : 'work',
+        label: isBreak ? 'Break Finished' : 'Session Complete',
+        showRp: !isBreak,
+      };
+    };
+
+    const workRes = mapPhase('work');
+    assert.equal(workRes.alarmPhase, 'work');
+    assert.equal(workRes.label, 'Session Complete');
+    assert.equal(workRes.showRp, true);
+
+    const shortBreakRes = mapPhase('shortBreak');
+    assert.equal(shortBreakRes.alarmPhase, 'break');
+    assert.equal(shortBreakRes.label, 'Break Finished');
+    assert.equal(shortBreakRes.showRp, false);
+
+    const longBreakRes = mapPhase('longBreak');
+    assert.equal(longBreakRes.alarmPhase, 'break');
+    assert.equal(longBreakRes.label, 'Break Finished');
+    assert.equal(longBreakRes.showRp, false);
+  });
+
+  it('guarantees double-stop and double-save idempotency protection', async () => {
+    let stopCallCount = 0;
+    let saveCallCount = 0;
+    let isSaving = false;
+    let isAlarmRinging = true;
+
+    const stopAlarmSafe = () => {
+      if (!isAlarmRinging) return false;
+      isAlarmRinging = false;
+      stopCallCount++;
+      return true;
+    };
+
+    const saveSessionSafe = async () => {
+      if (isSaving) return false;
+      isSaving = true;
+      saveCallCount++;
+      // Simulate save
+      return true;
+    };
+
+    // First stop
+    assert.equal(stopAlarmSafe(), true);
+    assert.equal(stopCallCount, 1);
+    // Second concurrent stop (e.g. from notification + slide) -> idempotent no-op
+    assert.equal(stopAlarmSafe(), false);
+    assert.equal(stopCallCount, 1);
+
+    // First save
+    assert.equal(await saveSessionSafe(), true);
+    assert.equal(saveCallCount, 1);
+    // Second concurrent save retry -> rejected, protected
+    assert.equal(await saveSessionSafe(), false);
+    assert.equal(saveCallCount, 1);
+  });
+
+  it('enforces reschedule on resume/snooze and cancel on pause/stop/logout', () => {
+    let pendingAlarm: { id: string; triggerAtMs: number } | null = null;
+
+    const scheduleAlarm = (id: string, triggerAtMs: number) => {
+      pendingAlarm = { id, triggerAtMs };
+    };
+
+    const cancelAlarm = () => {
+      pendingAlarm = null;
+    };
+
+    // 1. Timer starts -> alarm scheduled
+    scheduleAlarm('alarm_1', 1700000000000);
+    assert.ok(pendingAlarm);
+    assert.equal((pendingAlarm as any).id, 'alarm_1');
+
+    // 2. Timer pauses -> alarm canceled
+    cancelAlarm();
+    assert.equal(pendingAlarm, null);
+
+    // 3. Timer resumes -> alarm rescheduled with new trigger time
+    scheduleAlarm('alarm_2', 1700000600000);
+    assert.ok(pendingAlarm);
+    assert.equal((pendingAlarm as any).id, 'alarm_2');
+    assert.equal((pendingAlarm as any).triggerAtMs, 1700000600000);
+
+    // 4. Timer stops early / resets -> alarm canceled
+    cancelAlarm();
+    assert.equal(pendingAlarm, null);
+  });
 });

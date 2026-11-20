@@ -913,14 +913,29 @@ class AudioEngine {
 
   /**
    * Start 5-minute repeating timer alarm.
-   * Plays a warm, melodic acoustic chime progression every 2.8s until stopped or 5 min max.
+   * Plays a warm, melodic acoustic chime progression every 3.2s until stopped or 5 min max.
+   * Escalates volume gradually over the first 20 seconds.
    */
   public startTimerAlarm(maxDurationSeconds: number = 300) {
     if (typeof window === 'undefined') return;
     this.stopTimerAlarm(); // ensure no overlapping alarm
 
+    // Guard: On native Android, native AlarmService handles audio output on the USAGE_ALARM stream.
+    // Web audio must not play concurrently to prevent duplicate playback.
+    const isNativeAndroidApp =
+      typeof (window as any).Capacitor !== 'undefined' &&
+      (window as any).Capacitor.isNativePlatform?.() &&
+      (window as any).Capacitor.getPlatform?.() === 'android';
+
+    if (isNativeAndroidApp) {
+      this.isAlarmActive = true;
+      return;
+    }
+
     this.isAlarmActive = true;
     this.resumeContext();
+
+    const alarmStartEpoch = Date.now();
 
     const playChimePhrase = () => {
       if (!this.isAlarmActive) return;
@@ -928,6 +943,10 @@ class AudioEngine {
         const ctx = this.getContext();
         if (!ctx) return;
         const now = ctx.currentTime;
+
+        // 20-second gradual volume ramp: start at 25% and scale smoothly to 100%
+        const elapsedSec = (Date.now() - alarmStartEpoch) / 1000;
+        const rampMultiplier = Math.min(1.0, 0.25 + 0.75 * Math.min(1.0, elapsedSec / 20));
 
         // Warm organic acoustic mallet & singing chime progression:
         // Soft wooden body (triangle wave) + gentle lowpass warm filter + natural exponential acoustic tail
@@ -955,9 +974,10 @@ class AudioEngine {
           osc1.type = 'triangle';
           osc1.frequency.setValueAtTime(freq, startTime);
 
-          // Natural felt mallet envelope: soft 6ms attack, organic exponential decay
+          // Natural felt mallet envelope with volume escalation ramp
+          const peakGain = 0.18 * rampMultiplier;
           gain1.gain.setValueAtTime(0.0001, startTime);
-          gain1.gain.linearRampToValueAtTime(0.18, startTime + 0.008);
+          gain1.gain.linearRampToValueAtTime(peakGain, startTime + 0.008);
           gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
           osc1.connect(gain1);
@@ -972,8 +992,9 @@ class AudioEngine {
           osc2.type = 'sine';
           osc2.frequency.setValueAtTime(freq * 0.5, startTime);
 
+          const subPeakGain = 0.04 * rampMultiplier;
           gain2.gain.setValueAtTime(0.0001, startTime);
-          gain2.gain.linearRampToValueAtTime(0.04, startTime + 0.01);
+          gain2.gain.linearRampToValueAtTime(subPeakGain, startTime + 0.01);
           gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.7);
 
           osc2.connect(gain2);
