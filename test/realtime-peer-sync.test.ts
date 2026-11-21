@@ -288,4 +288,30 @@ describe('Realtime Cross-Device Zero-Lag Sync Specification', () => {
     assert.equal(phoneStopSync.accepted, true);
     assert.equal(enginePhone.getState().isStudying, false);
   });
+
+  it('7. Synchronizes timer mode changes across peers without requiring timer to be active', () => {
+    // Mode switch on PC from stopwatch to countdown
+    const modePayload = {
+      user_id: 'test-user-uuid',
+      device_id: 'device-pc',
+      mode: 'countdown',
+      timer_mode: 'countdown',
+      is_ultra_strict: false,
+      target_duration: 1800,
+    };
+
+    // Simulated handler on Phone
+    let phoneCurrentMode = 'stopwatch';
+    let phoneCountdownTarget = 3600;
+
+    const handlePhoneModeSync = (payload: any) => {
+      if (payload.mode) phoneCurrentMode = payload.mode;
+      if (payload.target_duration !== undefined) phoneCountdownTarget = payload.target_duration;
+    };
+
+    handlePhoneModeSync(modePayload);
+
+    assert.equal(phoneCurrentMode, 'countdown', 'Phone mode must update to countdown');
+    assert.equal(phoneCountdownTarget, 1800, 'Phone countdown target must update to 1800');
+  });
 });

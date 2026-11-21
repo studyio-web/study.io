@@ -16,7 +16,7 @@ interface TabLockData {
 
 export function SingleTabGuard() {
   const { user, isAuthenticated } = useAuth();
-  const { isStudying, pauseTimer } = useStudy();
+  const { isStudying } = useStudy();
 
   const [isBlocked, setIsBlocked] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -121,10 +121,6 @@ export function SingleTabGuard() {
           // If lock belongs to another tab and is still alive
           if (lock.tabId && lock.tabId !== myTabId && isFresh) {
             setIsBlocked(true);
-            // If this tab was studying, safely pause to avoid ghost sessions
-            if (isStudying) {
-              pauseTimer();
-            }
             return true;
           }
         }
@@ -180,9 +176,6 @@ export function SingleTabGuard() {
           // Another tab responded saying it is active
           if (data.activeTabId && data.activeTabId !== myTabId) {
             setIsBlocked(true);
-            if (isStudying) {
-              pauseTimer();
-            }
           }
           break;
 
@@ -190,9 +183,6 @@ export function SingleTabGuard() {
           // Another tab forcibly claimed leadership (e.g. user clicked "Use This Tab Instead")
           if (data.tabId && data.tabId !== myTabId) {
             setIsBlocked(true);
-            if (isStudying) {
-              pauseTimer();
-            }
           }
           break;
 
@@ -280,7 +270,7 @@ export function SingleTabGuard() {
         channel.close();
       }
     };
-  }, [isAuthenticated, user?.id, isMounted, isNativeApp, isStudying, pauseTimer, claimActiveTab]);
+  }, [isAuthenticated, user?.id, isMounted, isNativeApp, isStudying, claimActiveTab]);
 
   const handleTakeOver = () => {
     soundFx.resumeContext();

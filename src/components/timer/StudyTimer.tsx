@@ -1590,8 +1590,10 @@ export function StudyTimer() {
       localStorage.setItem('timer-is-active', isPaused ? 'false' : 'true');
       localStorage.setItem('studyio_timer_is_active', isPaused ? 'false' : 'true');
       if (!isPaused) {
-        const anchor = Date.now() - (elapsedSeconds * 1000);
-        localStorage.setItem('studyio_timer_start_time', String(anchor));
+        if (!localStorage.getItem('studyio_timer_start_time')) {
+          const anchor = Date.now() - (elapsedSeconds * 1000);
+          localStorage.setItem('studyio_timer_start_time', String(anchor));
+        }
       } else {
         localStorage.removeItem('studyio_timer_start_time');
       }

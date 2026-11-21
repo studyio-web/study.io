@@ -589,6 +589,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const syncTimerMode = useCallback((mode: TimerMode, isUltra?: boolean, target?: number) => {
     setTimerMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('studyio_timer_mode', mode);
+      } catch {}
+    }
     if (isUltra !== undefined) {
       setIsUltraStrict(isUltra);
     }
@@ -613,18 +618,64 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           target_duration: target !== undefined ? target : countdownTargetRef.current,
         },
       });
+
+      // Update in active_sessions table so newly opened or polling peer devices receive the updated mode
+      supabase
+        .from('active_sessions')
+        .update({
+          mode: mode === 'pomodoro' ? 'pomodoro' : 'stopwatch',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', uid)
+        .then(() => {}, () => {});
     } catch (err) {
       console.warn('[Realtime Broadcast timer_mode_sync error]:', err);
     }
   }, [user?.id, setIsUltraStrict, setCountdownTarget]);
   
-  const [isStudying, setIsStudying] = useState(false);
+  const [isStudying, setIsStudying] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const wasActive = localStorage.getItem('studyio_timer_is_active') === 'true' || localStorage.getItem('timer-is-active') === 'true';
+        const savedSec = parseInt(localStorage.getItem('studyio_timer_seconds') || '0', 10);
+        const savedStart = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
+        return (wasActive && savedStart > 0) || (!isNaN(savedSec) && savedSec > 0);
+      } catch {}
+    }
+    return false;
+  });
   const isStudyingRef = useRef(isStudying);
   isStudyingRef.current = isStudying;
-  const [isPaused, setIsPaused] = useState(false);
+
+  const [isPaused, setIsPaused] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const wasActive = localStorage.getItem('studyio_timer_is_active') === 'true' || localStorage.getItem('timer-is-active') === 'true';
+        const savedSec = parseInt(localStorage.getItem('studyio_timer_seconds') || '0', 10);
+        const savedStart = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
+        if (!wasActive && !isNaN(savedSec) && savedSec > 0) return true;
+        return false;
+      } catch {}
+    }
+    return false;
+  });
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const wasActive = localStorage.getItem('studyio_timer_is_active') === 'true' || localStorage.getItem('timer-is-active') === 'true';
+        const savedSec = parseInt(localStorage.getItem('studyio_timer_seconds') || '0', 10);
+        const savedStart = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
+        if (wasActive && savedStart > 0) {
+          return Math.max(!isNaN(savedSec) && savedSec > 0 ? savedSec : 0, Math.floor((Date.now() - savedStart) / 1000));
+        }
+        return !isNaN(savedSec) && savedSec > 0 ? savedSec : 0;
+      } catch {}
+    }
+    return 0;
+  });
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1248,9 +1299,26 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
-  const startTimeRef = useRef<number | null>(null);
-  const accumulatedSecondsRef = useRef<number>(0);
-  const sessionStartTimeRef = useRef<Date | null>(null);
+  const initialStartTime = typeof window !== 'undefined' ? (() => {
+    try {
+      const wasActive = localStorage.getItem('studyio_timer_is_active') === 'true' || localStorage.getItem('timer-is-active') === 'true';
+      const start = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
+      if (wasActive && start > 0) return start;
+    } catch {}
+    return null;
+  })() : null;
+  const startTimeRef = useRef<number | null>(initialStartTime);
+
+  const initialAccumulated = typeof window !== 'undefined' ? (() => {
+    try {
+      const savedSec = parseInt(localStorage.getItem('studyio_timer_seconds') || '0', 10);
+      return !isNaN(savedSec) && savedSec > 0 ? savedSec : 0;
+    } catch {}
+    return 0;
+  })() : 0;
+  const accumulatedSecondsRef = useRef<number>(initialAccumulated);
+
+  const sessionStartTimeRef = useRef<Date | null>(initialStartTime ? new Date(initialStartTime) : null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastTickTimeRef = useRef<number | null>(null);
   const clientSessionIdRef = useRef<string | null>(null);
@@ -1472,67 +1540,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     };
   }, [isStudying, isPaused, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
 
-  // Auto-pause timer on tab close (pagehide) using a reliable keepalive fetch
+  // On page hide / backgrounding, ensure current elapsed seconds are persisted to localStorage without pausing
   useEffect(() => {
     const handlePageHide = () => {
-      // In native Android app, minimizing the app or locking the screen fires pagehide.
-      // The native Foreground Service handles background timer tracking with a live chronometer notification,
-      // so we must NEVER pause the session when pagehide fires on native Android!
-      if (isNativeAndroid()) return;
-
       if (isStudying && !isPaused && startTimeRef.current !== null) {
-        // We are closing the tab while the timer is running. We MUST pause it!
         const actualElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        const finalAccumulated = actualElapsed; // Since we recalculate from startTimeRef
-        
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('timer-is-active', 'false');
-            localStorage.setItem('studyio_timer_is_active', 'false');
-            localStorage.setItem('studyio_timer_seconds', String(finalAccumulated));
-            localStorage.removeItem('studyio_timer_start_time');
+            localStorage.setItem('studyio_timer_seconds', String(actualElapsed));
           } catch {}
         }
-
-        const uid = realtimeUserId || userRef.current?.id || user?.id;
-        const deviceId = getDeviceId();
-        
-        if (!uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
-        
-        // Prepare the payload to immediately force the session into a paused state
-        const payload = {
-          user_id: uid,
-          device_id: deviceId,
-          status: 'paused',
-          started_at: null,
-          accumulated_seconds: finalAccumulated,
-          updated_at: new Date().toISOString()
-        };
-
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseAnonKey) return;
-        
-        // Use navigator.sendBeacon or fetch with keepalive to ensure it fires during unload
-        const url = `${supabaseUrl}/rest/v1/active_sessions?user_id=eq.${uid}`;
-        
-        // We do a PATCH update
-        try {
-          // Use the synchronously tracked access token (avoids RLS rejection on tab close)
-          const token = accessTokenRef.current || supabaseAnonKey;
-          
-          fetch(url, {
-            method: 'PATCH',
-            headers: {
-              'apikey': supabaseAnonKey,
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-            keepalive: true
-          }).catch(() => {});
-        } catch (e) {}
       }
     };
     
