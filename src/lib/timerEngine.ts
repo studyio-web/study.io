@@ -327,6 +327,39 @@ export class TimerSessionEngine {
   }
 
   /**
+   * Directly restores an active or paused timer session (e.g. from local storage or native Android service).
+   */
+  restoreSession(params: {
+    sessionId?: string | null;
+    mode?: TimerMode;
+    isStudying: boolean;
+    isPaused: boolean;
+    accumulatedSeconds: number;
+    startTime?: number | null;
+    sessionCreatedAt?: number | null;
+    version?: number;
+    serverNow?: number;
+  }): void {
+    const serverNow = params.serverNow ?? getServerNow();
+    const isRunning = params.isStudying && !params.isPaused;
+    const sliceStart = isRunning ? serverNow : null;
+    const createdAt = params.sessionCreatedAt ?? (serverNow - params.accumulatedSeconds * 1000);
+
+    this.state = {
+      sessionId: params.sessionId || this.state.sessionId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sess_${Date.now()}`),
+      mode: params.mode || 'stopwatch',
+      isStudying: params.isStudying,
+      isPaused: params.isPaused,
+      startTime: sliceStart,
+      sessionCreatedAt: createdAt,
+      accumulatedSeconds: params.accumulatedSeconds,
+      pausedTotalMs: 0,
+      lastPausedAt: params.isPaused ? serverNow : null,
+      sessionVersion: params.version ?? (this.state.sessionVersion || 1),
+    };
+  }
+
+  /**
    * Reload / Restart serialization: Saves state snapshot to persist across reloads.
    */
   exportSnapshot(): string {

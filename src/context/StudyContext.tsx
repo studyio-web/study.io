@@ -685,6 +685,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const isLeaderTabRef = useRef<boolean>(true);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const idleCheckFiredRef = useRef(false);
+  const recoveryGraceUntilRef = useRef<number>(0);
 
   const confirmIdleCheck = useCallback(() => {
     setIsIdleCheckActive(false);
@@ -1560,12 +1561,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('studyio_timer_pomodoro_phase');
       localStorage.removeItem('studyio_timer_countdown_completed');
       localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+      localStorage.removeItem('studyio_timer_session_id');
       
       // KILL THE ZOMBIE: Aggressively clear any fallback/legacy keys that might resurrect the timer
       localStorage.removeItem('timer-start-time');
       localStorage.removeItem('timer-is-active');
       localStorage.removeItem('timer-subject-id');
       localStorage.removeItem('studyio_timer_start_time');
+      localStorage.removeItem('studyio_timer_is_active');
       localStorage.removeItem('studyio_is_active');
     } catch (e) {
       console.warn('Failed to clear timer state from localStorage:', e);
@@ -1951,7 +1954,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       status: isPaused ? 'paused' : 'running',
     });
 
-    let actualElapsed = calculatedElapsed;
+    let actualElapsed = Math.max(calculatedElapsed, accumulatedSecondsRef.current);
 
     // Cap single session at 12 hours (43,200s)
     if (actualElapsed > 43200) {
@@ -2096,19 +2099,82 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const rawDeviceId = String(remoteSession?.device_id || '');
     const serverDeviceId = cleanDeviceId(rawDeviceId);
 
-    if (!remoteSession || remoteSession.status === 'stopped' || remoteSession.status === 'idle') {
-      // Row deleted or marked stopped/idle
+    if (!remoteSession) {
+      // Row is missing from DB (e.g. Supabase returned 0 rows, transient network glitch, token refresh, or table empty)
+      // CRITICAL: A missing server row must NEVER terminate an active local session!
+      if (isStudyingRef.current && !isRemoteSessionRef.current) {
+        console.log('[Sync] Server has no active session row, but local session is active. Re-syncing local session to server.');
+        syncActiveSessionToDb(isPausedRef.current ? 'paused' : 'running', {
+          startedAt: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : (startTimeRef.current ? new Date(startTimeRef.current).toISOString() : new Date().toISOString()),
+          accumulatedSeconds: accumulatedSecondsRef.current,
+          elapsedBeforePause: accumulatedSecondsRef.current,
+          mode: timerMode,
+          pomodoroPhase,
+          client_session_id: clientSessionIdRef.current,
+        }).catch(() => {});
+        return;
+      }
+
+      // If this device was mirroring a remote session that is now gone, stop the mirror
+      if (isRemoteSessionRef.current) {
+        setIsRemoteSession(false);
+        isRemoteSessionRef.current = false;
+        timerEngineRef.current.stopTimer();
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        startTimeRef.current = null;
+        clientSessionIdRef.current = null;
+        accumulatedSecondsRef.current = 0;
+        sessionStartTimeRef.current = null;
+        setElapsedSeconds(0);
+        setIsStudying(false);
+        setIsPaused(false);
+        clearPersistedTimer();
+      }
+      return;
+    }
+
+    if (remoteSession.status === 'stopped' || remoteSession.status === 'idle') {
+      // Row is explicitly marked stopped or idle
+      // 1. If currently in local recovery grace period (app just reopened/retaken), ignore stale server stops
+      if (Date.now() < recoveryGraceUntilRef.current) {
+        console.log('[Sync] Ignoring remote stopped state during local recovery grace period');
+        return;
+      }
+
+      // 2. Local action echo guard: If local device stopped recently, ignore
       if (
         lastLocalActionRef.current &&
         lastLocalActionRef.current.status === 'stopped' &&
-        Date.now() - lastLocalActionRef.current.timestamp < 1500
+        Date.now() - lastLocalActionRef.current.timestamp < 3000
       ) {
         return;
       }
+
+      // 3. If running locally on this device, do NOT let an old stopped session stop our current session
+      if (isStudyingRef.current && !isRemoteSessionRef.current) {
+        const remoteUpdatedAt = remoteSession.updated_at ? new Date(remoteSession.updated_at).getTime() : 0;
+        const localStart = sessionStartTimeRef.current ? sessionStartTimeRef.current.getTime() : (startTimeRef.current || 0);
+
+        // If our local session started after or at the same time as the remote stop, local session is newer
+        if (localStart > 0 && remoteUpdatedAt > 0 && localStart >= remoteUpdatedAt - 1000) {
+          console.log('[Sync] Ignoring stale remote stopped session from before local session start');
+          return;
+        }
+
+        // If stopped on this same device, but we are actively running, it's a stale echo
+        if (serverDeviceId === myDeviceId) {
+          console.log('[Sync] Ignoring stale same-device stopped row while local session is running');
+          return;
+        }
+      }
+
       const wasActive = isStudyingRef.current || isRemoteSessionRef.current;
       // If neither local nor remote was active and there is no active session row,
       // the timer is already idle. Do not execute teardown or wipe user settings!
-      if (!wasActive && (!remoteSession || remoteSession.status === 'stopped' || remoteSession.status === 'idle')) {
+      if (!wasActive) {
         return;
       }
 
@@ -3397,7 +3463,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const serverNow = getServerNow();
     const enginePause = timerEngineRef.current.pauseTimer({ serverNow });
-    const actualElapsed = enginePause.accumulatedSeconds;
+    const actualElapsed = enginePause.accumulatedSeconds || accumulatedSecondsRef.current || elapsedSeconds;
     accumulatedSecondsRef.current = actualElapsed;
     setElapsedSeconds(actualElapsed);
     sessionVersionRef.current = enginePause.version;
@@ -3409,6 +3475,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       timerIntervalRef.current = null;
     }
     setIsPaused(true);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('timer-is-active', 'false');
+        localStorage.setItem('studyio_timer_is_active', 'false');
+        localStorage.setItem('studyio_timer_seconds', String(actualElapsed));
+        localStorage.setItem('studyio_timer_mode', timerMode);
+        localStorage.removeItem('studyio_timer_start_time');
+        if (clientSessionIdRef.current) {
+          localStorage.setItem('studyio_timer_session_id', clientSessionIdRef.current);
+        }
+      } catch {}
+    }
     soundFx.playStopChime();
     soundFx.pauseAmbient();
     updateProfile({ status: 'resting' });
@@ -3420,7 +3498,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       pomodoroPhase,
       client_session_id: clientSessionIdRef.current,
     });
-  }, [checkDebounce, updateProfile, syncActiveSessionToDb, timerMode, pomodoroPhase]);
+  }, [checkDebounce, updateProfile, syncActiveSessionToDb, timerMode, pomodoroPhase, isStudying, elapsedSeconds]);
 
   useEffect(() => {
     pauseTimerRef.current = pauseTimer;
@@ -3438,16 +3516,21 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const serverNow = getServerNow();
     const engineResume = timerEngineRef.current.resumeTimer({ serverNow });
-    startTimeRef.current = engineResume.startTime;
+    const resumeAnchor = serverNow - (engineResume.accumulatedSeconds * 1000);
+    startTimeRef.current = resumeAnchor;
     accumulatedSecondsRef.current = engineResume.accumulatedSeconds;
     sessionVersionRef.current = engineResume.version;
     setIsPaused(false);
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('timer-is-active', 'true');
+        localStorage.setItem('studyio_timer_is_active', 'true');
         localStorage.setItem('studyio_timer_seconds', String(accumulatedSecondsRef.current));
         localStorage.setItem('studyio_timer_mode', timerMode);
-        localStorage.setItem('studyio_timer_start_time', String(engineResume.startTime));
+        localStorage.setItem('studyio_timer_start_time', String(resumeAnchor));
+        if (clientSessionIdRef.current) {
+          localStorage.setItem('studyio_timer_session_id', clientSessionIdRef.current);
+        }
       } catch {}
     }
     setPomodoroCompletedPhase(null);
@@ -3470,13 +3553,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       });
     }
     syncActiveSessionToDb('running', {
-      startedAt: new Date().toISOString(),
+      startedAt: new Date(resumeAnchor).toISOString(),
       accumulatedSeconds: accumulatedSecondsRef.current,
       elapsedBeforePause: accumulatedSecondsRef.current,
       mode: timerMode,
       pomodoroPhase,
+      client_session_id: clientSessionIdRef.current,
     });
-  }, [checkDebounce, timerMode, pomodoroPhase, selectedSubject, updateProfile, syncActiveSessionToDb]);
+  }, [checkDebounce, timerMode, pomodoroPhase, selectedSubject, updateProfile, syncActiveSessionToDb, countdownTarget]);
 
   useEffect(() => {
     resumeTimerRef.current = resumeTimer;
@@ -3495,7 +3579,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   }, [isStudying, isPaused]);
 
-  // Restore recovered timer session in paused state
+  // Restore recovered timer session (running or paused)
   const restoreTimerSession = useCallback((
     seconds: number,
     mode?: TimerMode,
@@ -3509,17 +3593,63 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       timerIntervalRef.current = null;
     }
     accumulatedSecondsRef.current = seconds;
-    const anchor = startAnchorMs ?? (Date.now() - (seconds * 1000));
+    const now = Date.now();
+    const anchor = startAnchorMs ?? (now - (seconds * 1000));
     startTimeRef.current = startAsRunning ? anchor : null;
     if (startAsRunning) {
       sessionStartTimeRef.current = new Date(anchor);
     }
-    clientSessionIdRef.current = null;
+
+    // Restore or generate clientSessionIdRef
+    let restoredSessionId: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        restoredSessionId = localStorage.getItem('studyio_timer_session_id');
+      } catch {}
+    }
+    if (!restoredSessionId) {
+      restoredSessionId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sess_${now}`;
+    }
+    clientSessionIdRef.current = restoredSessionId;
+
+    const effectiveMode = (mode && (mode === 'stopwatch' || mode === 'pomodoro' || mode === 'countdown')) ? mode : timerMode;
+
+    // Restore authoritative timer engine state
+    timerEngineRef.current.restoreSession({
+      sessionId: restoredSessionId,
+      mode: effectiveMode,
+      isStudying: true,
+      isPaused: !startAsRunning,
+      accumulatedSeconds: seconds,
+      startTime: startAsRunning ? anchor : null,
+      sessionCreatedAt: anchor,
+      version: 1,
+    });
+
+    // Set 10-second recovery grace period so initial polls do not race or kill the restored session
+    recoveryGraceUntilRef.current = Date.now() + 10000;
+
+    // Persist restored state immediately to storage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('studyio_timer_seconds', String(seconds));
+        localStorage.setItem('timer-is-active', startAsRunning ? 'true' : 'false');
+        localStorage.setItem('studyio_timer_is_active', startAsRunning ? 'true' : 'false');
+        if (startAsRunning) {
+          localStorage.setItem('studyio_timer_start_time', String(anchor));
+        } else {
+          localStorage.removeItem('studyio_timer_start_time');
+        }
+        localStorage.setItem('studyio_timer_mode', effectiveMode);
+        localStorage.setItem('studyio_timer_session_id', restoredSessionId);
+      } catch {}
+    }
+
     setElapsedSeconds(seconds);
     setIsStudying(true);
     setIsPaused(!startAsRunning);
-    if (mode && (mode === 'stopwatch' || mode === 'pomodoro' || mode === 'countdown')) {
-      setTimerMode(mode);
+    if (effectiveMode) {
+      setTimerMode(effectiveMode);
     }
     if (subjectIdOrName) {
       const subjectList = Array.isArray(subjects) ? subjects : [];
@@ -3533,7 +3663,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
     }
     updateProfile({ status: startAsRunning ? 'studying' : 'resting' });
-  }, [subjects, updateProfile]);
+
+    // Instantly sync restored session to Supabase so server is not empty
+    syncActiveSessionToDb(startAsRunning ? 'running' : 'paused', {
+      startedAt: startAsRunning ? new Date(anchor).toISOString() : null,
+      accumulatedSeconds: seconds,
+      elapsedBeforePause: seconds,
+      mode: effectiveMode,
+      client_session_id: restoredSessionId,
+    }).catch(() => {});
+  }, [subjects, updateProfile, timerMode, syncActiveSessionToDb]);
 
   // Instantly add a session and sync metrics, Daily Overview, and Analytics
   const addSession = useCallback((newSession: StudySession) => {
