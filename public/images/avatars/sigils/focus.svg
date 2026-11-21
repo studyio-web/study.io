@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg-focus" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgb(43,30,15)"/>
+      <stop offset="65%" stop-color="rgb(22,18,14)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <radialGradient id="ambi-focus" cx="50%" cy="50%" r="42%">
+      <stop offset="0%" stop-color="#e8a030" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#e8a030" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shape-focus" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="rgb(239,189,110)"/>
+      <stop offset="50%" stop-color="#e8a030"/>
+      <stop offset="100%" stop-color="rgb(223,187,86)"/>
+    </linearGradient>
+    <radialGradient id="inner-focus" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(246,217,172)" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#e8a030" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#e8a030" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow-focus" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="blur-focus" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="noise-focus">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="g"/>
+      <feBlend in="SourceGraphic" in2="g" mode="overlay"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="url(#bg-focus)"/>
+  <rect width="256" height="256" fill="rgb(15,14,14)" filter="url(#noise-focus)" opacity="0.12"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="128" cy="128" rx="78" ry="78" fill="url(#ambi-focus)"/>
+
+  
+  <!-- Outer glow ring -->
+  <circle cx="128" cy="128" r="72" fill="none" stroke="#e8a030" stroke-width="4" opacity="0.15" filter="url(#blur-focus)"/>
+  <circle cx="128" cy="128" r="72" fill="none" stroke="#e8a030" stroke-width="2" opacity="0.4"/>
+  <circle cx="128" cy="128" r="58" fill="none" stroke="#f8d060" stroke-width="2" opacity="0.5"/>
+  <circle cx="128" cy="128" r="44" fill="none" stroke="#e8a030" stroke-width="2.5" opacity="0.65"/>
+  <circle cx="128" cy="128" r="30" fill="none" stroke="#f8d060" stroke-width="3" opacity="0.8"/>
+  <circle cx="128" cy="128" r="30" fill="none" stroke="#f8d060" stroke-width="8" opacity="0.3" filter="url(#blur-focus)"/>
+  <circle cx="128" cy="128" r="16" fill="url(#inner-focus)" filter="url(#glow-focus)"/>
+  <circle cx="128" cy="128" r="6" fill="rgb(246,217,172)"/>
+  <!-- Cross hairs -->
+  <line x1="128" y1="56" x2="128" y2="72" stroke="#e8a030" stroke-width="1.5" opacity="0.5"/>
+  <line x1="128" y1="184" x2="128" y2="200" stroke="#e8a030" stroke-width="1.5" opacity="0.5"/>
+  <line x1="56" y1="128" x2="72" y2="128" stroke="#e8a030" stroke-width="1.5" opacity="0.5"/>
+  <line x1="184" y1="128" x2="200" y2="128" stroke="#e8a030" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Particles -->
+  <circle cx="58" cy="62" r="2.5" fill="#e8a030" opacity="0.4"/>
+  <circle cx="192" cy="72" r="2" fill="#f8d060" opacity="0.35"/>
+  <circle cx="44" cy="150" r="1.8" fill="#e8a030" opacity="0.3"/>
+  <circle cx="210" cy="58" r="2.2" fill="#f8d060" opacity="0.32"/>
+  <circle cx="72" cy="196" r="1.6" fill="#e8a030" opacity="0.28"/>
+  <circle cx="186" cy="180" r="2" fill="#f8d060" opacity="0.25"/>
+  <circle cx="40" cy="90" r="1.4" fill="#e8a030" opacity="0.2"/>
+  <circle cx="216" cy="170" r="1.5" fill="#f8d060" opacity="0.22"/>
+</svg>

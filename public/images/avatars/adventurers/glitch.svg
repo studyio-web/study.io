@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bg-glitch" cx="50%" cy="45%" r="58%">
+      <stop offset="0%" stop-color="rgb(43,9,48)"/>
+      <stop offset="60%" stop-color="rgb(22,9,28)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <!-- Ambient glow behind head -->
+    <radialGradient id="ambi-glitch" cx="50%" cy="44%" r="38%">
+      <stop offset="0%" stop-color="#e020e0" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#e020e0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Skin gradient: key light upper-left, shadow lower-right -->
+    <linearGradient id="skin-glitch" x1="20%" y1="15%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#9e6040"/>
+      <stop offset="45%" stop-color="#c8835a"/>
+      <stop offset="100%" stop-color="rgb(136,89,61)"/>
+    </linearGradient>
+    <!-- Hair gradient -->
+    <linearGradient id="hair-glitch" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgb(54,54,67)"/>
+      <stop offset="100%" stop-color="rgb(8,8,21)"/>
+    </linearGradient>
+    <!-- Rim light -->
+    <radialGradient id="rim-glitch" cx="80%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#e020e0" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#e020e0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Eye glow -->
+    <radialGradient id="eye-glitch" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(240,144,240)"/>
+      <stop offset="60%" stop-color="#e020e0"/>
+      <stop offset="100%" stop-color="rgb(157,22,157)"/>
+    </radialGradient>
+    <!-- Glow filter -->
+    <filter id="glow-glitch" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft-glitch" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="rim-blur-glitch" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <!-- Subtle noise texture -->
+    <filter id="noise-glitch">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="overlay" result="blended"/>
+      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Layer 1: Background -->
+  <rect width="256" height="256" fill="url(#bg-glitch)"/>
+
+  <!-- Layer 2: Noise texture overlay -->
+  <rect width="256" height="256" fill="rgb(17,9,23)" filter="url(#noise-glitch)" opacity="0.12"/>
+
+  <!-- Layer 3: Ambient head glow -->
+  <ellipse cx="128" cy="112" rx="72" ry="68" fill="url(#ambi-glitch)"/>
+
+  <!-- Layer 4: Shoulders/torso -->
+  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(110,72,50)"/>
+  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(19,9,25)" opacity="0.4"/>
+
+  <!-- Layer 5: Neck -->
+  <ellipse cx="128" cy="175" rx="18" ry="12" fill="url(#skin-glitch)"/>
+  <rect x="112" y="168" width="32" height="22" rx="8" fill="url(#skin-glitch)"/>
+
+  <!-- Layer 6: Hair back/sides -->
+  <ellipse cx="128" cy="102" rx="44" ry="50" fill="url(#hair-glitch)"/>
+
+  <!-- Layer 7: Face/head -->
+  <ellipse cx="128" cy="108" rx="34" ry="42" fill="url(#skin-glitch)"/>
+  <path d="M102,138 Q98,156 128,162 Q158,156 154,138" fill="url(#skin-glitch)"/>
+
+  <!-- Layer 8: Brow ridge -->
+  <ellipse cx="128" cy="95" rx="24" ry="4" fill="rgb(180,118,81)" opacity="0.3"/>
+
+  <!-- Layer 9: Eyes -->
+  <ellipse cx="112" cy="108" rx="7" ry="5" fill="#0a0c10"/>
+  <ellipse cx="144" cy="108" rx="7" ry="5" fill="#0a0c10"/>
+  <ellipse cx="112" cy="108" rx="4.5" ry="3.5" fill="url(#eye-glitch)" filter="url(#glow-glitch)"/>
+  <ellipse cx="144" cy="108" rx="4.5" ry="3.5" fill="url(#eye-glitch)" filter="url(#glow-glitch)"/>
+  <!-- Eye shine -->
+  <ellipse cx="114" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
+  <ellipse cx="146" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
+
+  <!-- Layer 10: Nose (subtle) -->
+  <path d="M124,118 Q128,126 132,118" stroke="rgb(150,98,68)" stroke-width="1.2" fill="none" opacity="0.5"/>
+
+  <!-- Layer 11: Lips -->
+  <path d="M120,133 Q128,139 136,133" stroke="rgb(140,92,63)" stroke-width="1.5" fill="none" opacity="0.6"/>
+
+  <!-- Layer 12: Hair front/fringe -->
+  <path d="M92,102 Q100,64 128,62 Q156,64 164,102" fill="url(#hair-glitch)"/>
+
+  <!-- Layer 13: Rim light (right edge of head) -->
+  <ellipse cx="162" cy="108" rx="22" ry="38" fill="url(#rim-glitch)" opacity="0.65"/>
+
+  <!-- Layer 14: Key light (upper-left face) -->
+  <ellipse cx="104" cy="88" rx="24" ry="20" fill="#9e6040" opacity="0.18"/>
+
+  <!-- Layer 15: Accessory / motif -->
+  <g opacity="0.85">
+    <circle cx="112" cy="108" r="12" fill="none" stroke="#e020e0" stroke-width="1.8"/>
+    <circle cx="144" cy="108" r="12" fill="none" stroke="#e020e0" stroke-width="1.8"/>
+    <line x1="124" y1="108" x2="132" y2="108" stroke="#e020e0" stroke-width="1.5"/>
+    <line x1="100" y1="106" x2="94" y2="104" stroke="#e020e0" stroke-width="1.2"/>
+    <line x1="156" y1="106" x2="162" y2="104" stroke="#e020e0" stroke-width="1.2"/>
+  </g>
+
+  <!-- Layer 16: Particles -->
+  <circle cx="58" cy="68" r="2" fill="#e020e0" opacity="0.35"/>
+  <circle cx="192" cy="80" r="1.5" fill="#e020e0" opacity="0.25"/>
+  <circle cx="42" cy="140" r="1.2" fill="#e020e0" opacity="0.2"/>
+  <circle cx="208" cy="52" r="1.8" fill="#e020e0" opacity="0.3"/>
+  <circle cx="76" cy="192" r="1.4" fill="#e020e0" opacity="0.18"/>
+  <circle cx="184" cy="168" r="1.6" fill="#e020e0" opacity="0.22"/>
+</svg>

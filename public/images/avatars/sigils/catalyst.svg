@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg-catalyst" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgb(46,18,12)"/>
+      <stop offset="65%" stop-color="rgb(22,13,13)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <radialGradient id="ambi-catalyst" cx="50%" cy="50%" r="42%">
+      <stop offset="0%" stop-color="#e06818" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#e06818" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shape-catalyst" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="rgb(233,149,93)"/>
+      <stop offset="50%" stop-color="#e06818"/>
+      <stop offset="100%" stop-color="rgb(223,158,58)"/>
+    </linearGradient>
+    <radialGradient id="inner-catalyst" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(243,195,163)" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#e06818" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#e06818" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow-catalyst" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="blur-catalyst" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="noise-catalyst">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="g"/>
+      <feBlend in="SourceGraphic" in2="g" mode="overlay"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="url(#bg-catalyst)"/>
+  <rect width="256" height="256" fill="rgb(16,11,14)" filter="url(#noise-catalyst)" opacity="0.12"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="128" cy="128" rx="78" ry="78" fill="url(#ambi-catalyst)"/>
+
+  
+  <!-- Outer glow triangle -->
+  <polygon points="128,52 196,164 60,164" fill="#e06818" opacity="0.08" filter="url(#blur-catalyst)"/>
+  <polygon points="128,52 196,164 60,164" fill="none" stroke="#e06818" stroke-width="2.5" opacity="0.5"/>
+  <polygon points="128,66 184,158 72,158" fill="none" stroke="#f8b040" stroke-width="2" opacity="0.6"/>
+  <polygon points="128,80 172,152 84,152" fill="none" stroke="#e06818" stroke-width="2" opacity="0.7"/>
+  <!-- Inner filled triangle -->
+  <polygon points="128,96 160,146 96,146" fill="url(#shape-catalyst)" filter="url(#glow-catalyst)" opacity="0.9"/>
+  <polygon points="128,96 160,146 96,146" fill="url(#inner-catalyst)"/>
+  <!-- Center dot -->
+  <circle cx="128" cy="128" r="8" fill="rgb(240,180,140)" filter="url(#glow-catalyst)"/>
+  <circle cx="128" cy="128" r="3" fill="white" opacity="0.8"/>
+  <!-- Corner glows -->
+  <circle cx="128" cy="52" r="5" fill="#f8b040" filter="url(#glow-catalyst)" opacity="0.8"/>
+  <circle cx="196" cy="164" r="5" fill="#f8b040" filter="url(#glow-catalyst)" opacity="0.8"/>
+  <circle cx="60" cy="164" r="5" fill="#f8b040" filter="url(#glow-catalyst)" opacity="0.8"/>
+
+  <!-- Particles -->
+  <circle cx="58" cy="62" r="2.5" fill="#e06818" opacity="0.4"/>
+  <circle cx="192" cy="72" r="2" fill="#f8b040" opacity="0.35"/>
+  <circle cx="44" cy="150" r="1.8" fill="#e06818" opacity="0.3"/>
+  <circle cx="210" cy="58" r="2.2" fill="#f8b040" opacity="0.32"/>
+  <circle cx="72" cy="196" r="1.6" fill="#e06818" opacity="0.28"/>
+  <circle cx="186" cy="180" r="2" fill="#f8b040" opacity="0.25"/>
+  <circle cx="40" cy="90" r="1.4" fill="#e06818" opacity="0.2"/>
+  <circle cx="216" cy="170" r="1.5" fill="#f8b040" opacity="0.22"/>
+</svg>
