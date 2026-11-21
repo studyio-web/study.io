@@ -37,7 +37,6 @@ import { ThemePicker } from '../settings/ThemePicker';
 import { SettingsPlanSection } from '../settings/SettingsPlanSection';
 import { SettingsStudyModeSection } from '../settings/SettingsStudyModeSection';
 import { useIntro } from '../../context/IntroContext';
-import { useForgeBadgeSetting } from '@/lib/forgeSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -75,7 +74,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [hapticsActive, setHapticsActive] = useState<boolean>(() => isHapticsEnabled());
-  const [isForgeBadgeActive, setIsForgeBadgeActive] = useForgeBadgeSetting();
 
   useEffect(() => {
     setHapticsActive(isHapticsEnabled());
@@ -413,43 +411,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <span
                 className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                   hapticsActive ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Section: Forge Badge Animation */}
-          <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-xl bg-fg/[0.04] border border-[var(--border)] flex items-center justify-center flex-shrink-0"
-                style={{ color: theme.accent }}
-              >
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-hud font-bold tracking-wider text-[var(--text)] uppercase">
-                  Forge Badge Animation
-                </div>
-                <div className="text-[11px] text-[var(--text-dim)] font-mono">
-                  Rank crest heats, cracks, and glows as your session progress indicator
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isForgeBadgeActive}
-              onClick={() => setIsForgeBadgeActive(!isForgeBadgeActive)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isForgeBadgeActive ? 'bg-emerald-500' : 'bg-zinc-700'
-              }`}
-              title={isForgeBadgeActive ? 'Disable forge badge animation' : 'Enable forge badge animation'}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                  isForgeBadgeActive ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
             </button>

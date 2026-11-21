@@ -99,8 +99,6 @@ import { Skeleton } from '../common/Skeleton';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import { useRank } from '../../context/RankContext';
 import { useStudyMode } from '../../context/StudyModeContext';
-import { useForgeProgress } from '../../lib/useForgeProgress';
-import { useForgeBadgeSetting } from '../../lib/forgeSettings';
 import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 
@@ -2017,19 +2015,6 @@ export function StudyTimer() {
   }, [todaySessions, selectedSubject?.id]);
 
   const shouldReduceMotion = useReducedMotion() ?? false;
-  const [isForgeEnabled] = useForgeBadgeSetting();
-  const { forge: forgeProgress, status: forgeStatus } = useForgeProgress();
-
-  const forgeEarnedRp = useMemo(() => {
-    if (settlementData?.newRP !== undefined && settlementData?.prevRP !== undefined) {
-      return Math.max(0, settlementData.newRP - settlementData.prevRP);
-    }
-    if (isCountdownCompleted || forgeStatus === 'complete') {
-      const rpRes = calculateSessionRP(elapsedSeconds);
-      return rpRes.totalGained;
-    }
-    return 0;
-  }, [settlementData, isCountdownCompleted, forgeStatus, elapsedSeconds]);
 
   // Time calculations strictly for display
   let displayTime = formatSeconds(elapsedSeconds);
@@ -2452,13 +2437,6 @@ export function StudyTimer() {
             onStartCountdownEdit={() => setIsEditingCountdown(true)}
             pomodoroPreset={pomodoroPreset}
             onSelectPomodoroPreset={setPomodoroPreset}
-            isForgeEnabled={isForgeEnabled}
-            forgeProgress={forgeProgress}
-            forgeStatus={forgeStatus}
-            rankTier={userRank}
-            earnedRp={forgeEarnedRp}
-            currentRp={totalRP}
-            nextTier={rankContextState?.nextTier}
           />
         </motion.div>
       </div>

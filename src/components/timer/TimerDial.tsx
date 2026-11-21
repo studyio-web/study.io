@@ -2,9 +2,6 @@
 
 import React from 'react';
 import { PomodoroPreset } from '../../types';
-import { ForgeBadge } from './ForgeBadge';
-import { RankTier } from '../../lib/ranks';
-import { ForgeStatus } from '../../lib/useForgeProgress';
 
 interface BezelTick {
   index: number;
@@ -32,27 +29,11 @@ const BEZEL_TICKS: BezelTick[] = Array.from({ length: 60 }, (_, i) => {
 });
 
 // Memoized Bezel tick marks - Static geometry, only colors update with litCount
-const Bezel = React.memo(function Bezel({
-  litCount,
-  isForgeEnabled = false,
-}: {
-  litCount: number;
-  isForgeEnabled?: boolean;
-}) {
+const Bezel = React.memo(function Bezel({ litCount }: { litCount: number }) {
   return (
     <g className="pointer-events-none select-none">
       {BEZEL_TICKS.map((tick) => {
         const isLit = tick.index < litCount;
-        const strokeColor = isForgeEnabled
-          ? tick.isMajor
-            ? 'rgb(var(--fg) / 0.32)'
-            : 'rgb(var(--fg) / 0.16)'
-          : isLit
-          ? 'var(--accent)'
-          : tick.isMajor
-          ? 'rgb(var(--fg) / 0.45)'
-          : 'rgb(var(--fg) / 0.28)';
-
         return (
           <line
             key={tick.index}
@@ -60,7 +41,7 @@ const Bezel = React.memo(function Bezel({
             y1={tick.y1}
             x2={tick.x2}
             y2={tick.y2}
-            stroke={strokeColor}
+            stroke={isLit ? 'var(--accent)' : tick.isMajor ? 'rgb(var(--fg) / 0.45)' : 'rgb(var(--fg) / 0.28)'}
             strokeWidth={tick.isMajor ? 1.75 : 1}
             strokeLinecap="round"
             className="transition-colors duration-200"
@@ -104,15 +85,6 @@ interface TimerDialProps {
   onStartCountdownEdit?: () => void;
   pomodoroPreset?: PomodoroPreset;
   onSelectPomodoroPreset?: (preset: PomodoroPreset) => void;
-
-  // Forge Badge Integration Props
-  isForgeEnabled?: boolean;
-  forgeProgress?: number;
-  forgeStatus?: ForgeStatus;
-  rankTier?: RankTier;
-  earnedRp?: number;
-  currentRp?: number;
-  nextTier?: RankTier | null;
 }
 
 const RADIUS = 124;
@@ -132,13 +104,6 @@ export const TimerDial = React.memo(function TimerDial({
   onStartCountdownEdit,
   pomodoroPreset,
   onSelectPomodoroPreset,
-  isForgeEnabled = false,
-  forgeProgress = 0,
-  forgeStatus = 'idle',
-  rankTier,
-  earnedRp,
-  currentRp,
-  nextTier,
 }: TimerDialProps) {
   const safePercent = Math.max(0, Math.min(100, ringPercent || 0));
   const strokeDashoffset = CIRCUMFERENCE - (safePercent / 100) * CIRCUMFERENCE;
@@ -158,26 +123,26 @@ export const TimerDial = React.memo(function TimerDial({
       {/* Soft Ambient Radial Glow */}
       <AmbientGlow isRunning={isRunning} />
 
-      {/* SVG Bezel and Track */}
+      {/* SVG Bezel and Progress Arc */}
       <svg
         viewBox="0 0 300 300"
         className="absolute inset-0 w-full h-full pointer-events-none select-none"
       >
         {/* 60-tick watch bezel */}
-        <Bezel litCount={litCount} isForgeEnabled={isForgeEnabled} />
+        <Bezel litCount={litCount} />
 
-        {/* 2px Faint Background Track (fg at 14% or 10% in forge mode) */}
+        {/* 2px Faint Background Track (fg at 14%) */}
         <circle
           cx="150"
           cy="150"
           r={RADIUS}
           fill="none"
-          stroke={isForgeEnabled ? 'rgb(var(--fg) / 0.10)' : 'rgb(var(--fg) / 0.14)'}
+          stroke="rgb(var(--fg) / 0.14)"
           strokeWidth="2"
         />
 
-        {/* 3px Accent Arc with 1s linear transition (rendered only when classic mode has progress > 0) */}
-        {!isForgeEnabled && safePercent > 0 && (
+        {/* 3px Accent Arc with 1s linear transition (rendered only when active progress > 0) */}
+        {safePercent > 0 && (
           <circle
             cx="150"
             cy="150"
@@ -197,163 +162,75 @@ export const TimerDial = React.memo(function TimerDial({
         )}
       </svg>
 
-      {/* FORGE MODE: ForgeBadge is Centerpiece, Digits Cleanly Below (Never Overlapping) */}
-      {isForgeEnabled ? (
-        <div className="relative z-10 flex flex-col items-center justify-center w-full h-full px-4 py-2 pointer-events-none">
-          {/* 1. The Forge Badge Crest */}
-          <div className="flex items-center justify-center pointer-events-auto">
-            <ForgeBadge
-              forge={forgeProgress}
-              status={forgeStatus}
-              rankTier={rankTier}
-              size="min(150px, 46cqi)"
-              earnedRp={earnedRp}
-              currentRp={currentRp}
-              nextTier={nextTier}
-              reducedMotion={shouldReduceMotion}
-              showHint={!isStudying}
-            />
-          </div>
-
-          {/* 2. Digital Timer Clock Digits: Placed cleanly below the badge, never overlapping */}
-          <div className="mt-1 flex flex-col items-center justify-center z-10 pointer-events-auto">
-            <div className="font-mono tabular-nums font-bold text-[var(--text)] tracking-tight leading-none text-center select-none text-[clamp(1.75rem,8cqi,2.6rem)]">
-              {timerMode === 'countdown' && !isStudying ? (
-                <button
-                  type="button"
-                  onClick={onStartCountdownEdit}
-                  className="cursor-pointer hover:text-[var(--accent)] transition-colors pointer-events-auto font-mono tabular-nums inline-block text-center"
-                  title="Click to edit duration"
-                >
-                  {displayTime}
-                </button>
-              ) : (
-                <span className="font-mono tabular-nums inline-block text-center">{displayTime}</span>
-              )}
-            </div>
-
-            {/* Subject Name if active */}
-            {subjectName && (
-              <span
-                className="text-[12px] font-mono text-[var(--text-dim)] truncate max-w-[180px] tracking-tight mt-0.5"
-                title={subjectName}
-              >
-                {subjectName}
-              </span>
-            )}
-
-            {/* Pomodoro Presets inside the Dial when idle */}
-            {timerMode === 'pomodoro' && !isStudying && (
-              <div className="inline-flex items-center p-0.5 mt-1 rounded-full bg-fg/[0.05] border border-fg/[0.1] shadow-xs pointer-events-auto z-20">
-                {(['25/5', '50/10'] as const).map((preset) => {
-                  const isActive = pomodoroPreset === preset;
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => onSelectPomodoroPreset?.(preset)}
-                      className={`px-2 py-0.5 text-[11px] font-mono rounded-full transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-fg/[0.12] [[data-theme='paper']_&]:bg-[var(--surface)] border border-fg/20 [[data-theme='paper']_&]:border-[var(--border-strong)] text-[var(--text)] font-semibold shadow-xs"
-                          : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05] border border-transparent'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Status Line */}
-            <div className="flex items-center justify-center gap-1.5 mt-1">
-              {isRunning && !shouldReduceMotion && (
-                <span className="w-1.5 h-1.5 rounded-full timer-status-pulse bg-emerald-400 shrink-0" />
-              )}
-              <span
-                className={`text-xs font-mono font-medium ${
-                  statusText === 'Completed' ? 'text-emerald-400' : 'text-[var(--text-dim)]'
-                }`}
-              >
-                {statusText}
-              </span>
-            </div>
-          </div>
+      {/* 1. Centre Timer Digits: Locked to exact dead-center of the dial circle */}
+      <div className="timer-dial-center-digits">
+        <div className="timer-dial-digits font-mono tabular-nums font-bold text-[var(--text)] tracking-tight leading-none text-center select-none">
+          {timerMode === 'countdown' && !isStudying ? (
+            <button
+              type="button"
+              onClick={onStartCountdownEdit}
+              className="cursor-pointer hover:text-[var(--accent)] transition-colors pointer-events-auto font-mono tabular-nums inline-block text-center"
+              title="Click to edit duration"
+            >
+              {displayTime}
+            </button>
+          ) : (
+            <span className="font-mono tabular-nums inline-block text-center">{displayTime}</span>
+          )}
         </div>
-      ) : (
-        /* CLASSIC MODE: Original Center Digits & Ring Layout */
-        <>
-          {/* 1. Centre Timer Digits: Locked to exact dead-center of the dial circle */}
-          <div className="timer-dial-center-digits">
-            <div className="timer-dial-digits font-mono tabular-nums font-bold text-[var(--text)] tracking-tight leading-none text-center select-none">
-              {timerMode === 'countdown' && !isStudying ? (
+      </div>
+
+      {/* 2. Top Info Stack: Subject name above center (if provided) */}
+      {subjectName ? (
+        <div className="timer-dial-top-info">
+          <span
+            className="text-[13px] font-mono text-[var(--text-dim)] truncate max-w-[200px] min-h-[16px] tracking-tight pointer-events-auto"
+            title={subjectName}
+          >
+            {subjectName}
+          </span>
+        </div>
+      ) : null}
+
+      {/* 3. Bottom Info Stack: Status & Presets below center */}
+      <div className="timer-dial-bottom-info">
+        {/* Pomodoro Presets inside the Dial (clean, zero layout shift) */}
+        {timerMode === 'pomodoro' && !isStudying && (
+          <div className="inline-flex items-center p-0.5 mb-1.5 rounded-full bg-fg/[0.05] border border-fg/[0.1] shadow-xs pointer-events-auto z-20">
+            {(['25/5', '50/10'] as const).map((preset) => {
+              const isActive = pomodoroPreset === preset;
+              return (
                 <button
+                  key={preset}
                   type="button"
-                  onClick={onStartCountdownEdit}
-                  className="cursor-pointer hover:text-[var(--accent)] transition-colors pointer-events-auto font-mono tabular-nums inline-block text-center"
-                  title="Click to edit duration"
+                  onClick={() => onSelectPomodoroPreset?.(preset)}
+                  className={`px-2.5 py-0.5 text-xs font-mono rounded-full transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-fg/[0.12] [[data-theme='paper']_&]:bg-[var(--surface)] border border-fg/20 [[data-theme='paper']_&]:border-[var(--border-strong)] text-[var(--text)] font-semibold shadow-xs"
+                      : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05] border border-transparent'
+                  }`}
                 >
-                  {displayTime}
+                  {preset}
                 </button>
-              ) : (
-                <span className="font-mono tabular-nums inline-block text-center">{displayTime}</span>
-              )}
-            </div>
+              );
+            })}
           </div>
+        )}
 
-          {/* 2. Top Info Stack: Subject name above center (if provided) */}
-          {subjectName ? (
-            <div className="timer-dial-top-info">
-              <span
-                className="text-[13px] font-mono text-[var(--text-dim)] truncate max-w-[200px] min-h-[16px] tracking-tight pointer-events-auto"
-                title={subjectName}
-              >
-                {subjectName}
-              </span>
-            </div>
-          ) : null}
-
-          {/* 3. Bottom Info Stack: Status & Presets below center */}
-          <div className="timer-dial-bottom-info">
-            {/* Pomodoro Presets inside the Dial (clean, zero layout shift) */}
-            {timerMode === 'pomodoro' && !isStudying && (
-              <div className="inline-flex items-center p-0.5 mb-1.5 rounded-full bg-fg/[0.05] border border-fg/[0.1] shadow-xs pointer-events-auto z-20">
-                {(['25/5', '50/10'] as const).map((preset) => {
-                  const isActive = pomodoroPreset === preset;
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => onSelectPomodoroPreset?.(preset)}
-                      className={`px-2.5 py-0.5 text-xs font-mono rounded-full transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-fg/[0.12] [[data-theme='paper']_&]:bg-[var(--surface)] border border-fg/20 [[data-theme='paper']_&]:border-[var(--border-strong)] text-[var(--text)] font-semibold shadow-xs"
-                          : 'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-fg/[0.05] border border-transparent'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Status Line in sentence case */}
-            <div className="flex items-center justify-center gap-1.5">
-              {isRunning && !shouldReduceMotion && (
-                <span className="w-1.5 h-1.5 rounded-full timer-status-pulse bg-emerald-400 shrink-0" />
-              )}
-              <span
-                className={`text-xs font-mono font-medium ${
-                  statusText === 'Completed' ? 'text-emerald-400' : 'text-[var(--text-dim)]'
-                }`}
-              >
-                {statusText}
-              </span>
-            </div>
-          </div>
-        </>
-      )}
+        {/* Status Line in sentence case */}
+        <div className="flex items-center justify-center gap-1.5">
+          {isRunning && !shouldReduceMotion && (
+            <span className="w-1.5 h-1.5 rounded-full timer-status-pulse bg-emerald-400 shrink-0" />
+          )}
+          <span
+            className={`text-xs font-mono font-medium ${
+              statusText === 'Completed' ? 'text-emerald-400' : 'text-[var(--text-dim)]'
+            }`}
+          >
+            {statusText}
+          </span>
+        </div>
+      </div>
     </div>
   );
 });
