@@ -1635,11 +1635,12 @@ export function StudyTimer() {
             const now = getServerNow();
             let currentElapsed = serviceElapsed;
             if (serviceRunning && serviceStartTime > 0) {
+              const effectiveCreatedAt = serviceStartTime - (serviceElapsed * 1000);
               const res = computeElapsedSessionSeconds({
                 startedAt: serviceStartTime,
                 serverNow: now,
                 accumulatedMs: serviceElapsed * 1000,
-                sessionCreatedAt: serviceStartTime,
+                sessionCreatedAt: effectiveCreatedAt,
                 status: 'running',
               });
               currentElapsed = res.elapsedSeconds;
@@ -1672,59 +1673,58 @@ export function StudyTimer() {
 
         // Web or native fallback from localStorage
         const savedSecondsStr = localStorage.getItem('studyio_timer_seconds');
-        if (savedSecondsStr) {
-          const savedSeconds = parseInt(savedSecondsStr, 10);
-          if (!isNaN(savedSeconds) && savedSeconds > 0) {
-            const savedSubject = localStorage.getItem('studyio_timer_subject') || undefined;
-            const savedMode = localStorage.getItem('studyio_timer_mode') as TimerMode | null;
-            const validatedMode = savedMode === 'pomodoro' || savedMode === 'stopwatch' || savedMode === 'countdown' ? savedMode : undefined;
+        const savedSeconds = savedSecondsStr !== null ? parseInt(savedSecondsStr, 10) : 0;
+        const wasActive = localStorage.getItem('timer-is-active') === 'true' || localStorage.getItem('studyio_timer_is_active') === 'true';
+        const savedStartTime = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
 
+        if ((!isNaN(savedSeconds) && savedSeconds > 0) || (wasActive && savedStartTime > 0)) {
+          const savedSubject = localStorage.getItem('studyio_timer_subject') || undefined;
+          const savedMode = localStorage.getItem('studyio_timer_mode') as TimerMode | null;
+          const validatedMode = savedMode === 'pomodoro' || savedMode === 'stopwatch' || savedMode === 'countdown' ? savedMode : undefined;
+
+          if (validatedMode === 'countdown') {
+            const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
+            if (savedTargetStr) {
+              const savedTarget = parseInt(savedTargetStr, 10);
+              if (!isNaN(savedTarget) && savedTarget > 0) {
+                setCountdownTarget(savedTarget);
+              }
+            }
+          } else if (validatedMode === 'pomodoro') {
+            const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
+            if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
+              setPomodoroPhase(savedPhase);
+            }
+          }
+
+          if (wasActive && savedStartTime > 0) {
+            const liveElapsed = Math.max(!isNaN(savedSeconds) && savedSeconds > 0 ? savedSeconds : 0, Math.floor((Date.now() - savedStartTime) / 1000));
+
+            let currentCountdownTarget = countdownTarget;
             if (validatedMode === 'countdown') {
               const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
               if (savedTargetStr) {
-                const savedTarget = parseInt(savedTargetStr, 10);
-                if (!isNaN(savedTarget) && savedTarget > 0) {
-                  setCountdownTarget(savedTarget);
-                }
-              }
-            } else if (validatedMode === 'pomodoro') {
-              const savedPhase = localStorage.getItem('studyio_timer_pomodoro_phase') as any;
-              if (savedPhase === 'work' || savedPhase === 'shortBreak' || savedPhase === 'longBreak') {
-                setPomodoroPhase(savedPhase);
+                const t = parseInt(savedTargetStr, 10);
+                if (!isNaN(t) && t > 0) currentCountdownTarget = t;
               }
             }
 
-            const wasActive = localStorage.getItem('timer-is-active') === 'true' || localStorage.getItem('studyio_timer_is_active') === 'true';
-            const savedStartTime = parseInt(localStorage.getItem('studyio_timer_start_time') || '0', 10);
-            if (wasActive && savedStartTime > 0) {
-              const liveElapsed = Math.max(savedSeconds, Math.floor((Date.now() - savedStartTime) / 1000));
+            // Check if countdown target was completed while away
+            if (
+              validatedMode === 'countdown' &&
+              currentCountdownTarget > 0 &&
+              liveElapsed >= currentCountdownTarget
+            ) {
+              restoreTimerSession(currentCountdownTarget, validatedMode, savedSubject, false);
+              setIsCountdownCompleted(true);
+              return;
+            }
 
-              let currentCountdownTarget = countdownTarget;
-              if (validatedMode === 'countdown') {
-                const savedTargetStr = localStorage.getItem('studyio_timer_countdown_target');
-                if (savedTargetStr) {
-                  const t = parseInt(savedTargetStr, 10);
-                  if (!isNaN(t) && t > 0) currentCountdownTarget = t;
-                }
-              }
-
-              // Check if countdown target was completed while away
-              if (
-                validatedMode === 'countdown' &&
-                currentCountdownTarget > 0 &&
-                liveElapsed >= currentCountdownTarget
-              ) {
-                restoreTimerSession(currentCountdownTarget, validatedMode, savedSubject, false);
-                setIsCountdownCompleted(true);
-                return;
-              }
-
-              restoreTimerSession(liveElapsed, validatedMode, savedSubject, true, savedStartTime);
-            } else {
-              restoreTimerSession(savedSeconds, validatedMode, savedSubject, false);
-              if (localStorage.getItem('studyio_timer_countdown_completed') !== 'true') {
-                setShowRecoveryBanner(true);
-              }
+            restoreTimerSession(liveElapsed, validatedMode, savedSubject, true, savedStartTime);
+          } else if (!isNaN(savedSeconds) && savedSeconds > 0) {
+            restoreTimerSession(savedSeconds, validatedMode, savedSubject, false);
+            if (localStorage.getItem('studyio_timer_countdown_completed') !== 'true') {
+              setShowRecoveryBanner(true);
             }
           }
         }

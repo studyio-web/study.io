@@ -256,8 +256,12 @@ export class TimerSessionEngine {
     const baseAccumulated = Number(remote.accumulated_seconds || 0);
 
     // Resolve creation anchor
-    const remoteCreatedAt = remote.session_created_at || remote.created_at || remote.started_at;
-    const createdAtMs = remoteCreatedAt ? new Date(remoteCreatedAt).getTime() : serverNow;
+    const remoteCreatedAt = remote.session_created_at || remote.created_at;
+    const createdAtMs = remoteCreatedAt
+      ? new Date(remoteCreatedAt).getTime()
+      : (remote.started_at
+          ? new Date(remote.started_at).getTime() - (baseAccumulated * 1000)
+          : serverNow - (baseAccumulated * 1000));
 
     if (remote.status === 'running') {
       const startedAtMs = remote.started_at ? new Date(remote.started_at).getTime() : serverNow;

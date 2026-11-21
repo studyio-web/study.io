@@ -166,4 +166,82 @@ describe('Timer Session Recovery, Resume & Remote Sync Resilience Specification'
 
     assert.equal(localTimerStopped, false, 'Same-device stopped echo must not stop the active local timer');
   });
+
+  it('8. Freshly started timer closed after 5s with savedSeconds=0 correctly restores live elapsed time and never resets to 0', () => {
+    const now = 1700000010000;
+    const savedStartTime = now - 5000; // started 5 seconds ago
+    const savedSecondsStr = '0'; // seconds written as 0 at start
+    const wasActive = true;
+
+    const savedSeconds = savedSecondsStr !== null ? parseInt(savedSecondsStr, 10) : 0;
+    const shouldRecover = (!isNaN(savedSeconds) && savedSeconds > 0) || (wasActive && savedStartTime > 0);
+    assert.equal(shouldRecover, true, 'Recovery must enter when wasActive and savedStartTime > 0 even if savedSeconds is 0');
+
+    const liveElapsed = Math.max(!isNaN(savedSeconds) && savedSeconds > 0 ? savedSeconds : 0, Math.floor((now - savedStartTime) / 1000));
+    assert.equal(liveElapsed, 5, 'Live elapsed must calculate 5 seconds from savedStartTime');
+    assert.ok(liveElapsed > 0, 'Live elapsed must never reset to 0');
+  });
+
+  it('9. Android TimerForegroundService recovery with serviceStartTime and serviceElapsed computes currentElapsed without sanity clamp', () => {
+    const now = 1700001802000; // 1802 seconds into study session
+    const serviceElapsed = 1800; // 30 mins accumulated before pause/resume
+    const serviceStartTime = now - 2000; // resumed 2 seconds ago
+
+    // Effective session created at:
+    const effectiveCreatedAt = serviceStartTime - (serviceElapsed * 1000);
+
+    const res = computeElapsedSessionSeconds({
+      startedAt: serviceStartTime,
+      serverNow: now,
+      accumulatedMs: serviceElapsed * 1000,
+      sessionCreatedAt: effectiveCreatedAt,
+      status: 'running',
+    });
+
+    assert.equal(res.elapsedSeconds, 1802, 'Elapsed seconds must be 1802s, not clamped to 2s or 0s');
+  });
+
+  it('10. handleRemoteSync without session_created_at does not clamp genuine accumulated study time', () => {
+    const engine = new TimerSessionEngine();
+    const serverNow = 1700001805000;
+    const startedAt = new Date(serverNow - 5000).toISOString(); // resumed 5s ago
+    const accumulatedSeconds = 1800; // 30 minutes accumulated
+
+    const remoteSync = engine.handleRemoteSync({
+      session_id: 'remote-test-session',
+      status: 'running',
+      started_at: startedAt,
+      accumulated_seconds: accumulatedSeconds,
+      version: 3,
+    }, { serverNow });
+
+    assert.equal(remoteSync.accepted, true, 'Remote sync should be accepted');
+    assert.equal(remoteSync.elapsedSeconds, 1805, 'Should compute 1805s (1800s + 5s running), not clamped');
+  });
+
+  it('11. restoreTimerSession write-back sends startedAt=now and accumulatedSeconds=seconds so peer computes exact seconds without doubling', () => {
+    const now = 1700000500000;
+    const restoredSeconds = 500;
+    const startAsRunning = true;
+
+    // Payload written to Supabase
+    const payload = {
+      status: 'running',
+      started_at: startAsRunning ? new Date(now).toISOString() : null,
+      accumulated_seconds: restoredSeconds,
+      session_created_at: new Date(now - (restoredSeconds * 1000)).toISOString(),
+    };
+
+    // Peer device receives payload 50ms later
+    const peerNow = now + 50;
+    const res = computeElapsedSessionSeconds({
+      startedAt: payload.started_at,
+      serverNow: peerNow,
+      accumulatedMs: payload.accumulated_seconds * 1000,
+      sessionCreatedAt: payload.session_created_at,
+      status: 'running',
+    });
+
+    assert.equal(res.elapsedSeconds, 500, 'Peer elapsed time must be 500s (no doubling to 1000s)');
+  });
 });

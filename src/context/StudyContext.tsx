@@ -1485,6 +1485,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const actualElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         const finalAccumulated = actualElapsed; // Since we recalculate from startTimeRef
         
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('timer-is-active', 'false');
+            localStorage.setItem('studyio_timer_is_active', 'false');
+            localStorage.setItem('studyio_timer_seconds', String(finalAccumulated));
+            localStorage.removeItem('studyio_timer_start_time');
+          } catch {}
+        }
+
         const uid = realtimeUserId || userRef.current?.id || user?.id;
         const deviceId = getDeviceId();
         
@@ -1594,6 +1603,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       version?: number;
       expectedVersion?: number;
       last_paused_at?: string | null;
+      session_created_at?: string | null;
     }
   ) => {
     const supabase = getSupabase();
@@ -1740,6 +1750,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               session_id: effectiveClientSessionId,
               started_at: null,
               last_paused_at: extra?.last_paused_at || new Date().toISOString(),
+              session_created_at: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : (extra?.session_created_at || new Date(Date.now() - (effectiveAccumulated * 1000)).toISOString()),
               accumulated_seconds: effectiveAccumulated,
               accumulated_ms: effectiveAccumulated * 1000,
               version: effectiveVersion,
@@ -1855,6 +1866,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               client_session_id: effectiveClientSessionId,
               session_id: effectiveClientSessionId,
               started_at: startedAtIso,
+              session_created_at: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : (extra?.session_created_at || new Date(Date.now() - (effectiveAccumulated * 1000)).toISOString()),
               last_paused_at: null,
               accumulated_seconds: effectiveAccumulated,
               accumulated_ms: effectiveAccumulated * 1000,
@@ -2522,7 +2534,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       } else {
         accumulatedSecondsRef.current = baseAccumulated;
         startTimeRef.current = serverNow - (calculatedElapsed * 1000);
-        sessionStartTimeRef.current = started_at ? new Date(started_at) : new Date(startTimeRef.current);
+        sessionStartTimeRef.current = remoteSession.session_created_at
+          ? new Date(remoteSession.session_created_at)
+          : (remoteSession.created_at
+              ? new Date(remoteSession.created_at)
+              : new Date(started_at ? new Date(started_at).getTime() - (baseAccumulated * 1000) : (startTimeRef.current || (serverNow - (baseAccumulated * 1000)))));
         setElapsedSeconds(calculatedElapsed);
         setIsStudying(true);
         setIsPaused(false);
@@ -2538,6 +2554,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
       isStudyingRef.current = true;
       isPausedRef.current = true;
+      sessionStartTimeRef.current = remoteSession.session_created_at
+        ? new Date(remoteSession.session_created_at)
+        : (remoteSession.created_at
+            ? new Date(remoteSession.created_at)
+            : new Date(serverNow - (baseAccumulated * 1000)));
       accumulatedSecondsRef.current = baseAccumulated;
       startTimeRef.current = null;
       setElapsedSeconds(baseAccumulated);
@@ -3646,6 +3667,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const engineResume = timerEngineRef.current.resumeTimer({ serverNow });
     const resumeAnchor = serverNow - (engineResume.accumulatedSeconds * 1000);
     startTimeRef.current = resumeAnchor;
+    if (!sessionStartTimeRef.current) {
+      sessionStartTimeRef.current = new Date(resumeAnchor);
+    }
     accumulatedSecondsRef.current = engineResume.accumulatedSeconds;
     sessionVersionRef.current = engineResume.version;
     isPausedRef.current = false;
@@ -3798,9 +3822,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     // Instantly sync restored session to Supabase so server is not empty
     syncActiveSessionToDb(startAsRunning ? 'running' : 'paused', {
-      startedAt: startAsRunning ? new Date(anchor).toISOString() : null,
+      startedAt: startAsRunning ? new Date(now).toISOString() : null,
       accumulatedSeconds: seconds,
       elapsedBeforePause: seconds,
+      session_created_at: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : new Date(anchor).toISOString(),
       mode: effectiveMode,
       client_session_id: restoredSessionId,
     }).catch(() => {});
