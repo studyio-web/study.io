@@ -124,6 +124,80 @@ describe('Real PostgreSQL Database Integration Tests (Migration, Security & RPCs
     assert.equal(check2.rows.length, 1, 'active_sessions.session_id should exist after re-applying migration');
   });
 
+  // Task 1: Migration Safety Test
+  it('Migration Safety: applies old schema with running session, runs new migration, backfills session_created_at, and verifies elapsed time is unchanged [Role: postgres]', async () => {
+    // 1. Populate active_sessions with a running session under old schema (no session_created_at)
+    const runningSessionId = 'c1c1c1c1-c1c1-41c1-81c1-c1c1c1c1c1c1';
+    await db.exec(`
+      insert into public.active_sessions (
+        user_id,
+        session_id,
+        status,
+        mode,
+        started_at,
+        accumulated_seconds,
+        version
+      ) values (
+        '${testUserId}',
+        '${runningSessionId}',
+        'running',
+        'stopwatch',
+        now() - interval '40 minutes',
+        0,
+        1
+      )
+      on conflict (user_id) do update set
+        session_id = '${runningSessionId}',
+        status = 'running',
+        started_at = now() - interval '40 minutes',
+        accumulated_seconds = 0,
+        version = 1;
+    `);
+
+    // 2. Read new migration and down migration
+    const newMigrationPath = path.resolve(process.cwd(), 'supabase/migrations/20261121_timer_session_created_at_and_save_on_start.sql');
+    const newDownPath = path.resolve(process.cwd(), 'supabase/migrations/20261121_timer_session_created_at_and_save_on_start_down.sql');
+    const newMigrationSql = fs.readFileSync(newMigrationPath, 'utf8');
+    const newDownSql = fs.readFileSync(newDownPath, 'utf8');
+
+    // 3. Apply new migration
+    await db.exec(newMigrationSql);
+
+    // 4. Verify column session_created_at was added and backfilled
+    const sessionRes = await db.query(`
+      select session_id, session_created_at, started_at, accumulated_seconds
+      from public.active_sessions
+      where user_id = '${testUserId}';
+    `);
+    assert.equal(sessionRes.rows.length, 1);
+    const row = sessionRes.rows[0] as any;
+    assert.ok(row.session_created_at, 'session_created_at must be populated by backfill');
+
+    // Verify backfilled session_created_at matches started_at minus accumulated_seconds
+    const createdAtMs = new Date(row.session_created_at).getTime();
+    const startedAtMs = new Date(row.started_at).getTime();
+    assert.ok(Math.abs(createdAtMs - startedAtMs) < 1000, 'session_created_at must backfill to started_at for fresh running session');
+
+    // 5. Down migration cleanly rolls back
+    await db.exec(newDownSql);
+    const checkRolledBack = await db.query(`
+      select column_name from information_schema.columns
+      where table_name = 'active_sessions' and column_name = 'session_created_at';
+    `);
+    assert.equal(checkRolledBack.rows.length, 0, 'session_created_at column should be dropped by down migration');
+
+    // 6. Re-apply new migration so remaining tests run on latest schema
+    await db.exec(newMigrationSql);
+    const checkReapplied = await db.query(`
+      select column_name from information_schema.columns
+      where table_name = 'active_sessions' and column_name = 'session_created_at';
+    `);
+    assert.equal(checkReapplied.rows.length, 1, 'session_created_at column should exist after re-applying');
+
+    // 7. Cleanup test session
+    await db.exec(`delete from public.active_sessions where user_id = '${testUserId}';`);
+  });
+
   // Requirement 1: Permissions lockdown - confirm authenticated and anon CANNOT INSERT, UPDATE, DELETE directly
   it('Permissions: authenticated and anon cannot INSERT, UPDATE or DELETE active_sessions or study_sessions directly [Role: authenticated & anon]', async () => {
     // A. Role: authenticated
@@ -868,6 +942,13 @@ describe('Real PostgreSQL Database Integration Tests (Migration, Security & RPCs
   it('Cron Cleanup: closes 24h Ultra session only after planned_end_at plus 5m grace, crediting full 24h [Role: service_role]', async () => {
     const ultraExpiredId = 'e5e5e5e5-e5e5-45e5-85e5-e5e5e5e5e5e5';
 
+    await db.exec(`
+      update public.active_sessions
+      set ultra_ends_at = now() - interval '1 second'
+      where user_id = '${testUserId}';
+      delete from public.active_sessions where user_id = '${testUserId}';
+    `);
+
     await asRole('authenticated', async () => {
       await db.exec(`
         select public.start_session(
@@ -908,5 +989,174 @@ describe('Real PostgreSQL Database Integration Tests (Migration, Security & RPCs
     `);
     assert.equal(savedCheck.rows.length, 1);
     assert.equal((savedCheck.rows[0] as any).duration_seconds, 86400, 'Must credit full 24 hours (86,400s)');
+  });
+
+  // Task 2 Test A: running 2h session then start returns a saved 2h row
+  it('start_session: running 2h session then start saves 2h row and starts new session [Role: authenticated]', async () => {
+    const running2hId = 'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2';
+    const nextSessionId = 'c3c3c3c3-c3c3-43c3-83c3-c3c3c3c3c3c3';
+
+    // 1. Clean slate for user and start 2h session
+    await db.exec(`delete from public.active_sessions where user_id = '${testUserId}';`);
+
+    await asRole('authenticated', async () => {
+      await db.exec(`
+        select public.start_session(
+          p_session_id => '${running2hId}'::uuid,
+          p_mode => 'stopwatch'
+        );
+      `);
+    });
+
+    // Advance session started_at by 2 hours (7200 seconds)
+    await db.exec(`
+      update public.active_sessions
+      set started_at = now() - interval '2 hours'
+      where session_id = '${running2hId}';
+    `);
+
+    // 2. Start new session without stopping the 2h session
+    let startRes: any;
+    await asRole('authenticated', async () => {
+      const res = await db.query(`
+        select public.start_session(
+          p_session_id => '${nextSessionId}'::uuid,
+          p_mode => 'stopwatch'
+        ) as res;
+      `);
+      startRes = (res.rows[0] as any).res;
+    });
+
+    assert.equal(startRes.success, true);
+    assert.equal(startRes.session_id, nextSessionId);
+
+    // 3. Verify previous 2h session was automatically saved in study_sessions with 7200s (2h)
+    const prevSaved = await db.query(`
+      select duration_seconds, session_id, mode from public.study_sessions
+      where session_id = '${running2hId}';
+    `);
+    assert.equal(prevSaved.rows.length, 1, 'Previous running session must be saved into study_sessions');
+    const savedDuration = (prevSaved.rows[0] as any).duration_seconds;
+    assert.ok(Math.abs(savedDuration - 7200) <= 2, `Saved duration must be ~7200s (2h), got: ${savedDuration}`);
+
+    // 4. Verify new active session is running with 0 accumulated time
+    const activeCheck = await db.query(`
+      select session_id, status, accumulated_seconds, accumulated_ms from public.active_sessions
+      where user_id = '${testUserId}';
+    `);
+    assert.equal((activeCheck.rows[0] as any).session_id, nextSessionId);
+    assert.equal((activeCheck.rows[0] as any).status, 'running');
+    assert.equal((activeCheck.rows[0] as any).accumulated_seconds, 0);
+  });
+
+  // Task 2 Test B: paused 30m session then start returns a saved 30m row
+  it('start_session: paused 30m session then start saves 30m row and starts new session [Role: authenticated]', async () => {
+    const paused30mId = 'd4d4d4d4-d4d4-44d4-84d4-d4d4d4d4d4d4';
+    const nextSessionId = 'e5e5e5e5-e5e5-45e5-85e5-e5e5e5e5e5e6';
+
+    await db.exec(`delete from public.active_sessions where user_id = '${testUserId}';`);
+
+    // 1. Setup a paused 30m session (1800s accumulated)
+    await db.exec(`
+      insert into public.active_sessions (
+        user_id, session_id, session_created_at, status, mode, started_at,
+        accumulated_seconds, accumulated_ms, last_paused_at, version
+      ) values (
+        '${testUserId}', '${paused30mId}', now() - interval '45 minutes', 'paused', 'stopwatch', null,
+        1800, 1800000, now() - interval '15 minutes', 2
+      )
+      on conflict (user_id) do update set
+        session_id = '${paused30mId}',
+        session_created_at = now() - interval '45 minutes',
+        status = 'paused',
+        mode = 'stopwatch',
+        started_at = null,
+        accumulated_seconds = 1800,
+        accumulated_ms = 1800000,
+        last_paused_at = now() - interval '15 minutes',
+        version = 2;
+    `);
+
+    // 2. Start a new session
+    await asRole('authenticated', async () => {
+      await db.exec(`
+        select public.start_session(
+          p_session_id => '${nextSessionId}'::uuid,
+          p_mode => 'stopwatch'
+        );
+      `);
+    });
+
+    // 3. Verify previous 30m session was saved in study_sessions with 1800s
+    const prevSaved = await db.query(`
+      select duration_seconds, session_id from public.study_sessions
+      where session_id = '${paused30mId}';
+    `);
+    assert.equal(prevSaved.rows.length, 1, 'Previous paused session must be saved into study_sessions');
+    assert.equal((prevSaved.rows[0] as any).duration_seconds, 1800, 'Must credit exactly 1800s (30m)');
+
+    // 4. Verify new active session is running fresh
+    const activeCheck = await db.query(`
+      select session_id, status, accumulated_seconds from public.active_sessions
+      where user_id = '${testUserId}';
+    `);
+    assert.equal((activeCheck.rows[0] as any).session_id, nextSessionId);
+    assert.equal((activeCheck.rows[0] as any).status, 'running');
+    assert.equal((activeCheck.rows[0] as any).accumulated_seconds, 0);
+  });
+
+  // Task 2 Test C: calling start twice with same session_id is idempotent and doesn't create duplicates
+  it('start_session: calling start twice with same session_id is idempotent and creates no duplicates [Role: authenticated]', async () => {
+    const idempotentId = 'f6f6f6f6-f6f6-46f6-86f6-f6f6f6f6f6f6';
+
+    await db.exec(`delete from public.active_sessions where user_id = '${testUserId}';`);
+
+    // 1. First start call
+    let firstRes: any;
+    await asRole('authenticated', async () => {
+      const res = await db.query(`
+        select public.start_session(
+          p_session_id => '${idempotentId}'::uuid,
+          p_mode => 'stopwatch'
+        ) as res;
+      `);
+      firstRes = (res.rows[0] as any).res;
+    });
+    assert.equal(firstRes.session_id, idempotentId);
+
+    // Advance session clock slightly
+    await db.exec(`
+      update public.active_sessions
+      set started_at = now() - interval '5 minutes'
+      where session_id = '${idempotentId}';
+    `);
+
+    // 2. Second start call with EXACT SAME session_id
+    let secondRes: any;
+    await asRole('authenticated', async () => {
+      const res = await db.query(`
+        select public.start_session(
+          p_session_id => '${idempotentId}'::uuid,
+          p_mode => 'stopwatch'
+        ) as res;
+      `);
+      secondRes = (res.rows[0] as any).res;
+    });
+
+    assert.equal(secondRes.is_duplicate, true, 'Second start with same session_id must report is_duplicate');
+    assert.equal(secondRes.session_id, idempotentId);
+
+    // 3. Verify NO row was saved to study_sessions for this session (it was not prematurely closed or duplicated)
+    const savedCheck = await db.query(`
+      select * from public.study_sessions where session_id = '${idempotentId}';
+    `);
+    assert.equal(savedCheck.rows.length, 0, 'No completed session row should be created for duplicate start');
+
+    // 4. Verify active_sessions is still running with same session_id
+    const activeCheck = await db.query(`
+      select session_id, status from public.active_sessions where user_id = '${testUserId}';
+    `);
+    assert.equal((activeCheck.rows[0] as any).session_id, idempotentId);
+    assert.equal((activeCheck.rows[0] as any).status, 'running');
   });
 });

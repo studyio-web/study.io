@@ -38,6 +38,7 @@ import {
 } from '../lib/ranks';
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
 import { fetchAuthoritativeServerTime, saveValidatedSession, getServerNow, syncServerClockOffset, computeElapsedSessionSeconds } from '../lib/serverTime';
+import { TimerSessionEngine } from '../lib/timerEngine';
 import {
   STILL_STUDYING_AFTER_HOURS,
   CONFIRM_WINDOW_MINUTES,
@@ -115,6 +116,7 @@ interface StudyContextType {
   isRunning: boolean;
   startTimeRef: React.MutableRefObject<number | null>;
   clientSessionIdRef: React.MutableRefObject<string | null>;
+  timerEngineRef: React.MutableRefObject<TimerSessionEngine>;
   elapsedSeconds: number;
   syncTimerWithServerTime: (serverTimestamp?: number) => Promise<number | null>;
   pomodoroPhase: PomodoroPhase;
@@ -1243,6 +1245,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastTickTimeRef = useRef<number | null>(null);
   const clientSessionIdRef = useRef<string | null>(null);
+  const timerEngineRef = useRef<TimerSessionEngine>(new TimerSessionEngine());
   const lastLocalActionRef = useRef<{ timestamp: number; status: string } | null>(null);
   const activeChannelRef = useRef<any>(null);
   const realtimeEventCountRef = useRef<number>(0);
@@ -2239,15 +2242,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     if (status === 'running') {
       const serverNow = getServerNow();
-      const startedAtMs = started_at ? new Date(started_at).getTime() : serverNow;
-      const res = computeElapsedSessionSeconds({
-        startedAt: startedAtMs,
-        serverNow,
-        accumulatedMs: baseAccumulated * 1000,
-        sessionCreatedAt: started_at ? new Date(started_at).getTime() : serverNow,
-        status: 'running',
-      });
-      const calculatedElapsed = res.elapsedSeconds;
+      const syncRes = timerEngineRef.current.handleRemoteSync(remoteSession, { serverNow });
+      const calculatedElapsed = syncRes.elapsedSeconds;
 
       if (timerIntervalRef.current !== null) {
         // We are already running locally.
@@ -3185,20 +3181,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setActiveTaskId(taskId);
     }
     setPomodoroCompletedPhase(null);
-    if (!clientSessionIdRef.current) {
-      clientSessionIdRef.current =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `sess-${Date.now()}`;
-    }
-    // Anti-Tamper: Fresh timer start must never inherit residue from prior stopped/saved sessions
-    accumulatedSecondsRef.current = 0;
-    setElapsedSeconds(0);
-    sessionVersionRef.current = 1;
-    // Record start anchor timestamp using server-synchronized clock
+    // Authoritative Engine: Fresh timer start via TimerSessionEngine
     const nowAnchor = getServerNow();
-    startTimeRef.current = nowAnchor;
-    sessionStartTimeRef.current = new Date(nowAnchor);
+    const engineStart = timerEngineRef.current.startTimer({
+      mode: timerMode,
+      serverNow: nowAnchor,
+    });
+    clientSessionIdRef.current = engineStart.sessionId;
+    accumulatedSecondsRef.current = engineStart.accumulatedSeconds;
+    setElapsedSeconds(0);
+    sessionVersionRef.current = engineStart.version;
+    startTimeRef.current = engineStart.startTime;
+    sessionStartTimeRef.current = new Date(engineStart.sessionCreatedAt);
     setIsStudying(true);
     setIsPaused(false);
     setIsRemoteSession(false);
@@ -3250,27 +3244,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let actualElapsed = accumulatedSecondsRef.current;
-    if (startTimeRef.current !== null) {
-      const serverNow = getServerNow();
-      const res = computeElapsedSessionSeconds({
-        startedAt: startTimeRef.current,
-        serverNow,
-        accumulatedMs: 0,
-        sessionCreatedAt: sessionStartTimeRef.current?.getTime() || startTimeRef.current,
-        status: 'running',
-      });
-      actualElapsed = res.elapsedSeconds;
-      accumulatedSecondsRef.current = actualElapsed;
-      setElapsedSeconds(actualElapsed);
-    }
-    sessionVersionRef.current = (sessionVersionRef.current || 1) + 1;
-    console.log('[Timer Write: pauseTimer]', {
-      timestamp: new Date().toISOString(),
-      accumulated_seconds_before: accumulatedSecondsRef.current,
-      accumulated_seconds_after: actualElapsed,
-      mode: timerMode,
-    });
+    const serverNow = getServerNow();
+    const enginePause = timerEngineRef.current.pauseTimer({ serverNow });
+    const actualElapsed = enginePause.accumulatedSeconds;
+    accumulatedSecondsRef.current = actualElapsed;
+    setElapsedSeconds(actualElapsed);
+    sessionVersionRef.current = enginePause.version;
     startTimeRef.current = null;
     // CRITICAL: Preserve clientSessionIdRef.current across pauses so countdown / pause sessions
     // retain their deterministic session ID across all devices for idempotent saves
@@ -3307,16 +3286,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     const serverNow = getServerNow();
-    const nowAnchor = serverNow - (accumulatedSecondsRef.current * 1000);
-    startTimeRef.current = nowAnchor;
-    sessionVersionRef.current = (sessionVersionRef.current || 1) + 1;
+    const engineResume = timerEngineRef.current.resumeTimer({ serverNow });
+    startTimeRef.current = engineResume.startTime;
+    accumulatedSecondsRef.current = engineResume.accumulatedSeconds;
+    sessionVersionRef.current = engineResume.version;
     setIsPaused(false);
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('timer-is-active', 'true');
         localStorage.setItem('studyio_timer_seconds', String(accumulatedSecondsRef.current));
         localStorage.setItem('studyio_timer_mode', timerMode);
-        localStorage.setItem('studyio_timer_start_time', String(nowAnchor));
+        localStorage.setItem('studyio_timer_start_time', String(engineResume.startTime));
       } catch {}
     }
     setPomodoroCompletedPhase(null);
@@ -3827,15 +3807,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const currentActual = startTimeRef.current !== null && !isPaused
-      ? computeElapsedSessionSeconds({
-          startedAt: startTimeRef.current,
-          serverNow: getServerNow(),
-          accumulatedMs: 0,
-          sessionCreatedAt: sessionStartTimeRef.current?.getTime() || startTimeRef.current,
-          status: 'running',
-        }).elapsedSeconds
-      : accumulatedSecondsRef.current;
+    const engineStop = timerEngineRef.current.stopTimer({ serverNow: getServerNow() });
+    const currentActual = engineStop.durationSeconds;
     const seconds = durationOverride !== undefined ? durationOverride : Math.max(elapsedSeconds, currentActual);
     if (!isStudying && seconds === 0) return;
 
@@ -4554,6 +4527,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         isRunning,
         startTimeRef,
         clientSessionIdRef,
+        timerEngineRef,
         syncTimerWithServerTime,
         startTimer,
         pauseTimer,

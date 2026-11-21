@@ -72,7 +72,7 @@ export function computeElapsedSessionSeconds(input: ElapsedCalculationInput): El
 
   let runningSliceMs = 0;
   if (status === 'running' && startedAtMs !== null) {
-    runningSliceMs = Math.max(0, (serverNow - startedAtMs) - pausedTotalMs);
+    runningSliceMs = Math.max(0, serverNow - startedAtMs);
   }
 
   const rawElapsedMs = runningSliceMs + accumulatedMs;
@@ -80,6 +80,10 @@ export function computeElapsedSessionSeconds(input: ElapsedCalculationInput): El
   let isClamped = false;
 
   // Sanity Guard: Check against real wall-clock time elapsed since session creation
+  // The anchor must correctly evaluate total elapsed wall-clock time for:
+  // 1. Single continuous runs (serverNow - sessionCreatedAt)
+  // 2. Paused and resumed sessions (created_at vs started_at plus paused time)
+  // 3. Sessions restored on other devices (preserving session_created_at)
   let createdAtMs: number | null = null;
   if (input.sessionCreatedAt) {
     const ct = new Date(input.sessionCreatedAt).getTime();
@@ -87,7 +91,7 @@ export function computeElapsedSessionSeconds(input: ElapsedCalculationInput): El
       createdAtMs = ct;
     }
   } else if (startedAtMs !== null) {
-    createdAtMs = startedAtMs - accumulatedMs;
+    createdAtMs = startedAtMs - accumulatedMs - pausedTotalMs;
   }
 
   let wallClockCapSeconds: number | undefined;

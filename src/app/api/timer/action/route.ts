@@ -115,6 +115,109 @@ export async function POST(req: NextRequest) {
     let resultPayload: any = { success: true };
 
     if (action === 'start') {
+      // 1. Inspect existing active session
+      const { data: existingActive } = await dbClient
+        .from('active_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      // A. Idempotency: Duplicate start calls with same session_id return existing session
+      if (existingActive && existingActive.session_id === session_id) {
+        return NextResponse.json({ success: true, is_duplicate: true, session: existingActive });
+      }
+
+      // B. Ultra strict lock check on start: reject starting new session if existing session is locked
+      if (
+        existingActive &&
+        existingActive.is_ultra &&
+        existingActive.ultra_ends_at &&
+        serverNow.getTime() < new Date(existingActive.ultra_ends_at).getTime() &&
+        existingActive.session_id !== session_id
+      ) {
+        const remainingSec = Math.max(0, Math.ceil((new Date(existingActive.ultra_ends_at).getTime() - serverNow.getTime()) / 1000));
+        return NextResponse.json(
+          {
+            error: 'ULTRA_LOCKED',
+            message: 'Cannot start a new session while an active Ultra Strict session is locked.',
+            remaining_seconds: remainingSec,
+            ultra_ends_at: existingActive.ultra_ends_at,
+          },
+          { status: 423 }
+        );
+      }
+
+      // C. No Silent Discard: If previous non-Ultra session was running or paused with > 0 focus seconds, save it
+      if (existingActive && (existingActive.status === 'running' || existingActive.status === 'paused')) {
+        let prevDuration = Number(existingActive.accumulated_seconds) || 0;
+        let prevEnd = serverNow;
+
+        if (existingActive.status === 'running' && existingActive.started_at) {
+          const runSlice = Math.max(0, Math.floor((serverNow.getTime() - new Date(existingActive.started_at).getTime()) / 1000));
+          prevDuration += runSlice;
+        } else if (existingActive.status === 'paused' && existingActive.last_paused_at) {
+          prevEnd = new Date(existingActive.last_paused_at);
+        }
+
+        // Apply 12h stopwatch limit clipping or countdown limits
+        if (existingActive.mode === 'stopwatch' && !existingActive.planned_end_at) {
+          const startDate = existingActive.started_at ? new Date(existingActive.started_at) : serverNow;
+          if (existingActive.confirmed_until && new Date(existingActive.confirmed_until).getTime() > (startDate.getTime() + STILL_STUDYING_AFTER_HOURS * 3600 * 1000)) {
+            const maxSec = Math.min(
+              Math.floor((new Date(existingActive.confirmed_until).getTime() - startDate.getTime()) / 1000),
+              ABSOLUTE_MAX_SESSION_HOURS * 3600
+            );
+            prevDuration = Math.min(prevDuration, maxSec);
+          } else {
+            prevDuration = Math.min(prevDuration, STILL_STUDYING_AFTER_HOURS * 3600);
+          }
+        } else if (existingActive.mode === 'countdown' || existingActive.planned_end_at) {
+          let plannedSec = 0;
+          if (existingActive.planned_end_at && existingActive.started_at) {
+            plannedSec = Math.floor((new Date(existingActive.planned_end_at).getTime() - new Date(existingActive.started_at).getTime()) / 1000);
+          } else if (existingActive.pomodoro_duration_seconds) {
+            plannedSec = Number(existingActive.pomodoro_duration_seconds);
+          }
+          plannedSec = Math.min(plannedSec, 90000);
+          if (plannedSec > 0) {
+            prevDuration = Math.min(prevDuration, plannedSec);
+          }
+        }
+
+        if (prevDuration > 0 && existingActive.session_id) {
+          const prevStart = new Date(prevEnd.getTime() - prevDuration * 1000);
+          await dbClient.from('study_sessions').upsert({
+            user_id: user.id,
+            session_id: existingActive.session_id,
+            subject_id: existingActive.subject_id,
+            duration_seconds: prevDuration,
+            started_at: prevStart.toISOString(),
+            ended_at: prevEnd.toISOString(),
+            mode: existingActive.mode || 'stopwatch',
+            offline_synced: false,
+            client_skew_ms: 0,
+          }, { onConflict: 'session_id' });
+
+          // Send FCM stop push to other devices so their alarm and notification clear
+          try {
+            if (supabase && user.id) {
+              supabase.functions.invoke('send-notification', {
+                body: {
+                  receiver_id: user.id,
+                  type: 'timer_sync',
+                  sender_id: user.id,
+                  action: 'stop',
+                  session_id: existingActive.session_id,
+                  status: 'stopped',
+                  device_id,
+                  timestamp: serverNow.toISOString(),
+                },
+              }).catch(() => { });
+            }
+          } catch { }
+        }
+      }
+
       const plannedSec = Number(body.planned_duration_seconds) || null;
       const isUltra = Boolean(body.is_ultra);
       const mode = body.mode || 'stopwatch';
@@ -144,6 +247,7 @@ export async function POST(req: NextRequest) {
       const activeRecord = {
         user_id: user.id,
         session_id,
+        session_created_at: serverNow.toISOString(),
         status: 'running',
         mode,
         subject_id: subjectId,
