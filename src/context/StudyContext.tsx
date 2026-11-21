@@ -1625,6 +1625,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       if (status === 'stopped') {
+        const sessIdToStop = extra?.client_session_id || clientSessionIdRef.current;
         console.log('[Timer Write: syncActiveSessionToDb (stopped)]', {
           timestamp: new Date().toISOString(),
           userId: uid,
@@ -1632,9 +1633,29 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           accumulated_seconds_before: accumulatedSecondsRef.current,
         });
 
-        // 1. Call stop_session RPC to reset active_sessions state server-side
+        // 1. Instant peer broadcast over WebSocket (<30ms latency across windows/devices)
+        const sessIdToBroadcast = extra?.client_session_id !== undefined ? extra.client_session_id : (clientSessionIdRef.current || null);
+        try {
+          activeChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'active_session_sync',
+            payload: {
+              status: 'stopped',
+              action: extra?.action || 'session_saved',
+              client_session_id: sessIdToBroadcast,
+              device_id: deviceId,
+              user_id: uid,
+              accumulated_seconds: 0,
+              is_ultra_strict: false,
+              isUltraStrict: false,
+            },
+          });
+        } catch (bErr) {
+          console.warn('[Realtime Broadcast error]:', bErr);
+        }
+
+        // 2. Call stop_session RPC to reset active_sessions state server-side
         let rpcFinalSeconds: number | null = null;
-        const sessIdToStop = extra?.client_session_id || clientSessionIdRef.current;
         try {
           if (sessIdToStop && isUuid(sessIdToStop)) {
             const { data, error: rpcError } = await supabase.rpc('stop_session', {
@@ -1670,27 +1691,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           console.warn('[Timer Write: stop_session exception]:', e);
         }
 
-        // 2. Instant peer broadcast over WebSocket (<50ms latency across windows/devices)
-        const sessIdToBroadcast = extra?.client_session_id !== undefined ? extra.client_session_id : (clientSessionIdRef.current || null);
-        try {
-          activeChannelRef.current?.send({
-            type: 'broadcast',
-            event: 'active_session_sync',
-            payload: {
-              status: 'stopped',
-              action: extra?.action || 'session_saved',
-              client_session_id: sessIdToBroadcast,
-              device_id: deviceId,
-              user_id: uid,
-              accumulated_seconds: 0,
-              is_ultra_strict: false,
-              isUltraStrict: false,
-            },
-          });
-        } catch (bErr) {
-          console.warn('[Realtime Broadcast error]:', bErr);
-        }
-
         return rpcFinalSeconds;
       } else if (status === 'paused') {
         const effectiveAccumulated = extra?.accumulatedSeconds ?? extra?.elapsedBeforePause ?? accumulatedSecondsRef.current;
@@ -1721,7 +1721,35 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           accumulated_seconds_after: effectiveAccumulated,
         });
 
-        // 1. Try pause_session RPC first
+        // 1. Instant peer broadcast over WebSocket (<30ms latency)
+        try {
+          activeChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'active_session_sync',
+            payload: {
+              status: 'paused',
+              device_id: finalDeviceId,
+              user_id: uid,
+              client_session_id: effectiveClientSessionId,
+              session_id: effectiveClientSessionId,
+              started_at: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : new Date().toISOString(),
+              accumulated_seconds: effectiveAccumulated,
+              mode: effectiveMode,
+              timer_mode: effectiveMode,
+              is_ultra_strict: effectiveIsUltra,
+              isUltraStrict: effectiveIsUltra,
+              pomodoro_phase: effectivePhase,
+              pomodoro_duration_seconds: dbDuration,
+              target_duration: dbDuration,
+              subject_id: (extra?.subjectId && isUuid(extra.subjectId)) ? extra.subjectId : null,
+              subject_name: extra?.subjectName || null,
+            },
+          });
+        } catch (bErr) {
+          console.warn('[Realtime Broadcast error]:', bErr);
+        }
+
+        // 2. Try pause_session RPC first
         let rpcError = null;
         if (effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
           try {
@@ -1750,28 +1778,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               device_id: finalDeviceId,
             }),
           }).catch(() => {});
-        }
-
-        // 2. Peer broadcast
-        try {
-          activeChannelRef.current?.send({
-            type: 'broadcast',
-            event: 'active_session_sync',
-            payload: {
-              status: 'paused',
-              device_id: finalDeviceId,
-              user_id: uid,
-              client_session_id: effectiveClientSessionId,
-              accumulated_seconds: effectiveAccumulated,
-              mode: effectiveMode,
-              timer_mode: effectiveMode,
-              is_ultra_strict: effectiveIsUltra,
-              isUltraStrict: effectiveIsUltra,
-              pomodoro_phase: extra?.pomodoroPhase || pomodoroPhase,
-            },
-          });
-        } catch (bErr) {
-          console.warn('[Realtime Broadcast error]:', bErr);
         }
       } else if (status === 'running') {
         const sub = activeSubjectRef.current || (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === selectedSubjectId);
@@ -1806,7 +1812,35 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           isUltra: effectiveIsUltra,
         });
 
-        // 1. Authoritative RPC or guarded API action (resuming or starting)
+        // 1. Instant peer broadcast over WebSocket (<30ms latency)
+        try {
+          activeChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'active_session_sync',
+            payload: {
+              status: 'running',
+              device_id: finalDeviceId,
+              user_id: uid,
+              client_session_id: effectiveClientSessionId,
+              session_id: effectiveClientSessionId,
+              started_at: startedAtIso,
+              accumulated_seconds: effectiveAccumulated,
+              mode: effectiveMode,
+              timer_mode: effectiveMode,
+              is_ultra_strict: effectiveIsUltra,
+              isUltraStrict: effectiveIsUltra,
+              pomodoro_phase: extra?.pomodoroPhase || pomodoroPhase,
+              pomodoro_duration_seconds: targetDuration,
+              target_duration: targetDuration,
+              subject_id: activeSubId,
+              subject_name: activeSubName,
+            },
+          });
+        } catch (bErr) {
+          console.warn('[Realtime Broadcast error]:', bErr);
+        }
+
+        // 2. Authoritative RPC or guarded API action (resuming or starting)
         let rpcError = null;
         if (isPausedRef.current && effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
           try {
@@ -1853,33 +1887,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               device_id: finalDeviceId,
             }),
           }).catch(() => {});
-        }
-
-        // 2. Peer broadcast
-        try {
-          activeChannelRef.current?.send({
-            type: 'broadcast',
-            event: 'active_session_sync',
-            payload: {
-              status: 'running',
-              device_id: finalDeviceId,
-              user_id: uid,
-              client_session_id: effectiveClientSessionId,
-              started_at: startedAtIso,
-              accumulated_seconds: effectiveAccumulated,
-              mode: effectiveMode,
-              timer_mode: effectiveMode,
-              is_ultra_strict: effectiveIsUltra,
-              isUltraStrict: effectiveIsUltra,
-              pomodoro_phase: extra?.pomodoroPhase || pomodoroPhase,
-              pomodoro_duration_seconds: targetDuration,
-              target_duration: targetDuration,
-              subject_id: activeSubId,
-              subject_name: activeSubName,
-            },
-          });
-        } catch (bErr) {
-          console.warn('[Realtime Broadcast error]:', bErr);
         }
       }
     };
@@ -2535,10 +2542,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   }, [realtimeUserId, user?.id]);
 
-  // Pull-based Cross-Device Sync (replaces Supabase Realtime subscriptions for personal timer)
-  // Fetches active_sessions on app open, focus/visibilitychange, network reconnect,
+  // Pull-based & Realtime Cross-Device Sync (<50ms peer sync)
+  // Subscribes to user-specific realtime broadcast & postgres_changes channel,
+  // fetches active_sessions on app open, focus/visibilitychange, network reconnect,
   // push notification events ('studyio_remote_timer_sync', 'studyio_remote_timer_stopped'),
-  // and every 60s while visible AND (remote session exists OR none is running locally).
+  // and polls while visible as fallback.
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -2573,10 +2581,74 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // 0. Dedicated Realtime Channel for User Timer Cross-Device Sync (<50ms peer sync)
+    const channelName = `user_timer_${userId}`;
+    const timerChannel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    timerChannel
+      .on('broadcast', { event: 'active_session_sync' }, ({ payload }: { payload: any }) => {
+        const eventDeviceId = cleanDeviceId(payload?.device_id);
+        const myDeviceId = cleanDeviceId(getDeviceId());
+        if (eventDeviceId && myDeviceId && eventDeviceId === myDeviceId) return;
+        if (payload && handleRemoteSyncRef.current) {
+          handleRemoteSyncRef.current(payload);
+        }
+      })
+      .on('broadcast', { event: 'timer_mode_sync' }, ({ payload }: { payload: any }) => {
+        const eventDeviceId = cleanDeviceId(payload?.device_id);
+        const myDeviceId = cleanDeviceId(getDeviceId());
+        if (eventDeviceId && myDeviceId && eventDeviceId === myDeviceId) return;
+        if (payload) {
+          if (payload.mode) setTimerMode(payload.mode);
+          if (payload.is_ultra_strict !== undefined) {
+            setIsUltraStrict(payload.is_ultra_strict);
+            isUltraStrictRef.current = payload.is_ultra_strict;
+          }
+          if (payload.target_duration !== undefined) {
+            setCountdownTarget(payload.target_duration);
+            countdownTargetRef.current = payload.target_duration;
+          }
+        }
+      })
+      .on(
+        'postgres_changes' as never,
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_sessions',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload: any) => {
+          if (handleRemoteSyncRef.current) {
+            if (payload.eventType === 'DELETE') {
+              handleRemoteSyncRef.current({ status: 'stopped', device_id: 'remote' });
+            } else if (payload.new) {
+              handleRemoteSyncRef.current(payload.new);
+            }
+          }
+        }
+      )
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          setIsSyncConnected(true);
+          setRealtimeStatus('SUBSCRIBED');
+          runPoll();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setIsSyncConnected(false);
+          setRealtimeStatus('HTTP_POLLING');
+        }
+      });
+
+    activeChannelRef.current = timerChannel;
+
     // 1. Initial fetch on mount
     runPoll();
 
-    // 2. Poll every 60 seconds IF visible AND (a session exists on another device OR none running locally)
+    // 2. Poll every interval IF visible AND (a session exists on another device OR none running locally)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (!isStudyingRef.current || isRemoteSessionRef.current) {
@@ -2654,6 +2726,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval);
+      if (timerChannel) {
+        supabase.removeChannel(timerChannel);
+      }
+      activeChannelRef.current = null;
       supabase.removeChannel(hub);
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('focus', handleFocusOrVisible);

@@ -17,7 +17,7 @@ export const ABSOLUTE_MAX_SESSION_HOURS = 24;
 export const PAUSED_SESSION_AUTO_CLOSE_HOURS = 24;
 
 /** Background poll interval in seconds for visible inactive tabs/windows */
-export const POLL_INTERVAL_VISIBLE_SECONDS = 60;
+export const POLL_INTERVAL_VISIBLE_SECONDS = 10;
 
 /** Minimum duration in seconds required for a session to earn RP and XP */
 export const MIN_DURATION_FOR_RP_SECONDS = 60;
