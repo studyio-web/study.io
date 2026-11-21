@@ -2,6 +2,140 @@ import { getSupabase } from './supabase';
 import { recordStudySession } from '@/app/actions/sessions';
 import type { SessionValidationInput, SessionValidationResult } from '@/lib/server/sessionValidation';
 
+let serverClockOffsetMs = 0;
+
+/**
+ * Returns the cached offset (in milliseconds) between server time and local device time.
+ */
+export function getServerClockOffset(): number {
+  return serverClockOffsetMs;
+}
+
+/**
+ * Manually sets or resets the server clock offset (useful for tests or synced network time).
+ */
+export function setServerClockOffset(offsetMs: number): void {
+  serverClockOffsetMs = offsetMs;
+}
+
+/**
+ * Returns current timestamp adjusted by the measured server clock offset.
+ */
+export function getServerNow(): number {
+  return Date.now() + serverClockOffsetMs;
+}
+
+export interface ElapsedCalculationInput {
+  startedAt?: number | string | Date | null;
+  serverNow?: number;
+  accumulatedMs?: number;
+  pausedTotalMs?: number;
+  sessionCreatedAt?: number | string | Date | null;
+  status?: 'running' | 'paused' | 'idle' | string;
+}
+
+export interface ElapsedCalculationResult {
+  elapsedSeconds: number;
+  elapsedMs: number;
+  serverNow: number;
+  startedAtMs: number | null;
+  accumulatedMs: number;
+  pausedTotalMs: number;
+  isClamped: boolean;
+  wallClockCapSeconds?: number;
+}
+
+/**
+ * Authoritative single formula for elapsed session calculation:
+ * Elapsed = (serverNow - started_at) - pausedTotal + accumulated
+ * where serverNow = Date.now() + serverClockOffsetMs.
+ * 
+ * Sanity guard:
+ * Clamps elapsed time to real wall-clock time elapsed since session creation (+ 5s grace).
+ */
+export function computeElapsedSessionSeconds(input: ElapsedCalculationInput): ElapsedCalculationResult {
+  const serverNow = typeof input.serverNow === 'number' && !isNaN(input.serverNow)
+    ? input.serverNow
+    : getServerNow();
+
+  const accumulatedMs = Math.max(0, Number(input.accumulatedMs) || 0);
+  const pausedTotalMs = Math.max(0, Number(input.pausedTotalMs) || 0);
+  const status = input.status || 'running';
+
+  let startedAtMs: number | null = null;
+  if (input.startedAt) {
+    const t = new Date(input.startedAt).getTime();
+    if (!isNaN(t) && t > 0) {
+      startedAtMs = t;
+    }
+  }
+
+  let runningSliceMs = 0;
+  if (status === 'running' && startedAtMs !== null) {
+    runningSliceMs = Math.max(0, (serverNow - startedAtMs) - pausedTotalMs);
+  }
+
+  const rawElapsedMs = runningSliceMs + accumulatedMs;
+  let elapsedSeconds = Math.max(0, Math.floor(rawElapsedMs / 1000));
+  let isClamped = false;
+
+  // Sanity Guard: Check against real wall-clock time elapsed since session creation
+  let createdAtMs: number | null = null;
+  if (input.sessionCreatedAt) {
+    const ct = new Date(input.sessionCreatedAt).getTime();
+    if (!isNaN(ct) && ct > 0) {
+      createdAtMs = ct;
+    }
+  } else if (startedAtMs !== null) {
+    createdAtMs = startedAtMs - accumulatedMs;
+  }
+
+  let wallClockCapSeconds: number | undefined;
+  if (createdAtMs !== null && createdAtMs > 0) {
+    const wallClockElapsedMs = Math.max(0, serverNow - createdAtMs);
+    wallClockCapSeconds = Math.floor(wallClockElapsedMs / 1000);
+    // 5-second grace window for rounding / network jitter
+    if (elapsedSeconds > wallClockCapSeconds + 5) {
+      console.warn(
+        `[Timer Sanity Guard] Computed elapsed (${elapsedSeconds}s) exceeds real wall-clock elapsed (${wallClockCapSeconds}s) since session start. Clamping to wall-clock time.`,
+        {
+          serverNow: new Date(serverNow).toISOString(),
+          createdAt: new Date(createdAtMs).toISOString(),
+          startedAt: startedAtMs ? new Date(startedAtMs).toISOString() : null,
+          accumulatedMs,
+          pausedTotalMs,
+          computedSeconds: elapsedSeconds,
+          clampedSeconds: wallClockCapSeconds,
+        }
+      );
+      elapsedSeconds = wallClockCapSeconds;
+      isClamped = true;
+    }
+  }
+
+  return {
+    elapsedSeconds,
+    elapsedMs: elapsedSeconds * 1000,
+    serverNow,
+    startedAtMs,
+    accumulatedMs,
+    pausedTotalMs,
+    isClamped,
+    wallClockCapSeconds,
+  };
+}
+
+/**
+ * Synchronizes and updates the local server clock offset.
+ */
+export async function syncServerClockOffset(): Promise<number> {
+  const start = Date.now();
+  const serverTime = await fetchAuthoritativeServerTime();
+  const latency = Math.max(0, Math.floor((Date.now() - start) / 2));
+  serverClockOffsetMs = (serverTime + latency) - Date.now();
+  return serverClockOffsetMs;
+}
+
 /**
  * Fetches the authoritative current server time to prevent local clock manipulation
  * and recover accurately from mobile WebView / browser tab sleep.

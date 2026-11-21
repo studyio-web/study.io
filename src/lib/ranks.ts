@@ -4,6 +4,8 @@ import {
   RankDivision,
   RankTierConfig,
   HARD_RESET_CAP_RP,
+  calculateSeasonRp,
+  getOldRankTierFromRp,
 } from './rankedSystem';
 
 export interface RankTier {
@@ -20,7 +22,7 @@ export interface RankTier {
   imagePath: string;
 }
 
-export { HARD_RESET_CAP_RP };
+export { HARD_RESET_CAP_RP, calculateSeasonRp, getOldRankTierFromRp };
 
 function getBadgeFilename(config: RankTierConfig): string {
   if (config.imagePath) {
@@ -45,7 +47,7 @@ export const RANK_TIERS: RankTier[] = SYSTEM_RANK_TIERS.map((cfg) => ({
   fullTitle: cfg.fullTitle || (cfg.division ? `${cfg.tier} ${cfg.division}` : cfg.tier),
   minRp: cfg.minRP,
   maxRp: cfg.maxRP,
-  minHours: cfg.minHours ?? Math.round(cfg.minRP / 100),
+  minHours: cfg.minHours ?? (cfg.minRP / 100),
   softResetRp: cfg.softResetRP ?? 0,
   softResetRank: cfg.softResetRank,
   badge: getBadgeFilename(cfg),
@@ -62,7 +64,49 @@ export function getSessionTimestamp(s: any): number {
 
 export function getSessionDurationSeconds(s: any): number {
   if (!s || typeof s !== 'object') return 0;
-  return Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0);
+  let dur = Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0);
+
+  // If active session currently running without fixed duration:
+  if ((s.status === 'running' || s.status === 'paused') && s.started_at) {
+    const startMs = new Date(s.started_at).getTime();
+    if (!isNaN(startMs)) {
+      const accum = Number(s.accumulated_seconds || 0);
+      const liveRunning = s.status === 'running' ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0;
+      dur = accum + liveRunning;
+    }
+  }
+
+  // Clip stopwatch sessions at confirmed_until and 24-hour absolute cap (stopwatch only)
+  if (s.mode === 'stopwatch' && !s.planned_end_at) {
+    if (s.confirmed_until) {
+      const confMs = new Date(s.confirmed_until).getTime();
+      const startMs = s.started_at ? new Date(s.started_at).getTime() : 0;
+      if (!isNaN(confMs) && startMs > 0) {
+        const maxConfSec = Math.max(0, Math.floor((confMs - startMs) / 1000));
+        dur = Math.min(dur, maxConfSec, 86400);
+      } else {
+        dur = Math.min(dur, 43200);
+      }
+    } else {
+      dur = Math.min(dur, 43200); // 12 hours unconfirmed cap
+    }
+    dur = Math.min(dur, 86400); // 24 hours absolute maximum cap
+  } else if (s.planned_end_at || s.mode === 'countdown' || s.mode === 'pomodoro') {
+    // Countdown / Pomodoro / Ultra: never clipped by 12h rule; capped at planned duration (up to 25h max with extension)
+    let plannedSec = Number(s.pomodoro_duration_seconds || s.planned_duration_seconds || 0);
+    if (!plannedSec && s.planned_end_at && s.started_at) {
+      const startMs = new Date(s.started_at).getTime();
+      const endMs = new Date(s.planned_end_at).getTime();
+      if (!isNaN(startMs) && !isNaN(endMs)) {
+        plannedSec = Math.max(0, Math.floor((endMs - startMs) / 1000));
+      }
+    }
+    if (plannedSec > 0) {
+      dur = Math.min(dur, Math.min(plannedSec, 90000));
+    }
+  }
+
+  return Math.max(0, dur);
 }
 
 /**
@@ -83,37 +127,6 @@ export function getCurrentMonthFocusSeconds(sessions: any[], referenceDate?: Dat
       return t >= startOfMonth && t <= endOfMonth;
     })
     .reduce((sum, s) => sum + Math.max(0, Math.floor(getSessionDurationSeconds(s))), 0);
-}
-
-/**
- * Unified Monthly Formula:
- * Season RP = Carryover RP + Math.floor(Current Month Focus Seconds / 36)
- * - 1 Hour of Focus   = 100 RP
- * - 1 Minute of Focus = ~1.67 RP (100 / 60)
- * - 1 Second of Focus = 1 / 36 RP
- * - Carryover RP is strictly capped at 23,600 RP (Grandmaster Soft Reset Cap)
- * 
- * Flexible signature supports:
- * calculateSeasonRp(carryoverRp, currentMonthFocusSeconds)
- * calculateSeasonRp(currentMonthFocusSeconds)
- */
-export function calculateSeasonRp(
-  carryoverOrSeconds: number = 0,
-  currentMonthSeconds?: number
-): number {
-  let carryoverRp = 0;
-  let seconds = 0;
-
-  if (typeof currentMonthSeconds === 'number') {
-    carryoverRp = carryoverOrSeconds;
-    seconds = currentMonthSeconds;
-  } else {
-    seconds = carryoverOrSeconds;
-  }
-
-  const safeCarryover = Math.min(HARD_RESET_CAP_RP, Math.max(0, Math.round(carryoverRp || 0)));
-  const earnedRp = Math.floor(Math.max(0, Math.floor(seconds || 0)) / 36);
-  return safeCarryover + earnedRp;
 }
 
 /**
@@ -181,9 +194,7 @@ export function resolveLiveSeasonStats(
   const startingRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, rawCarryover));
 
   const currentMonthSeconds = getCurrentMonthFocusSeconds(sessions || []);
-  const earnedThisMonthRp = Math.floor(currentMonthSeconds / 36);
-
-  const finalSeasonRp = startingRp + earnedThisMonthRp;
+  const finalSeasonRp = calculateSeasonRp(startingRp, currentMonthSeconds);
   const currentTier = getRankTier(finalSeasonRp);
   const nextTier = getNextTier(currentTier.name);
 

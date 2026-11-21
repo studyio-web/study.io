@@ -149,6 +149,25 @@ export async function initPushNotifications(userId?: string): Promise<void> {
       async (notification: PushNotificationSchema) => {
         console.log('[Push] pushNotificationReceived:', notification);
 
+        // Intercept and handle cross-device timer state changes immediately
+        if (notification.data?.type === 'timer_sync') {
+          const status = notification.data?.status;
+          if (status === 'stopped') {
+            TimerNotification.stop().catch(() => {});
+            TimerNotification.stopAlarm().catch(() => {});
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('studyio_remote_timer_stopped'));
+            }
+          } else {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('studyio_remote_timer_sync', { detail: notification.data })
+              );
+            }
+          }
+          return;
+        }
+
         // On Android, pushNotificationReceived fires ONLY when the app is active in the foreground.
         // FCM does not post a heads-up notification in foreground automatically, so we display it
         // using LocalNotifications.schedule so the user immediately sees the notification alert banner.

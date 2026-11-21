@@ -99,58 +99,58 @@ describe('Rank System - Boundary & RP Tests', () => {
   it('evaluates getRankTier at exact tier boundaries', () => {
     // Bronze
     assert.equal(getRankTier(0).name, 'Bronze I');
-    assert.equal(getRankTier(299).name, 'Bronze I');
-    assert.equal(getRankTier(300).name, 'Bronze II');
-    assert.equal(getRankTier(699).name, 'Bronze II');
-    assert.equal(getRankTier(700).name, 'Bronze III');
-    assert.equal(getRankTier(1199).name, 'Bronze III');
-    assert.equal(getRankTier(1200).name, 'Bronze IV');
-    assert.equal(getRankTier(1799).name, 'Bronze IV');
+    assert.equal(getRankTier(49).name, 'Bronze I');
+    assert.equal(getRankTier(50).name, 'Bronze II');
+    assert.equal(getRankTier(119).name, 'Bronze II');
+    assert.equal(getRankTier(120).name, 'Bronze III');
+    assert.equal(getRankTier(219).name, 'Bronze III');
+    assert.equal(getRankTier(220).name, 'Bronze IV');
+    assert.equal(getRankTier(349).name, 'Bronze IV');
 
     // Silver
-    assert.equal(getRankTier(1800).name, 'Silver I');
-    assert.equal(getRankTier(2499).name, 'Silver I');
-    assert.equal(getRankTier(2500).name, 'Silver II');
-    assert.equal(getRankTier(3299).name, 'Silver II');
-    assert.equal(getRankTier(3300).name, 'Silver III');
-    assert.equal(getRankTier(4199).name, 'Silver III');
-    assert.equal(getRankTier(4200).name, 'Silver IV');
-    assert.equal(getRankTier(5199).name, 'Silver IV');
+    assert.equal(getRankTier(350).name, 'Silver I');
+    assert.equal(getRankTier(499).name, 'Silver I');
+    assert.equal(getRankTier(500).name, 'Silver II');
+    assert.equal(getRankTier(699).name, 'Silver II');
+    assert.equal(getRankTier(700).name, 'Silver III');
+    assert.equal(getRankTier(949).name, 'Silver III');
+    assert.equal(getRankTier(950).name, 'Silver IV');
+    assert.equal(getRankTier(1249).name, 'Silver IV');
 
     // Gold
-    assert.equal(getRankTier(5200).name, 'Gold I');
-    assert.equal(getRankTier(6299).name, 'Gold I');
-    assert.equal(getRankTier(6300).name, 'Gold II');
-    assert.equal(getRankTier(7499).name, 'Gold II');
-    assert.equal(getRankTier(7500).name, 'Gold III');
-    assert.equal(getRankTier(8799).name, 'Gold III');
-    assert.equal(getRankTier(8800).name, 'Gold IV');
-    assert.equal(getRankTier(10199).name, 'Gold IV');
+    assert.equal(getRankTier(1250).name, 'Gold I');
+    assert.equal(getRankTier(1599).name, 'Gold I');
+    assert.equal(getRankTier(1600).name, 'Gold II');
+    assert.equal(getRankTier(1999).name, 'Gold II');
+    assert.equal(getRankTier(2000).name, 'Gold III');
+    assert.equal(getRankTier(2499).name, 'Gold III');
+    assert.equal(getRankTier(2500).name, 'Gold IV');
+    assert.equal(getRankTier(3099).name, 'Gold IV');
 
     // Platinum
-    assert.equal(getRankTier(10200).name, 'Platinum I');
-    assert.equal(getRankTier(11699).name, 'Platinum I');
-    assert.equal(getRankTier(11700).name, 'Platinum II');
-    assert.equal(getRankTier(13299).name, 'Platinum II');
-    assert.equal(getRankTier(13300).name, 'Platinum III');
-    assert.equal(getRankTier(14999).name, 'Platinum III');
-    assert.equal(getRankTier(15000).name, 'Platinum IV');
-    assert.equal(getRankTier(16999).name, 'Platinum IV');
+    assert.equal(getRankTier(3100).name, 'Platinum I');
+    assert.equal(getRankTier(3799).name, 'Platinum I');
+    assert.equal(getRankTier(3800).name, 'Platinum II');
+    assert.equal(getRankTier(4599).name, 'Platinum II');
+    assert.equal(getRankTier(4600).name, 'Platinum III');
+    assert.equal(getRankTier(5599).name, 'Platinum III');
+    assert.equal(getRankTier(5600).name, 'Platinum IV');
+    assert.equal(getRankTier(6799).name, 'Platinum IV');
 
     // Diamond
-    assert.equal(getRankTier(17000).name, 'Diamond I');
-    assert.equal(getRankTier(18999).name, 'Diamond I');
-    assert.equal(getRankTier(19000).name, 'Diamond II');
-    assert.equal(getRankTier(21199).name, 'Diamond II');
-    assert.equal(getRankTier(21200).name, 'Diamond III');
-    assert.equal(getRankTier(23599).name, 'Diamond III');
-    assert.equal(getRankTier(23600).name, 'Diamond IV');
-    assert.equal(getRankTier(25999).name, 'Diamond IV');
+    assert.equal(getRankTier(6800).name, 'Diamond I');
+    assert.equal(getRankTier(8199).name, 'Diamond I');
+    assert.equal(getRankTier(8200).name, 'Diamond II');
+    assert.equal(getRankTier(10399).name, 'Diamond II');
+    assert.equal(getRankTier(10400).name, 'Diamond III');
+    assert.equal(getRankTier(12799).name, 'Diamond III');
+    assert.equal(getRankTier(12800).name, 'Diamond IV');
+    assert.equal(getRankTier(16499).name, 'Diamond IV');
 
     // Apex Ranks
-    assert.equal(getRankTier(26000).name, 'Champion');
-    assert.equal(getRankTier(28999).name, 'Champion');
-    assert.equal(getRankTier(29000).name, 'Master');
+    assert.equal(getRankTier(16500).name, 'Champion');
+    assert.equal(getRankTier(22999).name, 'Champion');
+    assert.equal(getRankTier(23000).name, 'Master');
     assert.equal(getRankTier(32999).name, 'Master');
     assert.equal(getRankTier(33000).name, 'Grandmaster');
     assert.equal(getRankTier(50000).name, 'Grandmaster');
@@ -160,20 +160,20 @@ describe('Rank System - Boundary & RP Tests', () => {
     assert.equal(getRankTier(0).name, 'Bronze I');
     assert.equal(getRankTier(-100).name, 'Bronze I');
     assert.equal(getRankTier(NaN).name, 'Bronze I');
-    assert.equal(getRankTier(299.8).name, 'Bronze II'); // rounds 299.8 -> 300
-    assert.equal(getRankTier(299.2).name, 'Bronze I');  // rounds 299.2 -> 299
+    assert.equal(getRankTier(49.8).name, 'Bronze II'); // rounds 49.8 -> 50
+    assert.equal(getRankTier(49.2).name, 'Bronze I');  // rounds 49.2 -> 49
   });
 
   it('correctly maps all 23 rank tier badges', () => {
     assert.equal(RANK_TIERS.length, 23);
     assert.equal(getRankTier(0).badge, 'bronze-1.png');
-    assert.equal(getRankTier(300).badge, 'bronze-2.png');
-    assert.equal(getRankTier(1800).badge, 'silver-1.png');
-    assert.equal(getRankTier(5200).badge, 'gold-1.png');
-    assert.equal(getRankTier(10200).badge, 'platinum-1.png');
-    assert.equal(getRankTier(17000).badge, 'diamond-1.png');
-    assert.equal(getRankTier(26000).badge, 'champion.png');
-    assert.equal(getRankTier(29000).badge, 'master.png');
+    assert.equal(getRankTier(50).badge, 'bronze-2.png');
+    assert.equal(getRankTier(350).badge, 'silver-1.png');
+    assert.equal(getRankTier(1250).badge, 'gold-1.png');
+    assert.equal(getRankTier(3100).badge, 'platinum-1.png');
+    assert.equal(getRankTier(6800).badge, 'diamond-1.png');
+    assert.equal(getRankTier(16500).badge, 'champion.png');
+    assert.equal(getRankTier(23000).badge, 'master.png');
     assert.equal(getRankTier(33000).badge, 'grandmaster.png');
   });
 });
@@ -196,30 +196,39 @@ describe('Season RP Conversion Formula', () => {
     assert.equal(calculateSeasonRp(2500, 1800), 2550);
   });
 
-  it('enforces HARD_RESET_CAP_RP (23,600) on carryover RP', () => {
-    // Carryover of 30,000 is clamped to 23,600
+  it('enforces HARD_RESET_CAP_RP (12,800) on carryover RP', () => {
+    // Carryover of 30,000 is clamped to 12,800
     assert.equal(calculateSeasonRp(30000, 3600), HARD_RESET_CAP_RP + 100);
-    assert.equal(HARD_RESET_CAP_RP, 23600);
+    assert.equal(HARD_RESET_CAP_RP, 12800);
   });
 });
 
 describe('Monthly Soft Reset & Inactivity Decay', () => {
   it('correctly maps soft reset starting RP for every tier according to master table', () => {
-    assert.equal(calculateSeasonReset(0).newRP, 0);       // Bronze I -> 0 RP (Bronze I)
-    assert.equal(calculateSeasonReset(300).newRP, 100);   // Bronze II -> 100 RP (Bronze I)
-    assert.equal(calculateSeasonReset(700).newRP, 200);   // Bronze III -> 200 RP (Bronze I)
-    assert.equal(calculateSeasonReset(1200).newRP, 300);  // Bronze IV -> 300 RP (Bronze II)
-    assert.equal(calculateSeasonReset(1800).newRP, 700);  // Silver I -> 700 RP (Bronze III)
-    assert.equal(calculateSeasonReset(2500).newRP, 1200); // Silver II -> 1,200 RP (Bronze IV)
-    assert.equal(calculateSeasonReset(3300).newRP, 1800); // Silver III -> 1,800 RP (Silver I)
-    assert.equal(calculateSeasonReset(4200).newRP, 2500); // Silver IV -> 2,500 RP (Silver II)
-    assert.equal(calculateSeasonReset(5200).newRP, 3300); // Gold I -> 3,300 RP (Silver III)
-    assert.equal(calculateSeasonReset(10200).newRP, 7500);// Platinum I -> 7,500 RP (Gold III)
-    assert.equal(calculateSeasonReset(17000).newRP, 13300);// Diamond I -> 13,300 RP (Platinum III)
-    assert.equal(calculateSeasonReset(26000).newRP, 21200);// Champion -> 21,200 RP (Diamond III)
-    assert.equal(calculateSeasonReset(29000).newRP, 23600);// Master -> 23,600 RP (Diamond IV)
-    assert.equal(calculateSeasonReset(33000).newRP, 23600);// Grandmaster -> 23,600 RP (Diamond IV) [CAP]
-    assert.equal(calculateSeasonReset(100000).newRP, 23600);// Super high GM -> 23,600 RP [CAP]
+    assert.equal(calculateSeasonReset(0).newRP, 0);       // Bronze I -> 0 RP
+    assert.equal(calculateSeasonReset(50).newRP, 0);      // Bronze II -> 0 RP
+    assert.equal(calculateSeasonReset(120).newRP, 0);     // Bronze III -> 0 RP
+    assert.equal(calculateSeasonReset(220).newRP, 50);    // Bronze IV -> 50 RP
+    assert.equal(calculateSeasonReset(350).newRP, 120);   // Silver I -> 120 RP
+    assert.equal(calculateSeasonReset(500).newRP, 220);   // Silver II -> 220 RP
+    assert.equal(calculateSeasonReset(700).newRP, 350);   // Silver III -> 350 RP
+    assert.equal(calculateSeasonReset(950).newRP, 500);   // Silver IV -> 500 RP
+    assert.equal(calculateSeasonReset(1250).newRP, 700);  // Gold I -> 700 RP
+    assert.equal(calculateSeasonReset(1600).newRP, 950);  // Gold II -> 950 RP
+    assert.equal(calculateSeasonReset(2000).newRP, 1250); // Gold III -> 1,250 RP
+    assert.equal(calculateSeasonReset(2500).newRP, 1600); // Gold IV -> 1,600 RP
+    assert.equal(calculateSeasonReset(3100).newRP, 2000); // Platinum I -> 2,000 RP
+    assert.equal(calculateSeasonReset(3800).newRP, 2500); // Platinum II -> 2,500 RP
+    assert.equal(calculateSeasonReset(4600).newRP, 3100); // Platinum III -> 3,100 RP
+    assert.equal(calculateSeasonReset(5600).newRP, 3800); // Platinum IV -> 3,800 RP
+    assert.equal(calculateSeasonReset(6800).newRP, 4600); // Diamond I -> 4,600 RP
+    assert.equal(calculateSeasonReset(8200).newRP, 5600); // Diamond II -> 5,600 RP
+    assert.equal(calculateSeasonReset(10400).newRP, 6800);// Diamond III -> 6,800 RP
+    assert.equal(calculateSeasonReset(12800).newRP, 8200);// Diamond IV -> 8,200 RP
+    assert.equal(calculateSeasonReset(16500).newRP, 10400);// Champion -> 10,400 RP
+    assert.equal(calculateSeasonReset(23000).newRP, 12800);// Master -> 12,800 RP [CAP]
+    assert.equal(calculateSeasonReset(33000).newRP, 12800);// Grandmaster -> 12,800 RP [CAP]
+    assert.equal(calculateSeasonReset(100000).newRP, 12800);// Super high GM -> 12,800 RP [CAP]
   });
 
   it('decays inactive users (0 focus seconds in previous month) to 0 RP', () => {
@@ -231,13 +240,13 @@ describe('Monthly Soft Reset & Inactivity Decay', () => {
   });
 
   it('is idempotent: running soft reset twice produces the same stable result', () => {
-    const user = { username: 'consistent_user', last_season_rp: 5200 };
-    // 52 hours logged in previous month (5200 earned RP = Gold I)
+    const user = { username: 'consistent_user', last_season_rp: 4600 };
+    // 46 hours logged in previous month (4600 earned RP = Platinum III)
     const prevMonthDate = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
-    const sessions = [{ duration_seconds: 52 * 3600, started_at: prevMonthDate }];
+    const sessions = [{ duration_seconds: 46 * 3600, started_at: prevMonthDate }];
 
     const reset1 = resolveUserSeasonReset(user, sessions);
-    assert.equal(reset1.startingRP, 3300); // Gold I soft reset is 3,300 RP (Silver III)
+    assert.equal(reset1.startingRP, 3100); // Platinum III soft reset is 3,100 RP (Platinum I)
 
     const userAfterReset = {
       ...user,
@@ -245,7 +254,7 @@ describe('Monthly Soft Reset & Inactivity Decay', () => {
       last_reset_month: '2026-11',
     };
     const reset2 = resolveUserSeasonReset(userAfterReset, sessions);
-    assert.equal(reset2.startingRP, 3300);
+    assert.equal(reset2.startingRP, 3100);
   });
 });
 

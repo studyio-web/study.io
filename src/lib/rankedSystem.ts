@@ -47,19 +47,101 @@ export interface RankTierConfig {
   wingsAccent: string;
 }
 
-export const HARD_RESET_CAP_RP = 23600;
+export const LEGACY_OLD_RANK_THRESHOLDS = [
+  { name: 'Bronze I', minRP: 0 },
+  { name: 'Bronze II', minRP: 300 },
+  { name: 'Bronze III', minRP: 700 },
+  { name: 'Bronze IV', minRP: 1200 },
+  { name: 'Silver I', minRP: 1800 },
+  { name: 'Silver II', minRP: 2500 },
+  { name: 'Silver III', minRP: 3300 },
+  { name: 'Silver IV', minRP: 4200 },
+  { name: 'Gold I', minRP: 5200 },
+  { name: 'Gold II', minRP: 6300 },
+  { name: 'Gold III', minRP: 7500 },
+  { name: 'Gold IV', minRP: 8800 },
+  { name: 'Platinum I', minRP: 10200 },
+  { name: 'Platinum II', minRP: 11700 },
+  { name: 'Platinum III', minRP: 13300 },
+  { name: 'Platinum IV', minRP: 15000 },
+  { name: 'Diamond I', minRP: 17000 },
+  { name: 'Diamond II', minRP: 19000 },
+  { name: 'Diamond III', minRP: 21200 },
+  { name: 'Diamond IV', minRP: 23600 },
+  { name: 'Champion', minRP: 26000 },
+  { name: 'Master', minRP: 29000 },
+  { name: 'Grandmaster', minRP: 33000 },
+];
 
-export const RANK_TIERS: RankTierConfig[] = [
-  // Bronze: 0 – 1,799 RP
+/**
+ * Evaluates rank tier using historical OLD thresholds.
+ * Strictly for backfilling archived seasons that lack a saved rank title,
+ * preserving legacy historical records without rewriting past achievements.
+ */
+export function getOldRankTierFromRp(rp: number): string {
+  const safeRp = Math.max(0, Math.round(rp || 0));
+  for (let i = LEGACY_OLD_RANK_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (safeRp >= LEGACY_OLD_RANK_THRESHOLDS[i].minRP) {
+      return LEGACY_OLD_RANK_THRESHOLDS[i].name;
+    }
+  }
+  return 'Bronze I';
+}
+
+export const HARD_RESET_CAP_RP = 12800;
+
+/**
+ * Unified Monthly Formula:
+ * Season RP = Carryover RP + Math.floor(Current Month Focus Seconds / 36)
+ * - 1 Hour of Focus   = 100 RP
+ * - 1 Minute of Focus = ~1.67 RP (100 / 60)
+ * - 1 Second of Focus = 1 / 36 RP
+ * - Carryover RP is strictly capped at 12,800 RP (Diamond IV Soft Reset Cap)
+ * 
+ * Flexible signature supports:
+ * calculateSeasonRp(carryoverRp, currentMonthFocusSeconds)
+ * calculateSeasonRp(currentMonthFocusSeconds)
+ */
+export function calculateSeasonRp(
+  carryoverOrSeconds: number = 0,
+  currentMonthSeconds?: number
+): number {
+  let carryoverRp = 0;
+  let seconds = 0;
+
+  if (typeof currentMonthSeconds === 'number') {
+    carryoverRp = carryoverOrSeconds;
+    seconds = currentMonthSeconds;
+  } else {
+    seconds = carryoverOrSeconds;
+  }
+
+  const safeCarryover = Math.min(HARD_RESET_CAP_RP, Math.max(0, Math.round(carryoverRp || 0)));
+  const earnedRp = Math.floor(Math.max(0, Math.floor(seconds || 0)) / 36);
+  return safeCarryover + earnedRp;
+}
+
+interface RawRankTierConfig {
+  tier: RankTierName;
+  division: RankDivision;
+  fullTitle: string;
+  minRP: number;
+  imagePath?: string;
+  badgeAccent: string;
+  badgeSecondary: string;
+  glowColor: string;
+  metallicGradient: string;
+  borderGlow: string;
+  wingsAccent: string;
+}
+
+const RAW_RANK_TIERS: RawRankTierConfig[] = [
+  // Bronze: 0 – 349 RP
   {
     tier: 'Bronze',
     division: 'I',
     fullTitle: 'BRONZE I',
-    minHours: 0,
     minRP: 0,
-    maxRP: 300,
-    softResetRP: 0,
-    softResetRank: 'BRONZE I',
     imagePath: '/images/ranks/bronze-1.png',
     badgeAccent: '#D97706',
     badgeSecondary: '#92400E',
@@ -72,11 +154,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Bronze',
     division: 'II',
     fullTitle: 'BRONZE II',
-    minHours: 3,
-    minRP: 300,
-    maxRP: 700,
-    softResetRP: 100,
-    softResetRank: 'BRONZE I',
+    minRP: 50,
     imagePath: '/images/ranks/bronze-2.png',
     badgeAccent: '#D97706',
     badgeSecondary: '#92400E',
@@ -89,11 +167,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Bronze',
     division: 'III',
     fullTitle: 'BRONZE III',
-    minHours: 7,
-    minRP: 700,
-    maxRP: 1200,
-    softResetRP: 200,
-    softResetRank: 'BRONZE I',
+    minRP: 120,
     imagePath: '/images/ranks/bronze-3.png',
     badgeAccent: '#F59E0B',
     badgeSecondary: '#B45309',
@@ -106,11 +180,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Bronze',
     division: 'IV',
     fullTitle: 'BRONZE IV',
-    minHours: 12,
-    minRP: 1200,
-    maxRP: 1800,
-    softResetRP: 300,
-    softResetRank: 'BRONZE II',
+    minRP: 220,
     imagePath: '/images/ranks/bronze-4.png',
     badgeAccent: '#F59E0B',
     badgeSecondary: '#B45309',
@@ -120,16 +190,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#F59E0B',
   },
 
-  // Silver: 1,800 – 5,199 RP
+  // Silver: 350 – 1,249 RP
   {
     tier: 'Silver',
     division: 'I',
     fullTitle: 'SILVER I',
-    minHours: 18,
-    minRP: 1800,
-    maxRP: 2500,
-    softResetRP: 700,
-    softResetRank: 'BRONZE III',
+    minRP: 350,
     imagePath: '/images/ranks/silver-1.png',
     badgeAccent: '#94A3B8',
     badgeSecondary: '#475569',
@@ -142,11 +208,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Silver',
     division: 'II',
     fullTitle: 'SILVER II',
-    minHours: 25,
-    minRP: 2500,
-    maxRP: 3300,
-    softResetRP: 1200,
-    softResetRank: 'BRONZE IV',
+    minRP: 500,
     imagePath: '/images/ranks/silver-2.png',
     badgeAccent: '#CBD5E1',
     badgeSecondary: '#64748B',
@@ -159,11 +221,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Silver',
     division: 'III',
     fullTitle: 'SILVER III',
-    minHours: 33,
-    minRP: 3300,
-    maxRP: 4200,
-    softResetRP: 1800,
-    softResetRank: 'SILVER I',
+    minRP: 700,
     imagePath: '/images/ranks/silver-3.png',
     badgeAccent: '#E2E8F0',
     badgeSecondary: '#94A3B8',
@@ -176,11 +234,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Silver',
     division: 'IV',
     fullTitle: 'SILVER IV',
-    minHours: 42,
-    minRP: 4200,
-    maxRP: 5200,
-    softResetRP: 2500,
-    softResetRank: 'SILVER II',
+    minRP: 950,
     imagePath: '/images/ranks/silver-4.png',
     badgeAccent: '#E2E8F0',
     badgeSecondary: '#94A3B8',
@@ -190,16 +244,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#F8FAFC',
   },
 
-  // Gold: 5,200 – 10,199 RP
+  // Gold: 1,250 – 3,099 RP
   {
     tier: 'Gold',
     division: 'I',
     fullTitle: 'GOLD I',
-    minHours: 52,
-    minRP: 5200,
-    maxRP: 6300,
-    softResetRP: 3300,
-    softResetRank: 'SILVER III',
+    minRP: 1250,
     imagePath: '/images/ranks/gold-1.png',
     badgeAccent: '#EAB308',
     badgeSecondary: '#A16207',
@@ -212,11 +262,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Gold',
     division: 'II',
     fullTitle: 'GOLD II',
-    minHours: 63,
-    minRP: 6300,
-    maxRP: 7500,
-    softResetRP: 4200,
-    softResetRank: 'SILVER IV',
+    minRP: 1600,
     imagePath: '/images/ranks/gold-2.png',
     badgeAccent: '#F59E0B',
     badgeSecondary: '#B45309',
@@ -229,11 +275,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Gold',
     division: 'III',
     fullTitle: 'GOLD III',
-    minHours: 75,
-    minRP: 7500,
-    maxRP: 8800,
-    softResetRP: 5200,
-    softResetRank: 'GOLD I',
+    minRP: 2000,
     imagePath: '/images/ranks/gold-3.png',
     badgeAccent: '#F59E0B',
     badgeSecondary: '#D97706',
@@ -246,11 +288,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Gold',
     division: 'IV',
     fullTitle: 'GOLD IV',
-    minHours: 88,
-    minRP: 8800,
-    maxRP: 10200,
-    softResetRP: 6300,
-    softResetRank: 'GOLD II',
+    minRP: 2500,
     imagePath: '/images/ranks/gold-4.png',
     badgeAccent: '#FBBF24',
     badgeSecondary: '#B45309',
@@ -260,16 +298,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#FEF08A',
   },
 
-  // Platinum: 10,200 – 16,999 RP
+  // Platinum: 3,100 – 6,799 RP
   {
     tier: 'Platinum',
     division: 'I',
     fullTitle: 'PLATINUM I',
-    minHours: 102,
-    minRP: 10200,
-    maxRP: 11700,
-    softResetRP: 7500,
-    softResetRank: 'GOLD III',
+    minRP: 3100,
     imagePath: '/images/ranks/platinum-1.png',
     badgeAccent: '#06B6D4',
     badgeSecondary: '#0E7490',
@@ -282,11 +316,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Platinum',
     division: 'II',
     fullTitle: 'PLATINUM II',
-    minHours: 117,
-    minRP: 11700,
-    maxRP: 13300,
-    softResetRP: 8800,
-    softResetRank: 'GOLD IV',
+    minRP: 3800,
     imagePath: '/images/ranks/platinum-2.png',
     badgeAccent: '#06B6D4',
     badgeSecondary: '#155E75',
@@ -299,11 +329,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Platinum',
     division: 'III',
     fullTitle: 'PLATINUM III',
-    minHours: 133,
-    minRP: 13300,
-    maxRP: 15000,
-    softResetRP: 10200,
-    softResetRank: 'PLATINUM I',
+    minRP: 4600,
     imagePath: '/images/ranks/platinum-3.png',
     badgeAccent: '#0EA5E9',
     badgeSecondary: '#0369A1',
@@ -316,11 +342,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Platinum',
     division: 'IV',
     fullTitle: 'PLATINUM IV',
-    minHours: 150,
-    minRP: 15000,
-    maxRP: 17000,
-    softResetRP: 11700,
-    softResetRank: 'PLATINUM II',
+    minRP: 5600,
     imagePath: '/images/ranks/platinum-4.png',
     badgeAccent: '#38BDF8',
     badgeSecondary: '#0284C7',
@@ -330,16 +352,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#A5F3FC',
   },
 
-  // Diamond: 17,000 – 25,999 RP
+  // Diamond: 6,800 – 16,499 RP
   {
     tier: 'Diamond',
     division: 'I',
     fullTitle: 'DIAMOND I',
-    minHours: 170,
-    minRP: 17000,
-    maxRP: 19000,
-    softResetRP: 13300,
-    softResetRank: 'PLATINUM III',
+    minRP: 6800,
     imagePath: '/images/ranks/diamond-1.png',
     badgeAccent: '#A855F7',
     badgeSecondary: '#6B21A8',
@@ -352,11 +370,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Diamond',
     division: 'II',
     fullTitle: 'DIAMOND II',
-    minHours: 190,
-    minRP: 19000,
-    maxRP: 21200,
-    softResetRP: 15000,
-    softResetRank: 'PLATINUM IV',
+    minRP: 8200,
     imagePath: '/images/ranks/diamond-2.png',
     badgeAccent: '#C084FC',
     badgeSecondary: '#7E22CE',
@@ -369,11 +383,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Diamond',
     division: 'III',
     fullTitle: 'DIAMOND III',
-    minHours: 212,
-    minRP: 21200,
-    maxRP: 23600,
-    softResetRP: 17000,
-    softResetRank: 'DIAMOND I',
+    minRP: 10400,
     imagePath: '/images/ranks/diamond-3.png',
     badgeAccent: '#D946EF',
     badgeSecondary: '#86198F',
@@ -386,11 +396,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Diamond',
     division: 'IV',
     fullTitle: 'DIAMOND IV',
-    minHours: 236,
-    minRP: 23600,
-    maxRP: 26000,
-    softResetRP: 19000,
-    softResetRank: 'DIAMOND II',
+    minRP: 12800,
     imagePath: '/images/ranks/diamond-4.png',
     badgeAccent: '#E879F9',
     badgeSecondary: '#A21CAF',
@@ -400,16 +406,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#F5D0FE',
   },
 
-  // Champion: 26,000 – 28,999 RP
+  // Champion: 16,500 – 22,999 RP
   {
     tier: 'Champion',
     division: '',
     fullTitle: 'CHAMPION',
-    minHours: 260,
-    minRP: 26000,
-    maxRP: 29000,
-    softResetRP: 21200,
-    softResetRank: 'DIAMOND III',
+    minRP: 16500,
     imagePath: '/images/ranks/champion.png',
     badgeAccent: '#B24FE8',
     badgeSecondary: '#7B35B8',
@@ -419,16 +421,12 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#D2A4FB',
   },
 
-  // Master: 29,000 – 32,999 RP
+  // Master: 23,000 – 32,999 RP
   {
     tier: 'Master',
     division: '',
     fullTitle: 'MASTER',
-    minHours: 290,
-    minRP: 29000,
-    maxRP: 33000,
-    softResetRP: 23600,
-    softResetRank: 'DIAMOND IV',
+    minRP: 23000,
     imagePath: '/images/ranks/master.png',
     badgeAccent: '#5B4FE8',
     badgeSecondary: '#4135B3',
@@ -443,11 +441,7 @@ export const RANK_TIERS: RankTierConfig[] = [
     tier: 'Grandmaster',
     division: '',
     fullTitle: 'GRANDMASTER',
-    minHours: 330,
     minRP: 33000,
-    maxRP: 999999,
-    softResetRP: 23600,
-    softResetRank: 'DIAMOND IV',
     imagePath: '/images/ranks/grandmaster.png',
     badgeAccent: '#FF3366',
     badgeSecondary: '#B81840',
@@ -457,6 +451,36 @@ export const RANK_TIERS: RankTierConfig[] = [
     wingsAccent: '#FF8AAB',
   },
 ];
+
+/**
+ * Derived master rank tier table.
+ * All properties are calculated from single config & rules:
+ * - minHours = minRP / 100
+ * - maxRP = nextTier.minRP (Grandmaster: 999999)
+ * - Soft Reset: carryover = minimum RP of the tier 2 below,
+ *   floored at 0 and capped at Diamond IV minimum (12,800).
+ */
+export const RANK_TIERS: RankTierConfig[] = RAW_RANK_TIERS.map((raw, idx, all) => {
+  const minHours = raw.minRP / 100;
+  const maxRP = idx < all.length - 1 ? all[idx + 1].minRP : 999999;
+
+  // 2-below soft reset rule:
+  const targetIdx = idx - 2;
+  const rawCarryover = targetIdx >= 0 ? all[targetIdx].minRP : 0;
+  const softResetRP = Math.min(HARD_RESET_CAP_RP, Math.max(0, rawCarryover));
+
+  // Derive softResetRank directly
+  const targetTier = all.slice().reverse().find((t) => softResetRP >= t.minRP) || all[0];
+  const softResetRank = targetTier.fullTitle;
+
+  return {
+    ...raw,
+    minHours,
+    maxRP,
+    softResetRP,
+    softResetRank,
+  };
+});
 
 export interface RankTierDetails {
   config: RankTierConfig;
@@ -525,6 +549,7 @@ export interface CalculateSessionRPOptions {
   hasCompletedTask?: boolean;
   lastStreakBonusDate?: string | null;
   todayString?: string;
+  currentMonthSecondsBefore?: number;
 }
 
 /**
@@ -534,7 +559,7 @@ export interface CalculateSessionRPOptions {
  * 1 Minute of Focus = ~1.67 RP (100 / 60)
  * 1 Second of Focus = 1 / 36 RP
  * - Under 60s (< 1 min): gained RP is 0, isUnderMinDuration: true
- * - >= 60s: Math.floor(safeDuration / 36)
+ * - >= 60s: calculated via unified calculateSeasonRp with cumulative monthly carryover
  */
 export function calculateSessionRP(
   durationSeconds: number,
@@ -556,8 +581,13 @@ export function calculateSessionRP(
     };
   }
 
-  // 2. Base duration RP: 1 Hour = 100 RP -> Math.floor(safeDuration / 36)
-  const sessionRP = Math.floor(safeDuration / 36);
+  // 2. Base duration RP: derived from single authoritative calculateSeasonRp
+  let sessionRP = calculateSeasonRp(0, safeDuration);
+  if (typeof options?.currentMonthSecondsBefore === 'number') {
+    const before = calculateSeasonRp(0, options.currentMonthSecondsBefore);
+    const after = calculateSeasonRp(0, options.currentMonthSecondsBefore + safeDuration);
+    sessionRP = Math.max(0, after - before);
+  }
   const totalGained = sessionRP;
 
   return {
@@ -573,7 +603,7 @@ export function calculateSessionRP(
 
 /**
  * Calculate Monthly Soft Rank Reset
- * Strictly follows the V2 Master Soft Reset Table with 26,000 RP Hard Reset Cap
+ * Strictly follows the dynamic 2-below soft reset rule with 12,800 RP Hard Reset Cap (Diamond IV)
  */
 export function calculateSeasonReset(previousRP: number): {
   newRP: number;
@@ -584,7 +614,7 @@ export function calculateSeasonReset(previousRP: number): {
   const previousTier = getRankTier(safeRP);
 
   const carryover = previousTier.config.softResetRP ?? 0;
-  // Strictly enforce Hard Reset Cap at 26,000 RP (Diamond IV)
+  // Strictly enforce Hard Reset Cap at 12,800 RP (Diamond IV)
   const newRP = Math.min(HARD_RESET_CAP_RP, carryover);
   const newTier = getRankTier(newRP);
 
@@ -698,7 +728,7 @@ export function resolveUserSeasonReset(
   }
 
   const previousRankTitle = matchedTier.fullTitle;
-  // Grandmaster Cap strictly enforced at 23,600 RP
+  // Grandmaster Cap strictly enforced at 12,800 RP (Diamond IV)
   const startingRP = Math.min(HARD_RESET_CAP_RP, matchedTier.softResetRP ?? 0);
   const newRankTitle = matchedTier.softResetRank || getRankTier(startingRP).config.fullTitle;
 

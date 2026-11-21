@@ -20,8 +20,31 @@ class BootReceiver : BroadcastReceiver() {
         }
         Log.i(TAG, "BootReceiver triggered by action: $action")
 
-        val pending = AlarmScheduler.getPendingAlarm(context) ?: return
         val now = System.currentTimeMillis()
+
+        // 1. Release expired Ultra Strict lockdown if ultra_ends_at passed while device was powered down
+        try {
+            val timerPrefs = context.getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            val ultraEndsAt = timerPrefs.getLong("ultra_ends_at", 0L)
+            val isRunning = timerPrefs.getBoolean("is_running", false)
+            val isPaused = timerPrefs.getBoolean("is_paused", false)
+
+            if (ultraEndsAt in 1..now || (isRunning && timerPrefs.getString("mode", "") == "countdown" && timerPrefs.getInt("target_seconds", 0) > 0 && timerPrefs.getLong("started_at", 0L) + timerPrefs.getInt("target_seconds", 0) * 1000L <= now)) {
+                val strictPrefs = context.getSharedPreferences("studyio_strict_prefs", Context.MODE_PRIVATE)
+                strictPrefs.edit().putBoolean("is_ultra", false).apply()
+                timerPrefs.edit()
+                    .putBoolean("is_running", false)
+                    .putBoolean("is_paused", false)
+                    .putLong("ultra_ends_at", 0L)
+                    .apply()
+                Log.i(TAG, "Released Ultra Strict lock on boot because lockdown period expired while powered off.")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking expired Ultra Strict lock on reboot", e)
+        }
+
+        // 2. Re-arm or notify for pending countdown alarm
+        val pending = AlarmScheduler.getPendingAlarm(context) ?: return
 
         if (pending.triggerAtMs > now) {
             Log.i(TAG, "Re-scheduling pending countdown alarm after reboot: ${pending.id} at ${pending.triggerAtMs}")

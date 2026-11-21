@@ -11,7 +11,7 @@ import React, {
 } from 'react';
 import { useAuth } from './AuthContext';
 import { useStudy } from './StudyContext';
-import { getRankTier, getNextTier, RankTier, HARD_RESET_CAP_RP } from '@/lib/ranks';
+import { getRankTier, getNextTier, RankTier, HARD_RESET_CAP_RP, calculateSeasonRp } from '@/lib/ranks';
 import { getSupabase } from '@/lib/supabase';
 import { LeaderboardEntry } from '@/types';
 import { useDevRankPreview } from '@/lib/devRankPreview';
@@ -262,7 +262,7 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
                 const isMe = Boolean(user?.id && p.id === user.id);
                 const mSec = monthSecsByUser[p.id] || 0;
                 const carryoverRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(p.season_base_rp || 0)));
-                const seasonRp = carryoverRp + Math.floor(mSec / 36);
+                const seasonRp = calculateSeasonRp(carryoverRp, mSec);
                 const tierObj = getRankTier(seasonRp);
 
                 return {

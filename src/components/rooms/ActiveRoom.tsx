@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { computeElapsedSessionSeconds } from '../../lib/serverTime';
 import { Capacitor } from '@capacitor/core';
 import { createPortal } from 'react-dom';
 import {
@@ -2595,10 +2596,14 @@ CREATE POLICY "Hosts can update their own study rooms"
         isOnline = false;
         isStudying = member.is_studying;
         if (isStudying && member.timer_start_at) {
-          sessionSeconds = Math.max(
-            0,
-            Math.floor((nowTick - member.timer_start_at) / 1000) + (member.accumulated_seconds || 0)
-          );
+          const res = computeElapsedSessionSeconds({
+            startedAt: member.timer_start_at,
+            serverNow: nowTick,
+            accumulatedMs: (member.accumulated_seconds || 0) * 1000,
+            sessionCreatedAt: member.timer_start_at,
+            status: 'running',
+          });
+          sessionSeconds = res.elapsedSeconds;
           totalFocusSeconds = baseToday + sessionSeconds;
         } else {
           sessionSeconds = 0;

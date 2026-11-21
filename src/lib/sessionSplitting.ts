@@ -1,3 +1,5 @@
+import { calculateSeasonRp } from './ranks';
+
 export interface RawSessionInput {
   subjectId?: string;
   subjectName?: string;
@@ -46,7 +48,7 @@ export function splitSessionAtMidnights(
     // Chunk end is either next midnight or the actual session end time
     const chunkEnd = nextMidnight < end ? nextMidnight : end;
     const chunkSeconds = Math.max(1, Math.floor((chunkEnd.getTime() - currentCursor.getTime()) / 1000));
-    const chunkRp = Math.floor(chunkSeconds / 36);
+    const chunkRp = calculateSeasonRp(0, chunkSeconds);
 
     sessions.push({
       ...meta,

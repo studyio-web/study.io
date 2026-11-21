@@ -44,10 +44,13 @@ import {
   WifiOff,
   Shield,
   Lock,
+  CloudOff,
+  AlertTriangle,
 } from 'lucide-react';
 import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
 import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import { TimerAlarmModal } from './TimerAlarmModal';
+import { StillStudyingModal } from './StillStudyingModal';
 import { AlarmSetupModal } from './AlarmSetupModal';
 import { App } from '@capacitor/app';
 import {
@@ -81,7 +84,7 @@ import { enterFullscreenSafely, exitFullscreenSafely } from './FocusModeModal';
 import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 import { notify } from '../../lib/notifications';
 import { getSupabase } from '../../lib/supabase';
-import { fetchAuthoritativeServerTime, saveValidatedSession } from '../../lib/serverTime';
+import { fetchAuthoritativeServerTime, saveValidatedSession, computeElapsedSessionSeconds, getServerNow } from '../../lib/serverTime';
 import { getDailyQuote } from '../../lib/quotes';
 import { motion, useReducedMotion } from 'framer-motion';
 import { TimerDial } from './TimerDial';
@@ -160,6 +163,13 @@ export function StudyTimer() {
     isUltraStrict,
     setIsUltraStrict,
     syncTimerMode,
+    hasPendingSync,
+    isStillStudyingPromptOpen,
+    stillStudyingPromptTime,
+    confirmStillStudying,
+    closeStillStudyingPrompt,
+    autoCloseNotice,
+    dismissAutoCloseNotice,
   } = useStudy();
 
   const subjectList = Array.isArray(subjects) ? subjects : [];
@@ -1028,15 +1038,6 @@ export function StudyTimer() {
       setIsAlarmRinging(false);
       setAlarmModalData(null);
 
-      // Strict offline gate: User cannot stop and save when network is disconnected
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        toast.error('Network connection required to save session. Please reconnect.', {
-          id: 'offline-stop-blocked',
-          duration: 4000,
-        });
-        return;
-      }
-
       triggerHaptic('medium');
 
       // Anti-Exploit: Immediately purge timer seconds cache to prevent ghost resurrects
@@ -1613,10 +1614,17 @@ export function StudyTimer() {
               setPomodoroPhase(servicePhase as any);
             }
 
-            const now = Date.now();
+            const now = getServerNow();
             let currentElapsed = serviceElapsed;
             if (serviceRunning && serviceStartTime > 0) {
-              currentElapsed = serviceElapsed + Math.max(0, Math.floor((now - serviceStartTime) / 1000));
+              const res = computeElapsedSessionSeconds({
+                startedAt: serviceStartTime,
+                serverNow: now,
+                accumulatedMs: serviceElapsed * 1000,
+                sessionCreatedAt: serviceStartTime,
+                status: 'running',
+              });
+              currentElapsed = res.elapsedSeconds;
             }
 
             // Check if countdown target was completed while away
@@ -2370,13 +2378,40 @@ export function StudyTimer() {
 
       {/* Bottom Section: Primary Button Stack + Atmosphere/Focus + Today (shrink-0, pinned to bottom) */}
       <div className="w-full flex flex-col items-center shrink-0 mt-auto pb-0.5 sm:pb-1">
-        {/* Network Status Warning Banner: Visible when offline during active or pending session */}
-        {!isOnline && (isRunning || isPaused || isStudying || elapsedSeconds > 0 || isCountdownCompleted) && (
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-400 font-mono py-1 px-3 rounded-full bg-amber-500/10 border border-amber-500/20 mb-2 select-none animate-in fade-in duration-200">
-            <WifiOff className="w-3.5 h-3.5 shrink-0" />
-            <span>Offline: Reconnect internet to stop &amp; save</span>
+        {/* Auto-Close Notice Banner */}
+        {autoCloseNotice && (
+          <div className="w-full max-w-md mx-auto mb-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-amber-200 text-xs animate-in fade-in duration-200">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-300">Session Auto-Closed</p>
+              <p className="text-amber-200/80 mt-0.5">{autoCloseNotice}</p>
+            </div>
+            <button
+              type="button"
+              onClick={dismissAutoCloseNotice}
+              className="p-1 text-amber-400 hover:text-amber-200 transition-colors"
+              aria-label="Dismiss notice"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
+
+        {/* Network & Outbox Sync Status Indicators */}
+        <div className="flex items-center gap-2 mb-2">
+          {!isOnline && (
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-400 font-mono py-0.5 px-2.5 rounded-full bg-amber-500/10 border border-amber-500/20 select-none animate-in fade-in duration-200">
+              <WifiOff className="w-3 h-3 shrink-0" />
+              <span>Offline</span>
+            </div>
+          )}
+          {hasPendingSync && (
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-mono py-0.5 px-2.5 rounded-full bg-amber-500/10 border border-amber-500/20 select-none animate-in fade-in duration-200">
+              <CloudOff className="w-3 h-3 shrink-0" />
+              <span>Not synced</span>
+            </div>
+          )}
+        </div>
 
         {/* 4. Primary Button Stack */}
         <div className="w-full flex items-center justify-center mt-1.5 mb-2.5">
@@ -2637,32 +2672,14 @@ export function StudyTimer() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
-                    toast.error('Network connection required to save session. Please reconnect.', {
-                      id: 'offline-stop-blocked',
-                      duration: 4000,
-                    });
-                    return;
-                  }
-                  handleStopAndSave();
-                }}
+                onClick={() => handleStopAndSave()}
                 disabled={isSaving}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer ${!isOnline
-                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
-                  : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
-                  }`}
-                title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
+                className="flex-1 h-[52px] rounded-full border border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-rose-300 border-t-transparent rounded-full animate-spin" />
                     <span>Saving...</span>
-                  </>
-                ) : !isOnline ? (
-                  <>
-                    <WifiOff className="w-4 h-4 text-white/40" />
-                    <span>Offline</span>
                   </>
                 ) : (
                   <>
@@ -2685,32 +2702,14 @@ export function StudyTimer() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
-                    toast.error('Network connection required to save session. Please reconnect.', {
-                      id: 'offline-stop-blocked',
-                      duration: 4000,
-                    });
-                    return;
-                  }
-                  handleStopAndSave();
-                }}
+                onClick={() => handleStopAndSave()}
                 disabled={isSaving}
-                className={`flex-1 h-[52px] rounded-full border text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer ${!isOnline
-                  ? 'border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
-                  : 'border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 cursor-pointer disabled:opacity-50'
-                  }`}
-                title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
+                className="flex-1 h-[52px] rounded-full border border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 text-rose-300 text-sm font-medium active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-rose-300 border-t-transparent rounded-full animate-spin" />
                     <span>Saving...</span>
-                  </>
-                ) : !isOnline ? (
-                  <>
-                    <WifiOff className="w-4 h-4 text-white/40" />
-                    <span>Offline</span>
                   </>
                 ) : (
                   <>
@@ -3011,6 +3010,18 @@ export function StudyTimer() {
         onSave={handleSaveAndContinueFromAlarm}
         onStartBreak={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'work' ? handleStartBreakFromAlarm : undefined}
         onStartFocus={alarmModalData?.mode === 'pomodoro' && alarmModalData?.phase === 'break' ? handleStartFocusFromAlarm : undefined}
+      />
+
+      {/* 12-Hour "Still Studying?" Prompt Modal (Stopwatch mode only) */}
+      <StillStudyingModal
+        isOpen={isStillStudyingPromptOpen && timerMode === 'stopwatch' && !isUltraStrict}
+        promptStartTime={stillStudyingPromptTime}
+        onConfirm={confirmStillStudying}
+        onDismiss={closeStillStudyingPrompt}
+        onStopAndSave={() => {
+          closeStillStudyingPrompt();
+          handleStopAndSave();
+        }}
       />
     </div>
   );

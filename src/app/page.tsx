@@ -13,6 +13,7 @@ import { IdleCheckModal } from '../components/timer/IdleCheckModal';
 import { IntroductionAndLogin } from '../components/common/IntroductionAndLogin';
 import { XpFloatingNotification } from '../components/gamification/XpFloatingNotification';
 import { SeasonRecapBanner } from '../components/gamification/SeasonRecapBanner';
+import { RankUpdatedBanner } from '../components/gamification/RankUpdatedBanner';
 import { SeasonResetAlertModal } from '../components/gamification/SeasonResetAlertModal';
 import { DailyBoostModal } from '../components/common/DailyBoostModal';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -449,6 +450,9 @@ export default function Home() {
             onDismiss={dismissSeasonRecap}
           />
         )}
+
+        {/* Dismissible Rank System Update Banner */}
+        <RankUpdatedBanner />
 
         {/* Main Content Area with Mobile Swipe Navigation */}
         <main className="w-full flex flex-col items-center relative z-10 px-0 md:px-8 flex-1 min-h-0 overflow-hidden pt-0 pb-0">

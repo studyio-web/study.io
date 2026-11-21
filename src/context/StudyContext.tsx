@@ -37,7 +37,22 @@ import {
   resolveLiveSeasonStats,
 } from '../lib/ranks';
 import { getCachedUserState, saveCachedUserState } from '../lib/userCache';
-import { fetchAuthoritativeServerTime, saveValidatedSession } from '../lib/serverTime';
+import { fetchAuthoritativeServerTime, saveValidatedSession, getServerNow, syncServerClockOffset, computeElapsedSessionSeconds } from '../lib/serverTime';
+import {
+  STILL_STUDYING_AFTER_HOURS,
+  CONFIRM_WINDOW_MINUTES,
+  ABSOLUTE_MAX_SESSION_HOURS,
+  PAUSED_SESSION_AUTO_CLOSE_HOURS,
+  POLL_INTERVAL_VISIBLE_SECONDS,
+} from '../config/timerConfig';
+import {
+  enqueueTimerEvent,
+  dequeueTimerEvent,
+  flushTimerOutbox,
+  subscribeOutboxStatus,
+  hasPendingOutboxEvents,
+  TimerOutboxEvent,
+} from '../lib/timerOutbox';
 import { calculateNonOverlappingSeconds } from '../lib/nonOverlappingTime';
 import { notify, initNotificationChannels, requestNotificationPermission as requestNotifyPermission } from '../lib/notifications';
 import { isNativeAndroid } from '../lib/timerNotificationPlugin';
@@ -169,6 +184,13 @@ interface StudyContextType {
     notes?: string;
     mode?: TimerMode;
   }) => Promise<boolean>;
+  hasPendingSync: boolean;
+  isStillStudyingPromptOpen: boolean;
+  stillStudyingPromptTime: number;
+  confirmStillStudying: () => Promise<void>;
+  closeStillStudyingPrompt: () => void;
+  autoCloseNotice: string | null;
+  dismissAutoCloseNotice: () => void;
 }
 
 export const getSubjectStorageKey = (uid?: string) => `study_io_subjects_${uid || 'guest'}`;
@@ -639,6 +661,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [isFocusModeOpen, setIsFocusModeOpen] = useState(false);
   const [isIdleCheckActive, setIsIdleCheckActive] = useState(false);
   const [isBlockedByOtherTab, setIsBlockedByOtherTab] = useState(false);
+  const [hasPendingSync, setHasPendingSync] = useState(hasPendingOutboxEvents());
+  const [isStillStudyingPromptOpen, setIsStillStudyingPromptOpen] = useState(false);
+  const [stillStudyingPromptTime, setStillStudyingPromptTime] = useState(Date.now());
+  const [autoCloseNotice, setAutoCloseNotice] = useState<string | null>(null);
+  const stillStudyingPromptTriggeredRef = useRef(false);
+  const sessionVersionRef = useRef<number>(1);
+  const tabIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `tab-${Date.now()}`
+  );
+  const isLeaderTabRef = useRef<boolean>(true);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const idleCheckFiredRef = useRef(false);
 
@@ -653,6 +687,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   const pauseTimerRef = useRef<(() => void) | null>(null);
   const resumeTimerRef = useRef<(() => void) | null>(null);
+  const stopTimerRef = useRef<((durationOverride?: number, notesOverride?: string) => Promise<void>) | null>(null);
 
   const [sessions, setSessions] = useState<StudySession[]>(() => {
     let uid = user?.id;
@@ -1226,50 +1261,72 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     return loggedToday + (isStudying ? elapsedSeconds : 0);
   }, [sessions, isStudying, elapsedSeconds]);
 
-  // BroadcastChannel for Single-Active-Tab Timer Locking
+  // BroadcastChannel for Single-Active-Tab Timer Locking and Leader Tab Coordination
   useEffect(() => {
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
-    const channel = new BroadcastChannel("studypulse_timer_channel");
+    const channel = new BroadcastChannel("studyio_timer");
     broadcastChannelRef.current = channel;
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "TIMER_STARTED") {
-        if (isRunning) {
-          setIsPaused(true);
-          if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
+      const data = event.data;
+      if (!data) return;
+
+      if (data.type === "TIMER_STARTED") {
+        if (data.tabId !== tabIdRef.current) {
+          isLeaderTabRef.current = false;
+          if (isRunning) {
+            setIsPaused(true);
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+            }
+            startTimeRef.current = null;
+            toast("Timer active in another tab.", { icon: "ℹ️" });
           }
-          startTimeRef.current = null;
-          toast("Timer paused because another tab started a session.", { icon: "?" });
+          setIsBlockedByOtherTab(true);
         }
-        setIsBlockedByOtherTab(true);
-      } else if (event.data?.type === "TIMER_STOPPED") {
-        setIsBlockedByOtherTab(false);
-      } else if (event.data?.type === "PING_STATUS") {
-        if (isRunning) {
-          channel.postMessage({ type: "TIMER_STARTED" });
+      } else if (data.type === "TIMER_STOPPED") {
+        if (data.tabId !== tabIdRef.current) {
+          setIsBlockedByOtherTab(false);
+        }
+      } else if (data.type === "PING_STATUS") {
+        if (isRunning && isLeaderTabRef.current) {
+          channel.postMessage({
+            type: "TIMER_STARTED",
+            tabId: tabIdRef.current,
+            sessionId: clientSessionIdRef.current,
+          });
         }
       }
     };
 
     channel.addEventListener("message", handleMessage);
-    channel.postMessage({ type: "PING_STATUS" });
+    channel.postMessage({ type: "PING_STATUS", tabId: tabIdRef.current });
 
     return () => {
       channel.removeEventListener("message", handleMessage);
       channel.close();
+      broadcastChannelRef.current = null;
     };
   }, [isRunning]);
 
-  // Broadcast state changes
+  // Broadcast state changes on studyio_timer
   useEffect(() => {
-    if (isRunning) {
-      broadcastChannelRef.current?.postMessage({ type: "TIMER_STARTED" });
-    } else {
-      broadcastChannelRef.current?.postMessage({ type: "TIMER_STOPPED" });
+    if (isRunning && isLeaderTabRef.current) {
+      broadcastChannelRef.current?.postMessage({
+        type: "TIMER_STARTED",
+        tabId: tabIdRef.current,
+        sessionId: clientSessionIdRef.current,
+        mode: timerMode,
+      });
+    } else if (!isRunning) {
+      broadcastChannelRef.current?.postMessage({
+        type: "TIMER_STOPPED",
+        tabId: tabIdRef.current,
+        sessionId: clientSessionIdRef.current,
+      });
     }
-  }, [isRunning]);
+  }, [isRunning, timerMode]);
 
   // Real-Time Delta Tracking: Synchronized interval engine running at 500ms tick to eliminate background throttling drift
   useEffect(() => {
@@ -1305,31 +1362,47 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
         accumulatedSecondsRef.current = actualElapsed;
 
-        // 4-hour idle check
-        if (actualElapsed >= 14400 && !idleCheckFiredRef.current && timerMode !== 'pomodoro') {
-          idleCheckFiredRef.current = true;
-          
-          // Clamp the elapsed time to 14400 if the device was asleep and jumped way past 4 hours
-          if (actualElapsed > 14405) {
-            accumulatedSecondsRef.current = 14400;
-            setElapsedSeconds(14400);
-            if (startTimeRef.current !== null) {
-              startTimeRef.current = Date.now() - (14400 * 1000);
-            }
-          }
-          
-          setIsIdleCheckActive(true);
-          notify('idle_check');
+        // 12-hour "Still studying?" check and 24-hour absolute hard cap for Stopwatch mode
+        const twelveHoursSeconds = STILL_STUDYING_AFTER_HOURS * 3600;
+        const confirmWindowSeconds = CONFIRM_WINDOW_MINUTES * 60;
+        const maxSessionSeconds = ABSOLUTE_MAX_SESSION_HOURS * 3600;
 
-          if (pauseTimerRef.current) {
-            pauseTimerRef.current();
-          } else {
-            setIsPaused(true);
+        if (timerMode === 'stopwatch') {
+          // At 12 hours: non-blocking "Still studying?" prompt with 30-minute countdown (does NOT pause)
+          if (actualElapsed >= twelveHoursSeconds && !stillStudyingPromptTriggeredRef.current) {
+            stillStudyingPromptTriggeredRef.current = true;
+            setIsStillStudyingPromptOpen(true);
+            setStillStudyingPromptTime(Date.now());
+            notify('idle_check');
+          }
+
+          // If unconfirmed after 30 minutes (12h 30m total): auto-close clipped to 12 hours
+          if (
+            stillStudyingPromptTriggeredRef.current &&
+            actualElapsed >= twelveHoursSeconds + confirmWindowSeconds
+          ) {
+            console.warn('[Timer Auto-Close]: 12h unconfirmed window expired. Auto-closing clipped to 12 hours.');
+            setIsStillStudyingPromptOpen(false);
             if (timerIntervalRef.current) {
               clearInterval(timerIntervalRef.current);
               timerIntervalRef.current = null;
             }
-            startTimeRef.current = null;
+            setAutoCloseNotice("Your session ended at 12 hours because it wasn't confirmed.");
+            stopTimer(twelveHoursSeconds, "Auto-closed after 12h unconfirmed");
+            return;
+          }
+
+          // Absolute 24-hour hard cap: Auto-close even if confirmed repeatedly
+          if (actualElapsed >= maxSessionSeconds) {
+            console.warn('[Timer Auto-Close]: Absolute 24-hour limit reached. Auto-closing at 24 hours.');
+            setIsStillStudyingPromptOpen(false);
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+            }
+            setAutoCloseNotice("Your session reached the absolute 24-hour maximum limit and was saved.");
+            stopTimer(maxSessionSeconds, "Auto-closed at 24h absolute limit");
+            return;
           }
         }
 
@@ -1446,28 +1519,24 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, [isStudying, isPaused]);
 
-  // Active session heartbeat: pings every 30s to update active_sessions.updated_at
-  // This ensures orphaned sessions can be closed at last heartbeat rather than now.
+  // Paused session auto-close: if paused longer than 24 hours, auto-close and save
   useEffect(() => {
-    if (!isStudying || isPaused) return;
-    const uid = realtimeUserId || userRef.current?.id || user?.id;
-    if (!uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
-
-    const interval = setInterval(() => {
-      const supabase = getSupabase();
-      if (!supabase) return;
-      supabase
-        .from('active_sessions')
-        .update({
-          updated_at: new Date().toISOString(),
-          accumulated_seconds: accumulatedSecondsRef.current || elapsedSeconds,
-        })
-        .eq('user_id', uid)
-        .then();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [isStudying, isPaused, realtimeUserId, user?.id, elapsedSeconds]);
+    if (!isPaused || !isStudying) return;
+    const checkPausedAutoClose = () => {
+      const lastPaused = lastLocalActionRef.current?.timestamp;
+      const pausedHours = lastPaused ? (Date.now() - lastPaused) / (1000 * 3600) : 0;
+      if (pausedHours >= PAUSED_SESSION_AUTO_CLOSE_HOURS) {
+        console.warn('[Timer]: Session was paused for over 24 hours. Auto-closing.');
+        setAutoCloseNotice("Your session was paused for more than 24 hours and has been saved.");
+        if (stopTimerRef.current) {
+          stopTimerRef.current(accumulatedSecondsRef.current, "Auto-closed after 24 hours paused");
+        }
+      }
+    };
+    checkPausedAutoClose();
+    const pausedInterval = setInterval(checkPausedAutoClose, 60000);
+    return () => clearInterval(pausedInterval);
+  }, [isPaused, isStudying]);
 
 
   // Cleanly wipe any persisted timer state from localStorage
@@ -1803,14 +1872,22 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     const serverNow = typeof providedServerTime === 'number' && providedServerTime > 0
       ? providedServerTime
-      : await fetchAuthoritativeServerTime();
+      : getServerNow();
 
     if (lastTickTimeRef.current) {
       const delta = serverNow - lastTickTimeRef.current;
     }
     lastTickTimeRef.current = serverNow;
 
-    let actualElapsed = Math.max(0, Math.floor((serverNow - startTimeRef.current) / 1000));
+    const { elapsedSeconds: calculatedElapsed } = computeElapsedSessionSeconds({
+      startedAt: startTimeRef.current,
+      serverNow,
+      accumulatedMs: 0,
+      sessionCreatedAt: sessionStartTimeRef.current?.getTime() || startTimeRef.current,
+      status: isPaused ? 'paused' : 'running',
+    });
+
+    let actualElapsed = calculatedElapsed;
 
     // Cap single session at 12 hours (43,200s)
     if (actualElapsed > 43200) {
@@ -2039,6 +2116,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       clientSessionIdRef.current = syncedSessionId;
     }
 
+    // Version Guard: Reject remote session state whose version is older than local version
+    const remoteVersion = typeof remoteSession.version === 'number' ? remoteSession.version : null;
+    if (remoteVersion !== null && remoteVersion < sessionVersionRef.current) {
+      console.warn(
+        `[StudyContext] Rejecting remote sync: remote version (${remoteVersion}) is older than local version (${sessionVersionRef.current}).`
+      );
+      return;
+    }
+    if (remoteVersion !== null) {
+      sessionVersionRef.current = remoteVersion;
+    }
+
     // Ignore immediate echo of local action from this same tab
     if (
       !isRemoteDevice &&
@@ -2149,16 +2238,23 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const targetDuration = Number(pomodoro_duration_seconds ?? target_duration ?? 0);
 
     if (status === 'running') {
-      const startedAtMs = started_at ? new Date(started_at).getTime() : Date.now();
-      const runningSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
-      const calculatedElapsed = baseAccumulated + runningSeconds;
+      const serverNow = getServerNow();
+      const startedAtMs = started_at ? new Date(started_at).getTime() : serverNow;
+      const res = computeElapsedSessionSeconds({
+        startedAt: startedAtMs,
+        serverNow,
+        accumulatedMs: baseAccumulated * 1000,
+        sessionCreatedAt: started_at ? new Date(started_at).getTime() : serverNow,
+        status: 'running',
+      });
+      const calculatedElapsed = res.elapsedSeconds;
 
       if (timerIntervalRef.current !== null) {
         // We are already running locally.
         // If drift is significant (> 3s), gently re-anchor local timer anchor
         if (Math.abs(calculatedElapsed - (accumulatedSecondsRef.current || elapsedSeconds)) > 3) {
           accumulatedSecondsRef.current = baseAccumulated;
-          startTimeRef.current = Date.now() - (calculatedElapsed * 1000);
+          startTimeRef.current = serverNow - (calculatedElapsed * 1000);
           setElapsedSeconds(calculatedElapsed);
         }
         return;
@@ -2183,7 +2279,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setPomodoroCompletedPhase('work');
       } else {
         accumulatedSecondsRef.current = baseAccumulated;
-        startTimeRef.current = Date.now() - (calculatedElapsed * 1000);
+        startTimeRef.current = serverNow - (calculatedElapsed * 1000);
         sessionStartTimeRef.current = started_at ? new Date(started_at) : new Date(startTimeRef.current);
         setElapsedSeconds(calculatedElapsed);
         setIsStudying(true);
@@ -2238,7 +2334,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   }, [realtimeUserId, user?.id]);
 
-  // Supabase Realtime Subscription with Gated Auth, Resilient HTTP Polling Fallback, and Mobile Window Resync
+  // Pull-based Cross-Device Sync (replaces Supabase Realtime subscriptions for personal timer)
+  // Fetches active_sessions on app open, focus/visibilitychange, network reconnect,
+  // push notification events ('studyio_remote_timer_sync', 'studyio_remote_timer_stopped'),
+  // and every 60s while visible AND (remote session exists OR none is running locally).
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -2269,92 +2368,55 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           handleRemoteSyncRef.current(data || null);
         }
       } catch (err) {
+        console.warn('[Sync] Poll error:', err);
       }
     };
 
+    // 1. Initial fetch on mount
     runPoll();
 
-    // 1. Dedicated cross-device sync channel (Desktop <-> Phone)
-    const userChannel = supabase
-      .channel(`user_active_session_${userId}`, {
-        config: { broadcast: { ack: true } },
-      })
-      .on(
-        'broadcast',
-        { event: 'active_session_sync' },
-        (payload: any) => {
-          realtimeEventCountRef.current++;
-          setRealtimeEventsCount(realtimeEventCountRef.current);
-          console.log(`[Realtime Broadcast #${realtimeEventCountRef.current}] active_session_sync:`, payload);
-          if (payload?.payload && handleRemoteSyncRef.current) {
-            handleRemoteSyncRef.current(payload.payload);
-          }
-        }
-      )
-      .on(
-        'broadcast',
-        { event: 'timer_mode_sync' },
-        (payload: any) => {
-          const data = payload?.payload;
-          if (!data) return;
-          const myDeviceId = getDeviceId();
-          const rawDeviceId = String(data.device_id || '');
-          const baseDeviceId = rawDeviceId.split('#')[0];
-          if (baseDeviceId && baseDeviceId === myDeviceId) return;
+    // 2. Poll every 60 seconds IF visible AND (a session exists on another device OR none running locally)
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (!isStudyingRef.current || isRemoteSessionRef.current) {
+        runPoll();
+      }
+    }, POLL_INTERVAL_VISIBLE_SECONDS * 1000);
 
-          if (!isStudyingRef.current) {
-            const remoteMode = data.mode || data.timer_mode;
-            const remoteIsUltra = Boolean(data.is_ultra_strict);
-            if (remoteMode === 'stopwatch' || remoteMode === 'countdown' || remoteMode === 'pomodoro') {
-              setTimerMode(remoteMode);
-            }
-            setIsUltraStrict(remoteIsUltra);
-            if (data.target_duration && Number(data.target_duration) > 0) {
-              setCountdownTarget(Number(data.target_duration));
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'active_sessions',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: any) => {
-          realtimeEventCountRef.current++;
-          setRealtimeEventsCount(realtimeEventCountRef.current);
-          console.log(`[Realtime PostgresChange #${realtimeEventCountRef.current}] active_sessions:`, payload?.eventType);
-          if (payload?.eventType === 'DELETE') {
-            if (handleRemoteSyncRef.current) {
-              handleRemoteSyncRef.current({ status: 'stopped', device_id: 'remote' });
-            }
-          } else if (payload?.new) {
-            if (handleRemoteSyncRef.current) {
-              handleRemoteSyncRef.current(payload.new);
-            }
-          }
-        }
-      )
-      .subscribe((status: string) => {
-        console.log(`[Realtime active_session channel status for ${userId}]:`, status);
-        if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('SUBSCRIBED');
-          setIsSyncConnected(true);
-          setIsUsingPollingFallback(false);
-          isUsingPollingFallbackRef.current = false;
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          setRealtimeStatus('HTTP_POLLING');
-          setIsUsingPollingFallback(true);
-          isUsingPollingFallbackRef.current = true;
-        }
-      });
+    // 3. Visibility and focus listeners (only when visible)
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        runPoll();
+        flushTimerOutbox();
+      }
+    };
 
-    activeChannelRef.current = userChannel;
+    // 4. Network reconnect listener
+    const handleOnline = () => {
+      runPoll();
+      flushTimerOutbox();
+    };
 
-    // 2. Listen on study_rooms_realtime_hub for pings from room members
+    // 5. Remote push notification event listeners (from Android / FCM push handler)
+    const handleRemotePushSync = () => {
+      console.log('[Sync] Received studyio_remote_timer_sync event');
+      runPoll();
+    };
+
+    const handleRemotePushStopped = () => {
+      console.log('[Sync] Received studyio_remote_timer_stopped event');
+      if (handleRemoteSyncRef.current) {
+        handleRemoteSyncRef.current({ status: 'stopped', device_id: 'remote' });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    window.addEventListener('focus', handleFocusOrVisible);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('studyio_remote_timer_sync', handleRemotePushSync);
+    window.addEventListener('studyio_remote_timer_stopped', handleRemotePushStopped);
+
+    // 6. Listen on study_rooms_realtime_hub for pings from room members (study rooms feature retained)
     const hub = supabase.channel('study_rooms_realtime_hub');
     hub.on('broadcast', { event: 'ping_focus_status' }, () => {
       if (isStudying && !isPaused && startTimeRef.current !== null) {
@@ -2377,65 +2439,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       }
     }).subscribe();
 
-    const interval = setInterval(() => {
-      runPoll();
-    }, 25000);
-
-    const handleFocus = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        runPoll();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleFocus);
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       clearInterval(interval);
-      if (activeChannelRef.current) {
-        supabase.removeChannel(activeChannelRef.current);
-        activeChannelRef.current = null;
-      }
       supabase.removeChannel(hub);
-      document.removeEventListener('visibilitychange', handleFocus);
-      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('studyio_remote_timer_sync', handleRemotePushSync);
+      window.removeEventListener('studyio_remote_timer_stopped', handleRemotePushStopped);
     };
-  }, [user?.id, refetchActiveSession]);
-
-  // Periodic broadcast to study_rooms_realtime_hub while studying so room peers always see live timer progress
-  useEffect(() => {
-    if (!isRunning) return;
-    const uid = realtimeUserId || userRef.current?.id || user?.id;
-    if (!uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
-    const supabase = getSupabase();
-    if (!supabase) return;
-    const hub = supabase.channel('study_rooms_realtime_hub');
-
-    const broadcastPulse = () => {
-      if (startTimeRef.current === null) return;
-      const elapsed = Math.max(0, Math.floor((Date.now() - startTimeRef.current) / 1000));
-      const todayTotal = getTodayTotalSeconds ? getTodayTotalSeconds() : 0;
-      const baseToday = Math.max(0, todayTotal - elapsed);
-
-      hub.send({
-        type: 'broadcast',
-        event: 'focus_status_update',
-        payload: {
-          user_id: uid,
-          is_studying: true,
-          session_start_time: startTimeRef.current,
-          session_seconds: elapsed,
-          base_today_seconds: baseToday,
-          today_seconds: todayTotal,
-          timestamp: Date.now(),
-        },
-      }).catch(() => {});
-    };
-
-    broadcastPulse();
-    const pulseInterval = setInterval(broadcastPulse, 3000);
-    return () => clearInterval(pulseInterval);
-  }, [isRunning, realtimeUserId, user?.id, getTodayTotalSeconds]);
+  }, [user?.id]);
 
   // Load from Supabase or localStorage fallback
   useEffect(() => {
@@ -3179,12 +3192,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           : `sess-${Date.now()}`;
     }
     // Anti-Tamper: Fresh timer start must never inherit residue from prior stopped/saved sessions
-    if (!isStudying && !isPaused) {
-      accumulatedSecondsRef.current = 0;
-      setElapsedSeconds(0);
-    }
-    // Record start anchor timestamp
-    const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
+    accumulatedSecondsRef.current = 0;
+    setElapsedSeconds(0);
+    sessionVersionRef.current = 1;
+    // Record start anchor timestamp using server-synchronized clock
+    const nowAnchor = getServerNow();
     startTimeRef.current = nowAnchor;
     sessionStartTimeRef.current = new Date(nowAnchor);
     setIsStudying(true);
@@ -3240,10 +3252,19 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
     let actualElapsed = accumulatedSecondsRef.current;
     if (startTimeRef.current !== null) {
-      actualElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const serverNow = getServerNow();
+      const res = computeElapsedSessionSeconds({
+        startedAt: startTimeRef.current,
+        serverNow,
+        accumulatedMs: 0,
+        sessionCreatedAt: sessionStartTimeRef.current?.getTime() || startTimeRef.current,
+        status: 'running',
+      });
+      actualElapsed = res.elapsedSeconds;
       accumulatedSecondsRef.current = actualElapsed;
       setElapsedSeconds(actualElapsed);
     }
+    sessionVersionRef.current = (sessionVersionRef.current || 1) + 1;
     console.log('[Timer Write: pauseTimer]', {
       timestamp: new Date().toISOString(),
       accumulated_seconds_before: accumulatedSecondsRef.current,
@@ -3285,8 +3306,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nowAnchor = Date.now() - (accumulatedSecondsRef.current * 1000);
+    const serverNow = getServerNow();
+    const nowAnchor = serverNow - (accumulatedSecondsRef.current * 1000);
     startTimeRef.current = nowAnchor;
+    sessionVersionRef.current = (sessionVersionRef.current || 1) + 1;
     setIsPaused(false);
     if (typeof window !== 'undefined') {
       try {
@@ -3805,7 +3828,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     const currentActual = startTimeRef.current !== null && !isPaused
-      ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+      ? computeElapsedSessionSeconds({
+          startedAt: startTimeRef.current,
+          serverNow: getServerNow(),
+          accumulatedMs: 0,
+          sessionCreatedAt: sessionStartTimeRef.current?.getTime() || startTimeRef.current,
+          status: 'running',
+        }).elapsedSeconds
       : accumulatedSecondsRef.current;
     const seconds = durationOverride !== undefined ? durationOverride : Math.max(elapsedSeconds, currentActual);
     if (!isStudying && seconds === 0) return;
@@ -3864,6 +3893,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     startTimeRef.current = null;
     clientSessionIdRef.current = null;
     accumulatedSecondsRef.current = 0;
+    sessionVersionRef.current = 0;
     setIsStudying(false);
     setIsPaused(false);
     setIsRemoteSession(false);
@@ -3885,6 +3915,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clearPersistedTimer,
     syncActiveSessionToDb,
   ]);
+
+  useEffect(() => {
+    stopTimerRef.current = stopTimer;
+  }, [stopTimer]);
 
   // General saveSession method directly callable with subject details or session data
   const saveSession = useCallback(async (sessionDataInput: {
@@ -4004,9 +4038,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const startPomodoroBreak = useCallback(() => {
     if (!checkDebounce()) return;
 
-    const nowAnchor = Date.now();
+    const nowAnchor = getServerNow();
     setPomodoroPhase('shortBreak');
     accumulatedSecondsRef.current = 0;
+    sessionVersionRef.current = 1;
     startTimeRef.current = nowAnchor;
     sessionStartTimeRef.current = new Date(nowAnchor);
     setElapsedSeconds(0);
@@ -4051,6 +4086,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     startTimeRef.current = null;
     clientSessionIdRef.current = null;
     accumulatedSecondsRef.current = 0;
+    sessionVersionRef.current = 0;
     sessionStartTimeRef.current = null;
     setIsStudying(false);
     setIsPaused(false);
@@ -4401,6 +4437,46 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const confirmStillStudying = useCallback(async () => {
+    setIsStillStudyingPromptOpen(false);
+    stillStudyingPromptTriggeredRef.current = false;
+    if (timerMode !== 'stopwatch' || isUltraStrictRef.current) {
+      return;
+    }
+    const uid = realtimeUserId || userRef.current?.id || user?.id;
+    const sessId = clientSessionIdRef.current;
+    if (uid && sessId) {
+      try {
+        const expectedVersion = sessionVersionRef.current;
+        enqueueTimerEvent('confirm', sessId, expectedVersion, { user_id: uid });
+        sessionVersionRef.current += 1;
+        flushTimerOutbox();
+      } catch (err) {
+        console.warn('[StillStudying] confirm failed to enqueue:', err);
+      }
+    }
+    toast.success('Focus session extended! Keep going! 🚀', { duration: 4000 });
+  }, [realtimeUserId, user?.id]);
+
+  const closeStillStudyingPrompt = useCallback(() => {
+    setIsStillStudyingPromptOpen(false);
+  }, []);
+
+  const dismissAutoCloseNotice = useCallback(() => {
+    setAutoCloseNotice(null);
+  }, []);
+
+  // Outbox status subscription & flush on reconnect
+  useEffect(() => {
+    const unsub = subscribeOutboxStatus((pending) => {
+      setHasPendingSync(pending);
+    });
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      flushTimerOutbox();
+    }
+    return unsub;
+  }, []);
+
   return (
     <StudyContext.Provider
       value={{
@@ -4415,6 +4491,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         lastRemoteSyncTime,
         hasHydrated,
         isLoadingSessions,
+        hasPendingSync,
+        isStillStudyingPromptOpen,
+        stillStudyingPromptTime,
+        confirmStillStudying,
+        closeStillStudyingPrompt,
+        autoCloseNotice,
+        dismissAutoCloseNotice,
         gamification,
         settlementData,
         showRankSettlement,

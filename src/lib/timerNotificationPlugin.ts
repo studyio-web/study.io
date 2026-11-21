@@ -92,7 +92,7 @@ export interface TimerNotificationPlugin {
 
   addListener(
     eventName: 'onTimerAction',
-    listenerFunc: (data: { action: 'pause' | 'resume' | 'stop' }) => void
+    listenerFunc: (data: { action: 'pause' | 'resume' | 'stop' | 'confirm_still_studying' }) => void
   ): Promise<PluginListenerHandle>;
 
   addListener(

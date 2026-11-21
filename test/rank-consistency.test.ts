@@ -4,57 +4,62 @@ import { getRankTier, calculateSeasonRp, resolveLiveSeasonStats } from '../src/l
 import { calculateRankTier } from '../src/lib/rankings';
 
 describe('Rank Consistency & Tier Invariance Specification', () => {
-  it('correctly maps boundaries 299/300, 699/700, 1199/1200', () => {
-    // Bronze I: 0 - 299 RP
+  it('correctly maps boundaries 49/50, 119/120, 219/220, 349/350', () => {
+    // Bronze I: 0 - 49 RP
     assert.equal(getRankTier(0).name, 'Bronze I');
-    assert.equal(getRankTier(299).name, 'Bronze I');
+    assert.equal(getRankTier(49).name, 'Bronze I');
 
-    // Bronze II: 300 - 699 RP
-    assert.equal(getRankTier(300).name, 'Bronze II');
-    assert.equal(getRankTier(508).name, 'Bronze II');
-    assert.equal(getRankTier(699).name, 'Bronze II');
+    // Bronze II: 50 - 119 RP
+    assert.equal(getRankTier(50).name, 'Bronze II');
+    assert.equal(getRankTier(89).name, 'Bronze II');
+    assert.equal(getRankTier(119).name, 'Bronze II');
 
-    // Bronze III: 700 - 1199 RP
-    assert.equal(getRankTier(700).name, 'Bronze III');
-    assert.equal(getRankTier(1199).name, 'Bronze III');
+    // Bronze III: 120 - 219 RP
+    assert.equal(getRankTier(120).name, 'Bronze III');
+    assert.equal(getRankTier(219).name, 'Bronze III');
 
-    // Bronze IV: 1200 - 1799 RP
-    assert.equal(getRankTier(1200).name, 'Bronze IV');
-    assert.equal(getRankTier(1799).name, 'Bronze IV');
+    // Bronze IV: 220 - 349 RP
+    assert.equal(getRankTier(220).name, 'Bronze IV');
+    assert.equal(getRankTier(349).name, 'Bronze IV');
 
-    // Silver I: 1800+
-    assert.equal(getRankTier(1800).name, 'Silver I');
+    // Silver I: 350 - 499 RP
+    assert.equal(getRankTier(350).name, 'Silver I');
+    assert.equal(getRankTier(499).name, 'Silver I');
+
+    // Silver II: 500 - 699 RP
+    assert.equal(getRankTier(500).name, 'Silver II');
+    assert.equal(getRankTier(508).name, 'Silver II');
   });
 
-  it('evaluates 508 RP to Bronze II and 88 RP to Bronze I (neither gives Bronze IV)', () => {
+  it('evaluates 508 RP to Silver II and 40 RP to Bronze I (neither gives Bronze IV)', () => {
     const trialTier = getRankTier(508);
-    assert.equal(trialTier.name, 'Bronze II');
+    assert.equal(trialTier.name, 'Silver II');
     assert.notEqual(trialTier.name, 'Bronze IV');
 
-    const wrenTier = getRankTier(88);
+    const wrenTier = getRankTier(40);
     assert.equal(wrenTier.name, 'Bronze I');
     assert.notEqual(wrenTier.name, 'Bronze IV');
   });
 
   it('guarantees calculateRankTier helper matches getRankTier exactly', () => {
-    assert.equal(calculateRankTier(508), 'Bronze II');
-    assert.equal(calculateRankTier(88), 'Bronze I');
-    assert.equal(calculateRankTier(1200), 'Bronze IV');
-    assert.equal(calculateRankTier(1800), 'Silver I');
+    assert.equal(calculateRankTier(508), 'Silver II');
+    assert.equal(calculateRankTier(40), 'Bronze I');
+    assert.equal(calculateRankTier(220), 'Bronze IV');
+    assert.equal(calculateRankTier(350), 'Silver I');
   });
 
   it('computes season RP strictly from focus seconds + carryover without double counting', () => {
-    // Trial: 18,316 seconds in November (no carryover) -> Math.floor(18316 / 36) = 508 RP -> Bronze II
+    // Trial: 18,316 seconds in November (no carryover) -> Math.floor(18316 / 36) = 508 RP -> Silver II
     const trialSeconds = 18316;
     const trialSeasonRp = calculateSeasonRp(0, trialSeconds);
     assert.equal(trialSeasonRp, 508);
-    assert.equal(getRankTier(trialSeasonRp).name, 'Bronze II');
+    assert.equal(getRankTier(trialSeasonRp).name, 'Silver II');
 
-    // Wren: 3,223 seconds in November (no carryover) -> Math.floor(3223 / 36) = 89 RP -> Bronze I
+    // Wren: 3,223 seconds in November (no carryover) -> Math.floor(3223 / 36) = 89 RP -> Bronze II
     const wrenSeconds = 3223;
     const wrenSeasonRp = calculateSeasonRp(0, wrenSeconds);
     assert.equal(wrenSeasonRp, 89);
-    assert.equal(getRankTier(wrenSeasonRp).name, 'Bronze I');
+    assert.equal(getRankTier(wrenSeasonRp).name, 'Bronze II');
   });
 
   it('ensures resolveLiveSeasonStats never treats season_rp as carryover baseline', () => {
@@ -76,14 +81,14 @@ describe('Rank Consistency & Tier Invariance Specification', () => {
     const stats = resolveLiveSeasonStats(mockUser, sessions);
     assert.equal(stats.startingRp, 0); // Must NOT be 508
     assert.equal(stats.seasonRp, 508);
-    assert.equal(stats.rankTier.name, 'Bronze II');
+    assert.equal(stats.rankTier.name, 'Silver II');
   });
 
   it('guarantees tier is invariant when switching timeframe tabs (Today, Week, Month, All Time)', () => {
-    // Suppose user has 18,316s this month (508 RP -> Bronze II)
+    // Suppose user has 18,316s this month (508 RP -> Silver II)
     const currentMonthSec = 18316;
     const seasonRp = calculateSeasonRp(0, currentMonthSec);
-    const expectedTier = getRankTier(seasonRp).name; // "Bronze II"
+    const expectedTier = getRankTier(seasonRp).name; // "Silver II"
 
     // Switching tabs changes only timeframe seconds, NEVER season RP or tier
     const timeframeScenarios = [
@@ -99,7 +104,7 @@ describe('Rank Consistency & Tier Invariance Specification', () => {
       const rowTier = getRankTier(rowSeasonRp).name;
       const displayFocusSeconds = scenario.tfSec;
 
-      assert.equal(rowTier, 'Bronze II', `Tier changed on ${scenario.tab} tab!`);
+      assert.equal(rowTier, 'Silver II', `Tier changed on ${scenario.tab} tab!`);
       assert.equal(rowTier, expectedTier);
       assert.equal(displayFocusSeconds, scenario.tfSec);
     }
@@ -124,14 +129,14 @@ describe('Rank Consistency & Tier Invariance Specification', () => {
       total_seconds: 3223,
     };
 
-    // Header evaluates from shared userRank (508 -> Bronze II, 89 -> Bronze I)
+    // Header evaluates from shared userRank (508 -> Silver II, 89 -> Bronze II)
     const trialHeaderTier = getRankTier(trialRow.season_rp).name;
     const trialYouRowTier = trialRow.rank_title;
     const trialPeerViewTier = getRankTier(trialRow.season_rp).name;
 
-    assert.equal(trialHeaderTier, 'Bronze II');
-    assert.equal(trialYouRowTier, 'Bronze II');
-    assert.equal(trialPeerViewTier, 'Bronze II');
+    assert.equal(trialHeaderTier, 'Silver II');
+    assert.equal(trialYouRowTier, 'Silver II');
+    assert.equal(trialPeerViewTier, 'Silver II');
     assert.equal(trialHeaderTier, trialYouRowTier);
     assert.equal(trialYouRowTier, trialPeerViewTier);
 
@@ -139,9 +144,9 @@ describe('Rank Consistency & Tier Invariance Specification', () => {
     const wrenYouRowTier = wrenRow.rank_title;
     const wrenPeerViewTier = getRankTier(wrenRow.season_rp).name;
 
-    assert.equal(wrenHeaderTier, 'Bronze I');
-    assert.equal(wrenYouRowTier, 'Bronze I');
-    assert.equal(wrenPeerViewTier, 'Bronze I');
+    assert.equal(wrenHeaderTier, 'Bronze II');
+    assert.equal(wrenYouRowTier, 'Bronze II');
+    assert.equal(wrenPeerViewTier, 'Bronze II');
     assert.equal(wrenHeaderTier, wrenYouRowTier);
     assert.equal(wrenYouRowTier, wrenPeerViewTier);
   });

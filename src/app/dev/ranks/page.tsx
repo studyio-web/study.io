@@ -266,7 +266,7 @@ export default function RankPreviewPage() {
               2. Progression Curve
             </div>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Bronze (0–799) to Silver (800–2,799) climbs quickly. Gold through Grandmaster (40,000+ RP) requires 400h+ competitive focus.
+              Bronze (0–349) climbs very quickly. Gold through Grandmaster (33,000+ RP) requires 330h+ competitive focus.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
@@ -289,13 +289,13 @@ export default function RankPreviewPage() {
 
           const rpRange =
             config.tier === 'Grandmaster'
-              ? '40,000+ RP'
+              ? `${config.minRP.toLocaleString()}+ RP`
               : `${config.minRP.toLocaleString()} – ${config.maxRP.toLocaleString()} RP`;
 
           const stepHours =
             config.tier === 'Grandmaster'
-              ? '+100h'
-              : `+${Math.round((config.maxRP - config.minRP) / 100)}h`;
+              ? 'Max Rank'
+              : `+${((config.maxRP - config.minRP) / 100).toFixed(1).replace(/\.0$/, '')}h`;
 
           return (
             <div

@@ -9,7 +9,9 @@ import {
   getSeasonUtcBoundaries,
   getSeasonDisplayName,
   calculateSeasonReset,
+  getOldRankTierFromRp,
 } from '../../lib/rankedSystem';
+import { calculateSeasonRp } from '../../lib/ranks';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,18 +52,24 @@ export default async function RecapPage(props: {
       .maybeSingle();
 
     if (cachedRecap?.data) {
-      const payload = cachedRecap.data;
+      const payload = { ...cachedRecap.data };
       if (payload.totalSeconds === 0) {
         return <EmptyRecapFallback seasonDisplayName={seasonDisplayName} seasonKey={previousSeasonKey} />;
       }
-      let prevRp = Number(payload.previousRP ?? Math.floor((payload.totalSeconds || 0) / 36));
+      const prevRp = Number(payload.previousRP ?? calculateSeasonRp(0, payload.totalSeconds || 0));
 
-      const reset = calculateSeasonReset(prevRp);
-      payload.previousRP = prevRp;
-      payload.previousRank = reset.previousTier.fullTitle;
-      payload.startingRP = reset.newRP;
-      payload.currentRank = reset.newTier.fullTitle;
-      payload.currentLiveRP = reset.newRP;
+      // Season archives: show the saved rank name, never recompute the rank from archived RP.
+      // If an archive has no saved rank name, compute it once using OLD thresholds and store it.
+      if (!payload.previousRank) {
+        payload.previousRank = getOldRankTierFromRp(prevRp);
+        try {
+          await supabase
+            .from('season_recaps')
+            .update({ data: payload })
+            .eq('user_id', user.id)
+            .eq('season_key', previousSeasonKey);
+        } catch {}
+      }
 
       return (
         <Suspense fallback={<RecapLoading />}>
@@ -93,7 +101,7 @@ export default async function RecapPage(props: {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('name, username, rp, season_rp, rank_title, level, last_acknowledged_season, streak_days, current_rank')
+      .select('name, username, rp, season_rp, rank_title, level, last_acknowledged_season, streak_days, current_rank, last_season_rank')
       .eq('id', user.id)
       .maybeSingle(),
     supabase
@@ -266,16 +274,17 @@ export default async function RecapPage(props: {
 
   let previousRP = 0;
   if (totalSeconds > 0) {
-    previousRP = Math.floor(totalSeconds / 36);
+    previousRP = calculateSeasonRp(0, totalSeconds);
   } else if (history?.previous_rp) {
     previousRP = Number(history.previous_rp);
   } else if (profile?.season_rp) {
     previousRP = Number(profile.season_rp);
   }
 
-  // Calculate official V2 Rank and Soft-Reset directly from previousRP
+  // Season archives: show the saved rank name, never recompute the rank from archived RP.
+  // If an archive has no saved rank name, compute it once using OLD thresholds and store it.
+  const previousRank = history?.previous_rank || profile?.last_season_rank || getOldRankTierFromRp(previousRP);
   const softReset = calculateSeasonReset(previousRP);
-  const previousRank = softReset.previousTier.fullTitle;
   const startingRP = softReset.newRP;
   const currentRank = softReset.newTier.fullTitle;
   const currentLiveRP = startingRP;

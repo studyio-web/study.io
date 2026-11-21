@@ -340,7 +340,14 @@ export function LockdownSheet({
         />
 
         {/* Sheet Content (Completely hidden scrollbar, optimized vertical fit) */}
-        <div className="overflow-y-auto px-5 sm:px-6 pt-1 pb-2 space-y-3 z-10 relative lockdown-scroll-container scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div
+          className="overflow-y-auto px-5 sm:px-6 pt-1 pb-2 space-y-3 z-10 relative lockdown-scroll-container scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           {/* Header Section */}
           <div className="flex flex-col items-center text-center pt-1">
             {/* Custom Shield Lock Glyph (Inline SVG, ~52px) */}
@@ -515,7 +522,7 @@ export function LockdownSheet({
                   <div>
                     <p className="font-semibold text-white text-[13.5px]">Uninstall protection</p>
                     <p className="text-[12.5px] text-white/65 mt-0.5 leading-snug">
-                      Device Admin and System Shield stop deleting, uninstalling or force-stopping study.io until the countdown ends.
+                      Device Admin blocks uninstalling, and System Shield shields app settings to prevent force-stopping until the countdown ends.
                     </p>
                   </div>
                 </div>
@@ -686,19 +693,22 @@ export function LockdownSheet({
         </div>
       </div>
 
-      {/* Embedded CSS for custom keyframe animations & scrollbar removal */}
-      <style jsx global>{`
-        /* Completely eliminate visible scrollbars across all engines */
-        .lockdown-scroll-container::-webkit-scrollbar,
-        .scrollbar-none::-webkit-scrollbar {
+      {/* Embedded CSS for custom keyframe animations & scrollbar removal scoped strictly to LockdownSheet */}
+      <style>{`
+        /* Completely eliminate visible scrollbars strictly scoped to LockdownSheet content container */
+        .lockdown-scroll-container::-webkit-scrollbar {
           display: none !important;
           width: 0 !important;
           height: 0 !important;
           background: transparent !important;
           -webkit-appearance: none !important;
         }
-        .lockdown-scroll-container,
-        .scrollbar-none {
+        .lockdown-scroll-container::-webkit-scrollbar-thumb,
+        .lockdown-scroll-container::-webkit-scrollbar-track {
+          display: none !important;
+          background: transparent !important;
+        }
+        .lockdown-scroll-container {
           -ms-overflow-style: none !important;
           scrollbar-width: none !important;
           -webkit-overflow-scrolling: touch !important;

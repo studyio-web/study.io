@@ -168,6 +168,7 @@ class TimerForegroundService : Service() {
     private var isRunning: Boolean = false
     private var isPaused: Boolean = false
     private var startedAtMs: Long = 0L
+    private var startedElapsedRealtime: Long = 0L
     private var baseElapsedSeconds: Int = 0
     private var targetSeconds: Int = 0
     private var subject: String = ""
@@ -277,7 +278,7 @@ class TimerForegroundService : Service() {
         }
 
         if (currentPkg == null) return
-        if (currentPkg == packageName || isLauncherOrSystem(currentPkg)) return
+        if (currentPkg == packageName || isLauncherOrSystem(currentPkg) || isEmergencyOrDialer(currentPkg)) return
 
         // UNINSTALL & TURN-OFF PROTECTION in Ultra Strict Mode:
         // When in Ultra Strict Mode, Settings, Package Installers, Play Store, and OEM Safecenters
@@ -347,6 +348,15 @@ class TimerForegroundService : Service() {
                 }
             }
         }
+    }
+
+    private fun isEmergencyOrDialer(pkgName: String): Boolean {
+        val lower = pkgName.lowercase()
+        return lower == "com.android.phone" ||
+                lower == "com.android.server.telecom" ||
+                lower.contains("incallui") ||
+                lower.contains("dialer") ||
+                lower.contains("emergency")
     }
 
     private fun isLauncherOrSystem(pkgName: String): Boolean {
@@ -578,8 +588,10 @@ class TimerForegroundService : Service() {
         }
         if (intent.hasExtra(EXTRA_START_TIME)) {
             startedAtMs = intent.getLongExtra(EXTRA_START_TIME, System.currentTimeMillis())
+            startedElapsedRealtime = SystemClock.elapsedRealtime()
         } else if (startedAtMs == 0L) {
             startedAtMs = System.currentTimeMillis()
+            startedElapsedRealtime = SystemClock.elapsedRealtime()
         }
         if (intent.hasExtra(EXTRA_ELAPSED_SECONDS)) {
             baseElapsedSeconds = intent.getIntExtra(EXTRA_ELAPSED_SECONDS, 0)
@@ -594,8 +606,12 @@ class TimerForegroundService : Service() {
 
     private fun handlePause() {
         if (!isRunning || isPaused) return
-        // Calculate current elapsed up to pause moment
-        val runDeltaSeconds = ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
+        // Calculate current elapsed up to pause moment using monotonic elapsedRealtime
+        val runDeltaSeconds = if (startedElapsedRealtime > 0L) {
+            ((SystemClock.elapsedRealtime() - startedElapsedRealtime) / 1000L).coerceAtLeast(0L).toInt()
+        } else {
+            ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
+        }
         baseElapsedSeconds += runDeltaSeconds
         isPaused = true
         if (!isStrictActive) {
@@ -642,6 +658,7 @@ class TimerForegroundService : Service() {
             Log.w(TAG, "Failed reading studyio_strict_prefs on resume", e)
         }
         startedAtMs = System.currentTimeMillis()
+        startedElapsedRealtime = SystemClock.elapsedRealtime()
         isRunning = true
         isPaused = false
         acquireWakeLock()
@@ -925,14 +942,50 @@ class TimerForegroundService : Service() {
 
     private fun scheduleFinishCheckIfNeeded() {
         cancelScheduledFinishCheck()
-        if (mode == "stopwatch" || targetSeconds <= 0 || isPaused || !isRunning) return
+        if (isPaused || !isRunning) return
 
-        val currentRunDeltaSeconds = if (isRunning && !isPaused && startedAtMs > 0L) {
+        val currentRunDeltaSeconds = if (isRunning && !isPaused && startedElapsedRealtime > 0L) {
+            ((SystemClock.elapsedRealtime() - startedElapsedRealtime) / 1000L).coerceAtLeast(0L).toInt()
+        } else if (isRunning && !isPaused && startedAtMs > 0L) {
             ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
         } else {
             0
         }
         val totalElapsedSeconds = baseElapsedSeconds + currentRunDeltaSeconds
+
+        // For Stopwatch: schedule native 12-hour "Still studying?" local notification
+        if (mode == "stopwatch") {
+            val twelveHoursSec = 12 * 3600
+            val remainingSec = (twelveHoursSec - totalElapsedSeconds).coerceAtLeast(0)
+            val delayMs = remainingSec * 1000L
+
+            try {
+                val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                val alertIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
+                    action = TimerNotificationReceiver.ACTION_STILL_STUDYING_ALERT
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    889,
+                    alertIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val triggerAtMs = System.currentTimeMillis() + delayMs
+                alarmManager?.let {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        it.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+                    } else {
+                        it.setExact(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+                    }
+                }
+                Log.d("StudyAlarm", "TimerForegroundService: Scheduled 12h StillStudying check in ${remainingSec}s")
+            } catch (e: Exception) {
+                Log.w("StudyAlarm", "Failed to schedule 12h StillStudying check", e)
+            }
+            return
+        }
+
+        if (targetSeconds <= 0) return
         val remainingSeconds = (targetSeconds - totalElapsedSeconds).coerceAtLeast(0)
         val delayMs = (remainingSeconds * 1000L)
 
@@ -989,6 +1042,23 @@ class TimerForegroundService : Service() {
                 alarmManager?.cancel(pendingIntent)
                 pendingIntent.cancel()
             }
+
+            // Also cancel 12-hour Still Studying alarm & dismiss notification
+            val alertIntent = Intent(this, TimerNotificationReceiver::class.java).apply {
+                action = TimerNotificationReceiver.ACTION_STILL_STUDYING_ALERT
+            }
+            val alertPending = PendingIntent.getBroadcast(
+                this,
+                889,
+                alertIntent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (alertPending != null) {
+                alarmManager?.cancel(alertPending)
+                alertPending.cancel()
+            }
+            val notifManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notifManager?.cancel(TimerNotificationReceiver.STILL_STUDYING_NOTIF_ID)
         } catch (_: Exception) {}
     }
 

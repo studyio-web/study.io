@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { LeaderboardEntry } from '../../types';
 import { RankCrestBadge } from '../common/RankCrestBadge';
-import { RankTierName, RankDivision, getRankTier, RANKS, RankTier } from '../../lib/ranks';
+import { RankTierName, RankDivision, getRankTier, calculateSeasonRp, RANKS, RankTier } from '../../lib/ranks';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 import { FlairFrame } from '../../lib/flair';
 import { AvatarFlairRing, FlairCrown } from '../common/FlairBadge';
@@ -111,9 +111,9 @@ export const LeaderboardRow = React.memo(function LeaderboardRow({
     tierConfig = getRankTier((row as any).season_rp);
   } else if (targetRankTitle) {
     const found = RANKS.find((r) => r.name.toUpperCase() === String(targetRankTitle).toUpperCase());
-    tierConfig = found || getRankTier(Math.floor(totalSecs / 36));
+    tierConfig = found || getRankTier(calculateSeasonRp(0, totalSecs));
   } else {
-    tierConfig = getRankTier(Math.floor(totalSecs / 36));
+    tierConfig = getRankTier(calculateSeasonRp(0, totalSecs));
   }
   const tierColor = getTierColor(tierConfig?.tier);
   const formattedTier = tierConfig?.name;

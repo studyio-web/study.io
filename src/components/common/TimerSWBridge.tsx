@@ -5,6 +5,7 @@ import { useStudy } from '../../context/StudyContext';
 import { useServiceWorker } from '../../hooks/useServiceWorker';
 import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 import { requestNotificationPermission } from '../../lib/notifications';
+import { getServerNow } from '../../lib/serverTime';
 
 /**
  * Detect touchscreen/mobile devices via the `pointer: coarse` media query.
@@ -44,6 +45,7 @@ export function TimerSWBridge() {
     pauseTimer,
     resumeTimer,
     stopTimer,
+    confirmStillStudying,
     isRemoteSession,
   } = useStudy();
 
@@ -102,7 +104,7 @@ export function TimerSWBridge() {
     let timerActionHandle: { remove: () => Promise<void> } | null = null;
     let alarmActionHandle: { remove: () => Promise<void> } | null = null;
 
-    TimerNotification.addListener('onTimerAction', (data: { action: 'pause' | 'resume' | 'stop' }) => {
+    TimerNotification.addListener('onTimerAction', (data: { action: 'pause' | 'resume' | 'stop' | 'confirm_still_studying' }) => {
       console.log('[Native Timer Bridge] Received onTimerAction:', data.action);
       if (data.action === 'pause') {
         pauseTimer();
@@ -110,6 +112,8 @@ export function TimerSWBridge() {
         resumeTimer();
       } else if (data.action === 'stop') {
         stopTimer();
+      } else if (data.action === 'confirm_still_studying') {
+        confirmStillStudying?.();
       }
     }).then((h) => {
       timerActionHandle = h;
@@ -168,8 +172,8 @@ export function TimerSWBridge() {
         TimerNotification.start({
           mode: timerMode as 'stopwatch' | 'countdown' | 'pomodoro',
           phase: pomodoroPhase,
-          startTime: startTimeRef?.current ?? Date.now(),
-          elapsedSeconds,
+          startTime: getServerNow(),
+          elapsedSeconds: elapsedSeconds ?? 0,
           targetSeconds: target,
           subject: subjectName ? (isRemoteSession ? `${subjectName} (Remote)` : subjectName) : (isRemoteSession ? 'Remote Focus' : ''),
         }).catch((err) =>

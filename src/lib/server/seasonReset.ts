@@ -1,7 +1,7 @@
 import 'server-only';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from './supabaseAdmin';
-import { getRankTier, HARD_RESET_CAP_RP } from '../ranks';
+import { getRankTier, calculateSeasonRp, HARD_RESET_CAP_RP } from '../ranks';
 
 export interface SeasonResetResult {
   success: boolean;
@@ -56,7 +56,7 @@ export function getUtcSeasonIds(referenceDate: Date = new Date()) {
  *    season will NOT double-reset or corrupt user stats.
  * 3. Master Soft Reset Table: Maps previous final Season RP to new season carryover RP.
  * 4. Inactive Decay: Users who logged 0 focus seconds in the expiring month decay to 0 RP (Bronze I).
- * 5. Grandmaster Cap: Carryover RP is strictly capped at 23,600 RP (Diamond IV).
+ * 5. Grandmaster Cap: Carryover RP is strictly capped at 12,800 RP (Diamond IV).
  * 6. Historical Snapshot: Records previous season rank & final stats.
  */
 export async function executeMonthlySeasonReset(
@@ -140,12 +140,12 @@ export async function executeMonthlySeasonReset(
     } else {
       // User was active: Season RP = previous base carryover + Math.floor(prevMonthSeconds / 36)
       const prevBase = Number(profile.season_base_rp || 0);
-      previousFinalSeasonRp = prevBase + Math.floor(prevMonthSeconds / 36);
+      previousFinalSeasonRp = calculateSeasonRp(prevBase, prevMonthSeconds);
       previousTierObj = getRankTier(previousFinalSeasonRp);
 
       // Look up soft reset RP from master table
       const rawCarryover = previousTierObj.softResetRp ?? 0;
-      // Grandmaster Cap: strictly capped at 23,600 RP
+      // Grandmaster Cap: strictly capped at 12,800 RP (Diamond IV)
       newCarryoverRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, rawCarryover));
     }
 

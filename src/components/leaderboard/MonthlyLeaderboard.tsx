@@ -91,7 +91,7 @@ function AnimatedDigit({
  */
 export function getMonthlyRankTierTitle(rankTitle?: string, totalSeconds?: number): string {
   if (typeof totalSeconds === 'number' && totalSeconds > 0) {
-    const rp = Math.floor(totalSeconds / 36);
+    const rp = calculateSeasonRp(0, totalSeconds);
     return getRankTier(rp).name.toUpperCase();
   }
   if (rankTitle) {
@@ -103,7 +103,7 @@ export function getMonthlyRankTierTitle(rankTitle?: string, totalSeconds?: numbe
 
 export function getMonthlyRankTierConfig(totalSeconds?: number, rankTitle?: string): RankTier {
   if (typeof totalSeconds === 'number' && totalSeconds > 0) {
-    const rp = Math.floor(totalSeconds / 36);
+    const rp = calculateSeasonRp(0, totalSeconds);
     return getRankTier(rp);
   }
   if (rankTitle) {

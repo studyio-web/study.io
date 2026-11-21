@@ -7,7 +7,7 @@ import { X, Clock, Zap, Flame, Shield, Ban, Flag } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { FlairCrown } from './FlairBadge';
 import { RankCrestBadge } from './RankCrestBadge';
-import { getRankTier, RANKS, RankTier, RankTierName, RankDivision } from '../../lib/ranks';
+import { getRankTier, calculateSeasonRp, RANKS, RankTier, RankTierName, RankDivision } from '../../lib/ranks';
 import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak } from '../../lib/mockData';
@@ -247,7 +247,7 @@ export function ScholarProfileModal({
       return profileDetails.rankTitle;
     }
     if (totalStudySeconds > 0) {
-      return getRankTier(Math.floor(totalStudySeconds / 36)).name;
+      return getRankTier(calculateSeasonRp(0, totalStudySeconds)).name;
     }
     return 'Bronze I';
   }, [totalStudySeconds, scholar?.seasonRp, scholar?.rankTitle, profileDetails.rankTitle]);
