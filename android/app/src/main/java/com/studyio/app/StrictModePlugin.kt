@@ -411,6 +411,9 @@ class StrictModePlugin : Plugin() {
             val name = call.getString("name", "This app") ?: "This app"
             val isUltra = call.getBoolean("isUltraStrict", false) ?: false
             if (pkg.isNotEmpty()) {
+                // Post instant heads-up alert notification the moment the app is taken!
+                TimerForegroundService.showBlockedNotification(context, name, isUltra, false)
+
                 val intent = Intent(context, BlockedAppActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_CLEAR_TOP or

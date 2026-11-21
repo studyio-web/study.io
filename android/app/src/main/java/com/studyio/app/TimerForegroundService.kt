@@ -35,6 +35,70 @@ class TimerForegroundService : Service() {
         const val CHANNEL_ID_ALERTS = "timer_alerts"
         const val NOTIFICATION_ID_RUNNING = 1001
         const val NOTIFICATION_ID_FINISHED = 1002
+        const val NOTIFICATION_ID_BLOCKED_ALERT = 9999
+
+        @JvmStatic
+        fun showBlockedNotification(
+            context: Context,
+            appName: String,
+            isUltra: Boolean = false,
+            isUninstallShield: Boolean = false
+        ) {
+            try {
+                val title = if (isUninstallShield) "Settings & Deletion Locked" else "Blocked by Study.io"
+                val text = when {
+                    isUninstallShield -> "Settings and app management are locked during Ultra Strict Mode"
+                    isUltra -> "$appName is blocked during Ultra Strict Mode"
+                    else -> "$appName is blocked during Strict Mode"
+                }
+
+                val launchIntent = Intent(context, MainActivity::class.java).apply {
+                    action = Intent.ACTION_MAIN
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra("tab", "timer")
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    NOTIFICATION_ID_BLOCKED_ALERT,
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                    val channel = NotificationChannel(
+                        CHANNEL_ID_ALERTS,
+                        "Timer Alerts",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = "Alerts for Strict Mode and focus sessions"
+                        enableVibration(true)
+                        setShowBadge(true)
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    }
+                    nm?.createNotificationChannel(channel)
+                }
+
+                val notif = NotificationCompat.Builder(context, CHANNEL_ID_ALERTS)
+                    .setSmallIcon(R.drawable.ic_stat_studyio)
+                    .setColor(androidx.core.content.ContextCompat.getColor(context, R.color.colorNotification))
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    .setFullScreenIntent(pendingIntent, false)
+                    .build()
+
+                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_BLOCKED_ALERT, notif)
+                Log.d(TAG, "Instant blocked notification posted: $title - $text")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to post instant blocked notification", e)
+            }
+        }
 
         const val ACTION_START = "com.studyio.app.ACTION_TIMER_START"
         const val ACTION_UPDATE = "com.studyio.app.ACTION_TIMER_UPDATE"
@@ -193,7 +257,8 @@ class TimerForegroundService : Service() {
         override fun run() {
             if ((isRunning || isPaused) && isStrictActive) {
                 checkAndEnforceStrictMode()
-                strictHandler.postDelayed(this, 350)
+                val nextDelay = if (MainActivity.isAppInForeground) 400L else 150L
+                strictHandler.postDelayed(this, nextDelay)
             } else {
                 isStrictMonitoringRunning = false
             }
@@ -233,10 +298,8 @@ class TimerForegroundService : Service() {
         if ((!isRunning && !isPaused) || !isStrictActive) return
         if (BlockedAppActivity.isVisible) return
 
-        // 1. If Study.io is currently in the foreground or was foregrounded within the last 2.5 seconds,
-        // do not check or block anything. This gives UsageStatsManager enough time to catch up
-        // and eliminates cold-start or app-switch false positives where the previous app's event is still current.
-        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2500L)) {
+        // 1. If Study.io is currently in the foreground, do not check or block anything.
+        if (MainActivity.isAppInForeground) {
             return
         }
 
@@ -309,6 +372,9 @@ class TimerForegroundService : Service() {
 
             Log.w(TAG, "Strict Mode Violation: BLOCKING $currentPkg ($appName), ultra=$isUltraStrict, uninstallShield=$isUninstallShieldViolation")
 
+            // 1. Post instant heads-up alert notification THE MOMENT the app is taken!
+            showBlockedNotification(this, appName, isUltraStrict, isUninstallShieldViolation)
+
             val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -328,21 +394,21 @@ class TimerForegroundService : Service() {
                 try {
                     val pendingIntent = PendingIntent.getActivity(
                         this,
-                        9999,
+                        NOTIFICATION_ID_BLOCKED_ALERT,
                         blockIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )
                     val notif = NotificationCompat.Builder(this, CHANNEL_ID_ALERTS)
                         .setSmallIcon(R.drawable.ic_stat_studyio)
                         .setColor(androidx.core.content.ContextCompat.getColor(this, R.color.colorNotification))
-                        .setContentTitle("Blocked by Study.io")
-                        .setContentText("$appName is blocked during Strict Mode")
+                        .setContentTitle(if (isUninstallShieldViolation) "Settings & Deletion Locked" else "Blocked by Study.io")
+                        .setContentText(if (isUninstallShieldViolation) "Settings and app management are locked during Ultra Strict Mode" else "$appName is blocked during Strict Mode")
                         .setPriority(NotificationCompat.PRIORITY_MAX)
                         .setCategory(NotificationCompat.CATEGORY_ALARM)
                         .setFullScreenIntent(pendingIntent, true)
                         .setAutoCancel(true)
                         .build()
-                    NotificationManagerCompat.from(this).notify(9999, notif)
+                    NotificationManagerCompat.from(this).notify(NOTIFICATION_ID_BLOCKED_ALERT, notif)
                 } catch (e2: Exception) {
                     Log.e(TAG, "Failed fullScreenIntent fallback", e2)
                 }
@@ -1003,21 +1069,25 @@ class TimerForegroundService : Service() {
         mainHandler.postDelayed(finishRunnable!!, delayMs)
 
         // 2. Hardware AlarmManager setAlarmClock via AlarmScheduler (guarantees wakeup in Doze, screen off, app closed)
-        try {
-            val triggerAtMs = System.currentTimeMillis() + delayMs
-            AlarmScheduler.scheduleAlarm(
-                context = this,
-                id = "timer_finish_alarm",
-                triggerAtMs = triggerAtMs,
-                label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
-                mode = mode,
-                phase = phase,
-                subject = subject,
-                durationSeconds = targetSeconds.toLong()
-            )
-            Log.d("StudyAlarm", "TimerForegroundService: Scheduled AlarmClock via AlarmScheduler in ${delayMs / 1000}s (at $triggerAtMs)")
-        } catch (e: Exception) {
-            Log.w("StudyAlarm", "Failed to schedule AlarmClock in TimerForegroundService", e)
+        if (AlarmScheduler.isAlarmEnabled(this)) {
+            try {
+                val triggerAtMs = System.currentTimeMillis() + delayMs
+                AlarmScheduler.scheduleAlarm(
+                    context = this,
+                    id = "timer_finish_alarm",
+                    triggerAtMs = triggerAtMs,
+                    label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
+                    mode = mode,
+                    phase = phase,
+                    subject = subject,
+                    durationSeconds = targetSeconds.toLong()
+                )
+                Log.d("StudyAlarm", "TimerForegroundService: Scheduled AlarmClock via AlarmScheduler in ${delayMs / 1000}s (at $triggerAtMs)")
+            } catch (e: Exception) {
+                Log.w("StudyAlarm", "Failed to schedule AlarmClock in TimerForegroundService", e)
+            }
+        } else {
+            Log.d("StudyAlarm", "TimerForegroundService: Alarm is disabled by user, skipping AlarmScheduler.scheduleAlarm")
         }
     }
 
@@ -1089,16 +1159,20 @@ class TimerForegroundService : Service() {
             Log.w(TAG, "Could not acquire screen wakeup lock", e)
         }
 
-        // Ring native AlarmService with sound, vibration, and full-screen intent
-        AlarmScheduler.triggerAlarmNow(
-            context = this,
-            id = "timer_target_reached",
-            label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
-            mode = mode,
-            phase = phase,
-            subject = subject,
-            durationSeconds = targetSeconds.toLong()
-        )
+        // Ring native AlarmService with sound, vibration, and full-screen intent ONLY if alarm is enabled
+        if (AlarmScheduler.isAlarmEnabled(this)) {
+            AlarmScheduler.triggerAlarmNow(
+                context = this,
+                id = "timer_target_reached",
+                label = if (mode == "pomodoro" && phase == "break") "Break Finished" else "Session Complete",
+                mode = mode,
+                phase = phase,
+                subject = subject,
+                durationSeconds = targetSeconds.toLong()
+            )
+        } else {
+            Log.d(TAG, "TimerForegroundService: Alarm is disabled by user, skipping AlarmScheduler.triggerAlarmNow")
+        }
 
         postFinishAlertNotification(wasUltra)
 

@@ -12,6 +12,7 @@ import { TimerNotification } from './timerNotificationPlugin';
 import { initNotificationChannels } from './notifications';
 import { getSupabase } from './supabase';
 import { startApkDownload } from './apkDownload';
+import { getDeviceId, cleanDeviceId } from './deviceId';
 
 let isPushInitialized = false;
 let currentActiveUserId: string | null = null;
@@ -151,12 +152,22 @@ export async function initPushNotifications(userId?: string): Promise<void> {
 
         // Intercept and handle cross-device timer state changes immediately
         if (notification.data?.type === 'timer_sync') {
+          const pushDeviceId = cleanDeviceId(notification.data?.device_id);
+          const localDeviceId = cleanDeviceId(getDeviceId());
+          // Ignore pushes originating from this device's own writes
+          if (pushDeviceId && localDeviceId && pushDeviceId === localDeviceId) {
+            console.log('[Push] Ignoring timer_sync push notification from this same device:', pushDeviceId);
+            return;
+          }
+
           const status = notification.data?.status;
           if (status === 'stopped') {
             TimerNotification.stop().catch(() => {});
             TimerNotification.stopAlarm().catch(() => {});
             if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('studyio_remote_timer_stopped'));
+              window.dispatchEvent(
+                new CustomEvent('studyio_remote_timer_stopped', { detail: notification.data })
+              );
             }
           } else {
             if (typeof window !== 'undefined') {

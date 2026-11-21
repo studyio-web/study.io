@@ -58,8 +58,10 @@ function WheelColumn({
   ariaLabel,
 }: WheelColumnProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isProgrammaticScroll = useRef(false);
+  const isInteractingRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
   const scrollDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTickIndexRef = useRef(value);
 
   // In-line typing state
   const [isTyping, setIsTyping] = useState(false);
@@ -81,34 +83,73 @@ function WheelColumn({
 
   // Programmatic scroll when value changes externally
   useEffect(() => {
+    lastTickIndexRef.current = value;
     const el = containerRef.current;
-    if (!el || isTyping) return;
+    if (!el || isTyping || isInteractingRef.current) return;
     const target = value * ITEM_HEIGHT;
-    if (Math.abs(el.scrollTop - target) > 2) {
-      isProgrammaticScroll.current = true;
+    if (Math.abs(el.scrollTop - target) > 1) {
+      isProgrammaticScrollRef.current = true;
       el.scrollTo({ top: target, behavior: 'smooth' });
       const timer = setTimeout(() => {
-        isProgrammaticScroll.current = false;
+        isProgrammaticScrollRef.current = false;
       }, 250);
       return () => clearTimeout(timer);
     }
   }, [value, isTyping]);
 
-  // Debounced scroll listener for user wheel/drag
-  const handleScroll = () => {
-    if (isProgrammaticScroll.current || isTyping) return;
-    if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+  const settleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || isTyping) return;
+    const rawIndex = el.scrollTop / ITEM_HEIGHT;
+    const targetIndex = Math.max(0, Math.min(maxVal, Math.round(rawIndex)));
+    const targetTop = targetIndex * ITEM_HEIGHT;
 
+    if (Math.abs(el.scrollTop - targetTop) > 1) {
+      isProgrammaticScrollRef.current = true;
+      el.scrollTo({ top: targetTop, behavior: 'smooth' });
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 200);
+    }
+
+    if (targetIndex !== value) {
+      onChange(targetIndex);
+    }
+  }, [maxVal, value, onChange, isTyping]);
+
+  // Debounced scroll listener for user wheel/drag with live tactile feedback
+  const handleScroll = () => {
+    if (isProgrammaticScrollRef.current || isTyping) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Live tactile tick as numbers pass center
+    const liveIndex = Math.max(0, Math.min(maxVal, Math.round(el.scrollTop / ITEM_HEIGHT)));
+    if (liveIndex !== lastTickIndexRef.current) {
+      lastTickIndexRef.current = liveIndex;
+      triggerHaptic('selection');
+    }
+
+    if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
     scrollDebounceRef.current = setTimeout(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const index = Math.round(el.scrollTop / ITEM_HEIGHT);
-      const clamped = Math.max(0, Math.min(maxVal, index));
-      if (clamped !== value) {
-        onChange(clamped);
+      if (!isInteractingRef.current) {
+        settleScroll();
       }
-    }, 60);
+    }, 100);
   };
+
+  // Modern browser scrollend event
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScrollEnd = () => {
+      if (!isInteractingRef.current) {
+        settleScroll();
+      }
+    };
+    el.addEventListener('scrollend', onScrollEnd);
+    return () => el.removeEventListener('scrollend', onScrollEnd);
+  }, [settleScroll]);
 
   // Keyboard controls
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -192,7 +233,7 @@ function WheelColumn({
         aria-valuemin={0}
         aria-valuemax={maxVal}
         onKeyDown={handleKeyDown}
-        className="relative w-20 sm:w-24 h-[132px] overflow-hidden rounded-2xl outline-none focus-visible:ring-1 focus-visible:ring-fg/30"
+        className="relative w-20 sm:w-24 h-[132px] overflow-hidden rounded-2xl outline-none focus-visible:ring-1 focus-visible:ring-fg/30 touch-pan-y"
       >
         {/* Subtle center row selection band */}
         <div className="absolute top-[44px] left-0 right-0 h-[44px] bg-fg/[0.07] border border-fg/[0.09] rounded-xl pointer-events-none z-0" />
@@ -201,7 +242,24 @@ function WheelColumn({
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="relative z-10 w-full h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar select-none [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
+          onTouchStart={() => {
+            isInteractingRef.current = true;
+            if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+          }}
+          onTouchEnd={() => {
+            isInteractingRef.current = false;
+            if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+            scrollDebounceRef.current = setTimeout(settleScroll, 80);
+          }}
+          onPointerDown={() => {
+            isInteractingRef.current = true;
+          }}
+          onPointerUp={() => {
+            isInteractingRef.current = false;
+            if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+            scrollDebounceRef.current = setTimeout(settleScroll, 80);
+          }}
+          className="relative z-10 w-full h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar select-none overscroll-contain [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
           style={{
             scrollSnapType: 'y mandatory',
             WebkitOverflowScrolling: 'touch',
@@ -229,6 +287,7 @@ function WheelColumn({
                       inputRef.current?.select();
                     }, 20);
                   } else {
+                    triggerHaptic('light');
                     onChange(itemVal);
                   }
                 }}
@@ -419,6 +478,39 @@ export function CountdownEditor({ initialSeconds, onSave, onCancel }: CountdownE
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Quick Duration Preset Pills */}
+        <div className="flex items-center justify-center gap-1.5 mb-3 flex-wrap">
+          {[
+            { label: '5m', sec: 5 * 60 },
+            { label: '15m', sec: 15 * 60 },
+            { label: '25m', sec: 25 * 60 },
+            { label: '30m', sec: 30 * 60 },
+            { label: '45m', sec: 45 * 60 },
+            { label: '1h', sec: 60 * 60 },
+          ].map((preset) => {
+            const isCurrent = totalSeconds === preset.sec;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setHours(Math.floor(preset.sec / 3600));
+                  setMinutes(Math.floor((preset.sec % 3600) / 60));
+                  setSeconds(preset.sec % 60);
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-mono font-medium transition-all cursor-pointer select-none ${
+                  isCurrent
+                    ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-xs scale-105'
+                    : 'bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)]'
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Wheel Picker */}

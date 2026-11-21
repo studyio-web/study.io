@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg-monolith" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgb(24,9,51)"/>
+      <stop offset="65%" stop-color="rgb(14,9,29)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <radialGradient id="ambi-monolith" cx="50%" cy="50%" r="42%">
+      <stop offset="0%" stop-color="#a060e8" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#a060e8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shape-monolith" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="rgb(189,144,239)"/>
+      <stop offset="50%" stop-color="#a060e8"/>
+      <stop offset="100%" stop-color="rgb(187,144,223)"/>
+    </linearGradient>
+    <radialGradient id="inner-monolith" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(217,191,246)" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#a060e8" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#a060e8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow-monolith" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="blur-monolith" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="noise-monolith">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="g"/>
+      <feBlend in="SourceGraphic" in2="g" mode="overlay"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="url(#bg-monolith)"/>
+  <rect width="256" height="256" fill="rgb(11,9,23)" filter="url(#noise-monolith)" opacity="0.12"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="128" cy="128" rx="78" ry="78" fill="url(#ambi-monolith)"/>
+
+  
+  <!-- Outer glow -->
+  <circle cx="128" cy="128" r="76" fill="#a060e8" opacity="0.07" filter="url(#blur-monolith)"/>
+  <circle cx="128" cy="128" r="70" fill="none" stroke="#a060e8" stroke-width="2" opacity="0.25"/>
+  <!-- Spiral arcs (golden ratio approximation) -->
+  <path d="M128,56 A72,72 0 0,1 200,128 A44,44 0 0,1 156,172 A27,27 0 0,1 129,145 A16,16 0 0,1 144,129 A10,10 0 0,1 134,119 A6,6 0 0,1 128,125"
+    fill="none" stroke="url(#shape-monolith)" stroke-width="3" stroke-linecap="round" filter="url(#glow-monolith)" opacity="0.9"/>
+  <path d="M128,56 A72,72 0 0,1 200,128 A44,44 0 0,1 156,172 A27,27 0 0,1 129,145 A16,16 0 0,1 144,129 A10,10 0 0,1 134,119 A6,6 0 0,1 128,125"
+    fill="none" stroke="rgb(208,176,244)" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+  <!-- Rectangle guides (subtle) -->
+  <rect x="56" y="56" width="144" height="144" fill="none" stroke="#a060e8" stroke-width="0.8" opacity="0.15"/>
+  <rect x="56" y="56" width="88" height="88" fill="none" stroke="#d0a0f8" stroke-width="0.8" opacity="0.15"/>
+  <rect x="56" y="56" width="54" height="54" fill="none" stroke="#a060e8" stroke-width="0.8" opacity="0.12"/>
+  <!-- Core -->
+  <circle cx="128" cy="128" r="8" fill="url(#inner-monolith)" filter="url(#glow-monolith)"/>
+  <circle cx="128" cy="128" r="3.5" fill="white" opacity="0.8"/>
+  <!-- Corner accent -->
+  <circle cx="200" cy="128" r="5" fill="#d0a0f8" filter="url(#glow-monolith)" opacity="0.8"/>
+  <circle cx="128" cy="56" r="5" fill="#d0a0f8" filter="url(#glow-monolith)" opacity="0.8"/>
+
+  <!-- Particles -->
+  <circle cx="58" cy="62" r="2.5" fill="#a060e8" opacity="0.4"/>
+  <circle cx="192" cy="72" r="2" fill="#d0a0f8" opacity="0.35"/>
+  <circle cx="44" cy="150" r="1.8" fill="#a060e8" opacity="0.3"/>
+  <circle cx="210" cy="58" r="2.2" fill="#d0a0f8" opacity="0.32"/>
+  <circle cx="72" cy="196" r="1.6" fill="#a060e8" opacity="0.28"/>
+  <circle cx="186" cy="180" r="2" fill="#d0a0f8" opacity="0.25"/>
+  <circle cx="40" cy="90" r="1.4" fill="#a060e8" opacity="0.2"/>
+  <circle cx="216" cy="170" r="1.5" fill="#d0a0f8" opacity="0.22"/>
+</svg>

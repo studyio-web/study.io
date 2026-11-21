@@ -81,6 +81,8 @@ export interface TimerNotificationPlugin {
   scheduleAlarm(options: ScheduleAlarmOptions): Promise<{ success: boolean }>;
   cancelAlarm(options?: { id?: string }): Promise<void>;
   stopAlarm(): Promise<void>;
+  setAlarmEnabled(options: { enabled: boolean }): Promise<{ success: boolean; enabled: boolean }>;
+  isAlarmEnabled(): Promise<{ enabled: boolean }>;
   snooze(options?: { minutes?: number }): Promise<void>;
   getAlarmState(): Promise<NativeAlarmState>;
   getDeviceManufacturer(): Promise<DeviceManufacturerResult>;
@@ -125,6 +127,8 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
     scheduleAlarm: async () => ({ success: true }),
     cancelAlarm: async () => {},
     stopAlarm: async () => {},
+    setAlarmEnabled: async ({ enabled }: { enabled: boolean }) => ({ success: true, enabled }),
+    isAlarmEnabled: async () => ({ enabled: true }),
     snooze: async () => {},
     getAlarmState: async () => ({
       isRinging: false,

@@ -46,8 +46,10 @@ import {
   Lock,
   CloudOff,
   AlertTriangle,
+  Bell,
+  BellOff,
 } from 'lucide-react';
-import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
+import { loadTimerAlarmEnabled, saveTimerAlarmEnabled } from '../../lib/timerAlarm';
 import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import { TimerAlarmModal } from './TimerAlarmModal';
 import { StillStudyingModal } from './StillStudyingModal';
@@ -95,7 +97,10 @@ import { getCurrentMonthFocusSeconds, calculateSeasonRp, getRankTier, resolveLiv
 import { getLocalDateString, isSessionToday, isSessionYesterday } from '../../lib/dateUtils';
 import { Skeleton } from '../common/Skeleton';
 import { useRankTheme } from '../../hooks/useRankTheme';
+import { useRank } from '../../context/RankContext';
 import { useStudyMode } from '../../context/StudyModeContext';
+import { useForgeProgress } from '../../lib/useForgeProgress';
+import { useForgeBadgeSetting } from '../../lib/forgeSettings';
 import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 
@@ -109,7 +114,8 @@ export function StudyTimer() {
   const dailyQuote = getDailyQuote();
   const { user, isLoading, updateProfile } = useAuth();
   const { isFocus, loading: studyModeLoading } = useStudyMode();
-  const { theme, userRank } = useRankTheme();
+  const { theme, userRank, totalRP } = useRankTheme();
+  const { userRank: rankContextState } = useRank();
   const { isPremium } = usePremium();
   const { goals, refreshGoals, checkGoalReached } = useFocusGoals();
   const {
@@ -155,11 +161,14 @@ export function StudyTimer() {
     triggerXpEarned,
     triggerLevelUp,
     showRankSettlement,
+    settlementData,
     activeTaskId,
     hasHydrated,
     isLoadingSessions,
     isRemoteTransitioning,
     isRemoteSession,
+    takeOverSession,
+    endRemoteSession,
     isUltraStrict,
     setIsUltraStrict,
     syncTimerMode,
@@ -709,10 +718,16 @@ export function StudyTimer() {
           if (isBlocked) {
             // Blocked app violation detected while in background!
             triggerHaptic('heavy');
+            const appName = fg.name || fg.packageName;
+            notify('strict_mode_blocked', {
+              title: isUltraStrictRef.current ? 'Ultra Strict Mode 🚫' : 'Blocked by Study.io',
+              body: `${appName} is blocked during Strict Mode`,
+              channelId: 'timer_alerts',
+            }).catch(() => { });
             // Trigger native full-screen BlockedAppActivity immediately!
             StrictMode.blockAppDirect({
               packageName: fg.packageName,
-              name: fg.name || fg.packageName,
+              name: appName,
               isUltraStrict: isUltraStrictRef.current,
             }).catch(() => { });
           }
@@ -724,9 +739,9 @@ export function StudyTimer() {
 
     App.addListener('appStateChange', ({ isActive }) => {
       if (!isActive && isStudyingRef.current && isStrictModeRef.current && !isRemoteSessionRef.current) {
-        // App went to background: check after 400ms & 800ms
-        setTimeout(checkForegroundViolation, 400);
-        setTimeout(checkForegroundViolation, 800);
+        // App went to background: check immediately and followup at 300ms
+        checkForegroundViolation();
+        setTimeout(checkForegroundViolation, 300);
       }
       // When returning to Study.io (isActive === true), do NOT show any alert modal
     }).then((handle) => {
@@ -1974,6 +1989,19 @@ export function StudyTimer() {
   }, [todaySessions, selectedSubject?.id]);
 
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const [isForgeEnabled] = useForgeBadgeSetting();
+  const { forge: forgeProgress, status: forgeStatus } = useForgeProgress();
+
+  const forgeEarnedRp = useMemo(() => {
+    if (settlementData?.newRP !== undefined && settlementData?.prevRP !== undefined) {
+      return Math.max(0, settlementData.newRP - settlementData.prevRP);
+    }
+    if (isCountdownCompleted || forgeStatus === 'complete') {
+      const rpRes = calculateSessionRP(elapsedSeconds);
+      return rpRes.totalGained;
+    }
+    return 0;
+  }, [settlementData, isCountdownCompleted, forgeStatus, elapsedSeconds]);
 
   // Time calculations strictly for display
   let displayTime = formatSeconds(elapsedSeconds);
@@ -2202,6 +2230,30 @@ export function StudyTimer() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
                 </span>
                 <span>Timer active on another device</span>
+                <div className="flex items-center gap-1.5 ml-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      takeOverSession();
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white text-[10px] font-sans font-medium transition-colors cursor-pointer"
+                    title="Take over this session on this phone"
+                  >
+                    Take Over
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      endRemoteSession();
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-rose-100 text-[10px] font-sans font-medium transition-colors cursor-pointer"
+                    title="End remote session"
+                  >
+                    End
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2372,6 +2424,13 @@ export function StudyTimer() {
             onStartCountdownEdit={() => setIsEditingCountdown(true)}
             pomodoroPreset={pomodoroPreset}
             onSelectPomodoroPreset={setPomodoroPreset}
+            isForgeEnabled={isForgeEnabled}
+            forgeProgress={forgeProgress}
+            forgeStatus={forgeStatus}
+            rankTier={userRank}
+            earnedRp={forgeEarnedRp}
+            currentRp={totalRP}
+            nextTier={rankContextState?.nextTier}
           />
         </motion.div>
       </div>
@@ -2842,6 +2901,38 @@ export function StudyTimer() {
             <Maximize2 className="w-3.5 h-3.5 shrink-0" />
             <span>Focus</span>
           </button>
+
+          {/* Timer Alarm Toggle Pill (Available in Countdown & Pomodoro) */}
+          {(timerMode === 'countdown' || timerMode === 'pomodoro') && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                const next = !isAlarmEnabled;
+                setIsAlarmEnabled(next);
+                saveTimerAlarmEnabled(next);
+                if (!next) {
+                  soundFx.stopTimerAlarm();
+                  if (isNativeAndroid()) {
+                    TimerNotification.cancelAlarm().catch(() => { });
+                    TimerNotification.stopAlarm().catch(() => { });
+                  }
+                }
+              }}
+              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isAlarmEnabled
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 font-medium'
+                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+                }`}
+              title={isAlarmEnabled ? 'Timer Alarm: ON (Click to turn off)' : 'Timer Alarm: OFF (Click to turn on)'}
+            >
+              {isAlarmEnabled ? (
+                <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
+              )}
+              <span>{isAlarmEnabled ? 'Alarm: ON' : 'Alarm: OFF'}</span>
+            </button>
+          )}
 
           {/* Strict Mode Button (Strictly Native Android Only) */}
           {isAndroid && (

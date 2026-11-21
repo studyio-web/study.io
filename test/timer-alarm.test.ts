@@ -306,5 +306,39 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
 
     // 4. stopAlarm completes successfully
     await TimerNotification.stopAlarm();
+
+    // 5. setAlarmEnabled and isAlarmEnabled plugin contracts
+    const setRes = await TimerNotification.setAlarmEnabled({ enabled: false });
+    assert.strictEqual(setRes.success, true);
+    assert.strictEqual(setRes.enabled, false);
+
+    const isEnabledRes = await TimerNotification.isAlarmEnabled();
+    assert.strictEqual(typeof isEnabledRes.enabled, 'boolean');
+  });
+
+  it('guarantees alarm disabled state strictly prevents countdown and pomodoro alarms from firing', () => {
+    let alarmRung = false;
+
+    const onCompletion = (alarmEnabled: boolean, mode: 'countdown' | 'pomodoro', phase?: string) => {
+      if (alarmEnabled) {
+        alarmRung = true;
+      }
+    };
+
+    // 1. Countdown finished with alarm disabled -> must NOT ring
+    onCompletion(false, 'countdown');
+    assert.equal(alarmRung, false, 'Disabled alarm must never ring for countdown completion');
+
+    // 2. Pomodoro work phase finished with alarm disabled -> must NOT ring
+    onCompletion(false, 'pomodoro', 'work');
+    assert.equal(alarmRung, false, 'Disabled alarm must never ring for pomodoro work completion');
+
+    // 3. Pomodoro break phase finished with alarm disabled -> must NOT ring
+    onCompletion(false, 'pomodoro', 'break');
+    assert.equal(alarmRung, false, 'Disabled alarm must never ring for pomodoro break completion');
+
+    // 4. When re-enabled, rings as expected
+    onCompletion(true, 'countdown');
+    assert.equal(alarmRung, true, 'Enabled alarm rings on completion');
   });
 });

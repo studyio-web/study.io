@@ -9,7 +9,7 @@ import { useAuth } from './AuthContext';
 import { useStudyMode } from './StudyModeContext';
 import { resolveDefaultSubjectId, DEFAULT_SUBJECT_NAME, DEFAULT_SUBJECT_COLOR } from '../lib/defaultSubjectResolver';
 import { getSupabase } from '../lib/supabase';
-import { getDeviceId } from '../lib/deviceId';
+import { getDeviceId, initDeviceId, cleanDeviceId } from '../lib/deviceId';
 import { soundFx } from '../lib/audio';
 import confetti from 'canvas-confetti';
 import toast from 'react-hot-toast';
@@ -78,6 +78,9 @@ interface StudyContextType {
   refetchActiveSession: () => Promise<void>;
   isRemoteTransitioning: boolean;
   isRemoteSession: boolean;
+  setIsRemoteSession: (val: boolean) => void;
+  takeOverSession: () => Promise<void>;
+  endRemoteSession: () => Promise<void>;
   lastRemoteSyncTime: number | null;
   hasHydrated: boolean;
   isLoadingSessions: boolean;
@@ -401,6 +404,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       accessTokenRef.current = session?.access_token || null;
     });
     return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  // Hydrate persistent device_id from Capacitor Preferences on app launch
+  useEffect(() => {
+    initDeviceId().catch(() => {});
   }, []);
 
   // Request native notification permissions
@@ -1578,6 +1586,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       pomodoroPhase?: PomodoroPhase;
       isUltraStrict?: boolean;
       client_session_id?: string | null;
+      device_id?: string;
       action?: string;
     }
   ) => {
@@ -1585,7 +1594,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const uid = realtimeUserId || userRef.current?.id || user?.id;
     if (!supabase || !uid || uid.startsWith('user-scholar') || uid.startsWith('guest')) return;
 
-    const deviceId = getDeviceId();
+    const deviceId = cleanDeviceId(extra?.device_id || getDeviceId());
     lastLocalActionRef.current = { timestamp: Date.now(), status };
 
     // Broadcast focus status instantly to study rooms hub
@@ -1610,6 +1619,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     const executeSync = async () => {
+      const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
       if (status === 'stopped') {
         console.log('[Timer Write: syncActiveSessionToDb (stopped)]', {
           timestamp: new Date().toISOString(),
@@ -1620,22 +1631,37 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
         // 1. Call stop_session RPC to reset active_sessions state server-side
         let rpcFinalSeconds: number | null = null;
+        const sessIdToStop = extra?.client_session_id || clientSessionIdRef.current;
         try {
-          const { data, error: rpcError } = await supabase.rpc('stop_session', {
-            p_device_id: deviceId,
-          });
-          if (!rpcError && typeof data === 'number') {
-            rpcFinalSeconds = data;
-          } else if (rpcError) {
-            console.warn('[Timer Write: stop_session RPC error fallback to manual reset]', rpcError);
-            await supabase.from('active_sessions').update({
-              status: 'idle',
-              started_at: null,
-              accumulated_seconds: 0,
-              subject_id: null,
-              device_id: deviceId,
-              updated_at: new Date().toISOString(),
-            }).eq('user_id', uid);
+          if (sessIdToStop && isUuid(sessIdToStop)) {
+            const { data, error: rpcError } = await supabase.rpc('stop_session', {
+              p_session_id: sessIdToStop,
+              p_device_id: deviceId,
+            });
+            if (!rpcError && typeof data === 'object' && data !== null && 'duration_seconds' in data) {
+              rpcFinalSeconds = (data as any).duration_seconds;
+            } else if (rpcError) {
+              console.warn('[Timer Write: stop_session RPC error fallback to API]:', rpcError);
+              await fetch('/api/timer/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'stop',
+                  session_id: sessIdToStop,
+                  device_id: deviceId,
+                }),
+              }).catch(() => {});
+            }
+          } else {
+            await fetch('/api/timer/action', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'stop',
+                session_id: sessIdToStop || crypto.randomUUID(),
+                device_id: deviceId,
+              }),
+            }).catch(() => {});
           }
         } catch (e) {
           console.warn('[Timer Write: stop_session exception]:', e);
@@ -1692,31 +1718,35 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           accumulated_seconds_after: effectiveAccumulated,
         });
 
-        // 1. Try pause_session RPC first (only if not updating pomodoro phase or target duration)
-        const isChangingPhase = extra?.pomodoroPhase !== undefined || extra?.targetDuration !== undefined || extra?.mode !== undefined;
+        // 1. Try pause_session RPC first
         let rpcError = null;
-        
-        if (!isChangingPhase) {
-          const res = await supabase.rpc('pause_session', {
-            p_device_id: finalDeviceId,
-          });
-          rpcError = res.error;
+        if (effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
+          try {
+            const res = await supabase.rpc('pause_session', {
+              p_session_id: effectiveClientSessionId,
+              p_expected_version: sessionVersionRef.current || 1,
+              p_device_id: finalDeviceId,
+            });
+            rpcError = res.error;
+          } catch (e) {
+            rpcError = e;
+          }
+        } else {
+          rpcError = true;
         }
 
-        if (isChangingPhase || rpcError) {
-          if (rpcError) console.warn('[Timer Write: pause_session RPC fallback upsert]', rpcError);
-          // Fallback direct upsert
-          await supabase.from('active_sessions').upsert({
-            user_id: uid,
-            device_id: finalDeviceId,
-            status: 'paused',
-            started_at: null,
-            accumulated_seconds: effectiveAccumulated,
-            mode: dbMode,
-            pomodoro_phase: dbPhase,
-            pomodoro_duration_seconds: dbDuration,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id' });
+        if (rpcError) {
+          console.warn('[Timer Write: pause_session fallback API route]', rpcError);
+          await fetch('/api/timer/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'pause',
+              session_id: effectiveClientSessionId || crypto.randomUUID(),
+              expected_version: sessionVersionRef.current,
+              device_id: finalDeviceId,
+            }),
+          }).catch(() => {});
         }
 
         // 2. Peer broadcast
@@ -1742,7 +1772,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         }
       } else if (status === 'running') {
         const sub = activeSubjectRef.current || (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === selectedSubjectId);
-        const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         const activeSubId = extra?.subjectId !== undefined ? extra.subjectId : (isUuid(sub?.id) ? sub!.id : null);
         const activeSubName = extra?.subjectName !== undefined ? extra.subjectName : (sub?.name || null);
         const effectiveMode = extra?.mode || timerMode || 'stopwatch';
@@ -1761,9 +1790,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             ? (effectivePhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration)
             : (effectiveMode === 'countdown' ? countdownTargetRef.current : null)
         );
-        const dbPhase = effectiveMode === 'pomodoro'
-          ? (effectivePhase === 'work' ? 'focus' : 'break')
-          : null;
         const effectiveAccumulated = extra?.accumulatedSeconds ?? extra?.elapsedBeforePause ?? accumulatedSecondsRef.current;
         const startedAtIso = extra?.startedAt !== undefined ? extra.startedAt : new Date().toISOString();
 
@@ -1777,19 +1803,54 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           isUltra: effectiveIsUltra,
         });
 
-        // Direct upsert with exact columns matching active_sessions table schema
-        await supabase.from('active_sessions').upsert({
-          user_id: uid,
-          device_id: finalDeviceId,
-          subject_id: isUuid(activeSubId) ? activeSubId : null,
-          status: 'running',
-          started_at: startedAtIso,
-          accumulated_seconds: effectiveAccumulated,
-          mode: dbMode,
-          pomodoro_phase: dbPhase,
-          pomodoro_duration_seconds: targetDuration,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+        // 1. Authoritative RPC or guarded API action (resuming or starting)
+        let rpcError = null;
+        if (isPausedRef.current && effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
+          try {
+            const res = await supabase.rpc('resume_session', {
+              p_session_id: effectiveClientSessionId,
+              p_expected_version: sessionVersionRef.current || 1,
+              p_device_id: finalDeviceId,
+            });
+            rpcError = res.error;
+          } catch (e) {
+            rpcError = e;
+          }
+        } else if (effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
+          try {
+            const res = await supabase.rpc('start_session', {
+              p_session_id: effectiveClientSessionId,
+              p_mode: dbMode,
+              p_subject_id: isUuid(activeSubId) ? activeSubId : null,
+              p_planned_duration_seconds: targetDuration,
+              p_is_ultra: effectiveIsUltra,
+              p_device_id: finalDeviceId,
+            });
+            rpcError = res.error;
+          } catch (e) {
+            rpcError = e;
+          }
+        } else {
+          rpcError = true;
+        }
+
+        if (rpcError) {
+          console.warn('[Timer Write: running session fallback API route]', rpcError);
+          await fetch('/api/timer/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: isPausedRef.current ? 'resume' : 'start',
+              session_id: effectiveClientSessionId || crypto.randomUUID(),
+              expected_version: sessionVersionRef.current,
+              mode: dbMode,
+              subject_id: isUuid(activeSubId) ? activeSubId : null,
+              planned_duration_seconds: targetDuration,
+              is_ultra: effectiveIsUltra,
+              device_id: finalDeviceId,
+            }),
+          }).catch(() => {});
+        }
 
         // 2. Peer broadcast
         try {
@@ -2029,10 +2090,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     };
   }, [isStudying, isPaused, syncTimerWithServerTime]);
 
-  // single source of truth: only RPCs write accumulated_seconds; realtime handler is read-only
   // Multi-Device Realtime Sync: Server-Authoritative synchronized payload handler
   const handleRemoteSync = useCallback((remoteSession: any) => {
-    const myDeviceId = getDeviceId();
+    const myDeviceId = cleanDeviceId(getDeviceId());
+    const rawDeviceId = String(remoteSession?.device_id || '');
+    const serverDeviceId = cleanDeviceId(rawDeviceId);
 
     if (!remoteSession || remoteSession.status === 'stopped' || remoteSession.status === 'idle') {
       // Row deleted or marked stopped/idle
@@ -2050,6 +2112,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      timerEngineRef.current.stopTimer();
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -2058,7 +2121,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       clientSessionIdRef.current = null;
       accumulatedSecondsRef.current = 0;
       sessionStartTimeRef.current = null;
-      clientSessionIdRef.current = null;
       setElapsedSeconds(0);
       setIsStudying(false);
       setIsPaused(false);
@@ -2091,9 +2153,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const rawStopDevId = String(remoteSession?.device_id || '');
-      const baseStopDevId = rawStopDevId.split('#')[0];
-      if (baseStopDevId && baseStopDevId !== myDeviceId) {
+      if (serverDeviceId && serverDeviceId !== myDeviceId) {
         setIsRemoteTransitioning(true);
         setTimeout(() => setIsRemoteTransitioning(false), 300);
         setLastRemoteSyncTime(Date.now());
@@ -2108,14 +2168,89 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const rawDeviceId = String(remoteSession.device_id || '');
-    const baseDeviceId = rawDeviceId.split('#')[0];
-    const isRemoteDevice = Boolean(baseDeviceId && baseDeviceId !== myDeviceId);
+    // Stale check for sessions from another device:
+    // If a running or paused session on another device is older than its mode's stale limits, don't show it as active.
+    const serverNow = getServerNow();
+    let isStale = false;
+    const sessionStatus = remoteSession.status;
+    const sessionMode = remoteSession.mode || remoteSession.timer_mode || 'stopwatch';
+
+    if (sessionStatus === 'paused') {
+      if (remoteSession.last_paused_at) {
+        const pausedMs = new Date(remoteSession.last_paused_at).getTime();
+        if (serverNow - pausedMs >= 24 * 3600 * 1000) {
+          isStale = true;
+        }
+      }
+    } else if (sessionStatus === 'running') {
+      if (sessionMode === 'stopwatch' && !remoteSession.planned_end_at) {
+        const startMs = remoteSession.started_at ? new Date(remoteSession.started_at).getTime() : serverNow;
+        const confirmedUntilMs = remoteSession.confirmed_until ? new Date(remoteSession.confirmed_until).getTime() : 0;
+        if (confirmedUntilMs > 0) {
+          if (serverNow > confirmedUntilMs + 30 * 60 * 1000 || serverNow > startMs + 24.5 * 3600 * 1000) {
+            isStale = true;
+          }
+        } else {
+          if (serverNow > startMs + 12.5 * 3600 * 1000) {
+            isStale = true;
+          }
+        }
+      } else if (remoteSession.planned_end_at || remoteSession.ultra_ends_at) {
+        const plannedMs = new Date(remoteSession.planned_end_at || remoteSession.ultra_ends_at).getTime();
+        if (serverNow > plannedMs + 5 * 60 * 1000) {
+          isStale = true;
+        }
+      }
+    }
+
+    if (isStale) {
+      console.log('[StudyContext] Ignoring stale session from server:', {
+        serverDeviceId,
+        myDeviceId,
+        status: sessionStatus,
+        mode: sessionMode,
+      });
+      setIsRemoteSession(false);
+      isRemoteSessionRef.current = false;
+      return;
+    }
 
     // Sync client_session_id across devices so session saving is idempotent
     const sessMatch = rawDeviceId.match(/#sess:([a-f0-9-]+)/i);
-    const syncedSessionId = remoteSession.client_session_id || (sessMatch ? sessMatch[1] : null);
-    if (syncedSessionId) {
+    const syncedSessionId = remoteSession.client_session_id || remoteSession.session_id || (sessMatch ? sessMatch[1] : null);
+
+    // CRITICAL: Determine whether this session is the active session owned by THIS local device
+    const isThisDeviceActiveSession = Boolean(
+      (clientSessionIdRef.current && syncedSessionId && clientSessionIdRef.current === syncedSessionId) ||
+      (clientSessionIdRef.current && remoteSession?.session_id && clientSessionIdRef.current === remoteSession.session_id) ||
+      (timerIntervalRef.current !== null && isStudyingRef.current && !isRemoteSessionRef.current)
+    );
+
+    // A session is "remote" ONLY if:
+    // 1. It is NOT the session actively running locally on this device
+    // 2. AND server device_id is present and differs from this device's persisted ID
+    // 3. AND the session is running or paused.
+    const isRemoteDevice = Boolean(
+      !isThisDeviceActiveSession &&
+      serverDeviceId &&
+      serverDeviceId !== myDeviceId &&
+      (sessionStatus === 'running' || sessionStatus === 'paused')
+    );
+
+    if (isThisDeviceActiveSession) {
+      if (!clientSessionIdRef.current && syncedSessionId) {
+        clientSessionIdRef.current = syncedSessionId;
+      }
+      // If server device_id diverged from this device's persistent ID, self-heal
+      if (serverDeviceId && serverDeviceId !== myDeviceId) {
+        console.log('[StudyContext] Self-healing active session device_id to current device:', {
+          serverDeviceId,
+          myDeviceId,
+          sessionId: clientSessionIdRef.current,
+        });
+        syncActiveSessionToDb(sessionStatus, { device_id: myDeviceId }).catch(() => {});
+      }
+    } else if (syncedSessionId && !clientSessionIdRef.current) {
       clientSessionIdRef.current = syncedSessionId;
     }
 
@@ -2131,14 +2266,17 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       sessionVersionRef.current = remoteVersion;
     }
 
-    // Ignore immediate echo of local action from this same tab
-    if (
-      !isRemoteDevice &&
-      lastLocalActionRef.current &&
-      lastLocalActionRef.current.status === remoteSession.status &&
-      Date.now() - lastLocalActionRef.current.timestamp < 1500
-    ) {
-      return;
+    // Echo prevention: Ignore pull results that originate from this device's own writes
+    if (!isRemoteDevice && (serverDeviceId === myDeviceId || isThisDeviceActiveSession)) {
+      if (
+        lastLocalActionRef.current &&
+        lastLocalActionRef.current.status === remoteSession.status &&
+        Date.now() - lastLocalActionRef.current.timestamp < 3000
+      ) {
+        setIsRemoteSession(false);
+        isRemoteSessionRef.current = false;
+        return;
+      }
     }
 
     if (isRemoteDevice) {
@@ -2148,6 +2286,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setIsRemoteSession(true);
       isRemoteSessionRef.current = true;
     } else {
+      // Unconditionally adopt as local if device_id matches (or empty) or session is owned locally
       setIsRemoteSession(false);
       isRemoteSessionRef.current = false;
     }
@@ -2394,12 +2533,24 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     };
 
     // 5. Remote push notification event listeners (from Android / FCM push handler)
-    const handleRemotePushSync = () => {
+    const handleRemotePushSync = (e: any) => {
+      const eventDeviceId = cleanDeviceId(e?.detail?.device_id);
+      const myDeviceId = cleanDeviceId(getDeviceId());
+      if (eventDeviceId && myDeviceId && eventDeviceId === myDeviceId) {
+        console.log('[Sync] Ignoring push sync event from this same device:', eventDeviceId);
+        return;
+      }
       console.log('[Sync] Received studyio_remote_timer_sync event');
       runPoll();
     };
 
-    const handleRemotePushStopped = () => {
+    const handleRemotePushStopped = (e: any) => {
+      const eventDeviceId = cleanDeviceId(e?.detail?.device_id);
+      const myDeviceId = cleanDeviceId(getDeviceId());
+      if (eventDeviceId && myDeviceId && eventDeviceId === myDeviceId) {
+        console.log('[Sync] Ignoring push stopped event from this same device:', eventDeviceId);
+        return;
+      }
       console.log('[Sync] Received studyio_remote_timer_stopped event');
       if (handleRemoteSyncRef.current) {
         handleRemoteSyncRef.current({ status: 'stopped', device_id: 'remote' });
@@ -4080,6 +4231,54 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     refetchSessions();
   }, [refetchSessions]);
 
+  // Remote Session Recovery Actions
+  const takeOverSession = useCallback(async () => {
+    const myId = cleanDeviceId(getDeviceId());
+    setIsRemoteSession(false);
+    isRemoteSessionRef.current = false;
+
+    const supabase = getSupabase();
+    const uid = realtimeUserId || userRef.current?.id || user?.id;
+    if (supabase && uid) {
+      try {
+        const { data: active } = await supabase
+          .from('active_sessions')
+          .select('*')
+          .eq('user_id', uid)
+          .maybeSingle();
+
+        if (active && (active.status === 'running' || active.status === 'paused')) {
+          const effectiveMode = active.mode || timerMode || 'stopwatch';
+          const effectiveIsUltra = Boolean(active.is_ultra);
+          const effectiveClientSessionId = active.session_id || clientSessionIdRef.current;
+          const finalDeviceId = `${myId}${effectiveMode === 'countdown' ? '#countdown' : ''}${effectiveIsUltra ? '#ultra' : ''}${effectiveClientSessionId ? `#sess:${effectiveClientSessionId}` : ''}`;
+
+          await fetch('/api/timer/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: active.status === 'paused' ? 'pause' : 'resume',
+              session_id: active.session_id,
+              expected_version: active.version,
+              device_id: finalDeviceId,
+            }),
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[takeOverSession] Error claiming session:', err);
+      }
+    }
+
+    toast('Session transferred to this device 📱', { icon: '📱' });
+  }, [realtimeUserId, user?.id, timerMode]);
+
+  const endRemoteSession = useCallback(async () => {
+    await stopTimer();
+    setIsRemoteSession(false);
+    isRemoteSessionRef.current = false;
+    toast('Remote session ended ⏹️', { icon: '⏹️' });
+  }, [stopTimer]);
+
   // Subjects Management
   const addSubject = async (newSub: Omit<Subject, 'id' | 'createdAt'>) => {
     if (!newSub) return;
@@ -4461,6 +4660,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         refetchActiveSession,
         isRemoteTransitioning,
         isRemoteSession,
+        setIsRemoteSession,
+        takeOverSession,
+        endRemoteSession,
         lastRemoteSyncTime,
         hasHydrated,
         isLoadingSessions,

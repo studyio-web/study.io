@@ -28,6 +28,37 @@ object AlarmScheduler {
     private const val KEY_PHASE = "alarm_phase"
     private const val KEY_SUBJECT = "alarm_subject"
     private const val KEY_DURATION = "alarm_duration"
+    private const val KEY_ALARM_ENABLED = "alarm_enabled"
+
+    fun isAlarmEnabled(context: Context): Boolean {
+        // 1. Check alarm prefs
+        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_ALARM_ENABLED)) {
+            return prefs.getBoolean(KEY_ALARM_ENABLED, true)
+        }
+        // 2. Fallback to CapacitorStorage (shared with web app)
+        try {
+            val capPrefs = context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
+            val capVal = capPrefs.getString("studyio_timer_alarm_enabled", null)
+            if (capVal != null) {
+                return capVal.toBoolean()
+            }
+        } catch (_: Exception) {}
+        return true
+    }
+
+    fun setAlarmEnabled(context: Context, enabled: Boolean) {
+        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_ALARM_ENABLED, enabled).apply()
+        try {
+            val capPrefs = context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
+            capPrefs.edit().putString("studyio_timer_alarm_enabled", enabled.toString()).apply()
+        } catch (_: Exception) {}
+        Log.d(TAG, "AlarmScheduler.setAlarmEnabled: $enabled")
+        if (!enabled) {
+            cancelAlarm(context)
+        }
+    }
 
     fun canScheduleExact(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -49,6 +80,12 @@ object AlarmScheduler {
         subject: String = "",
         durationSeconds: Long = 0
     ): Boolean {
+        if (!isAlarmEnabled(context)) {
+            Log.d(TAG, "Alarm disabled by user setting, skipping scheduleAlarm for '$id'")
+            cancelAlarm(context, id)
+            return false
+        }
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
         if (alarmManager == null) {
             Log.e(TAG, "AlarmManager not available on this device")
@@ -119,6 +156,10 @@ object AlarmScheduler {
         subject: String = "",
         durationSeconds: Long = 0
     ) {
+        if (!isAlarmEnabled(context)) {
+            Log.d(TAG, "Alarm disabled by user setting, skipping triggerAlarmNow")
+            return
+        }
         Log.d(TAG, "triggerAlarmNow requested: starting AlarmService immediately (mode=$mode, phase=$phase)")
         val intent = Intent(context, AlarmService::class.java).apply {
             action = AlarmService.ACTION_START_ALARM

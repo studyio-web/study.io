@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg-eclipse" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgb(43,35,10)"/>
+      <stop offset="65%" stop-color="rgb(22,19,12)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <radialGradient id="ambi-eclipse" cx="50%" cy="50%" r="42%">
+      <stop offset="0%" stop-color="#e8c020" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#e8c020" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shape-eclipse" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="rgb(239,211,99)"/>
+      <stop offset="50%" stop-color="#e8c020"/>
+      <stop offset="100%" stop-color="rgb(230,216,115)"/>
+    </linearGradient>
+    <radialGradient id="inner-eclipse" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(246,230,166)" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#e8c020" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#e8c020" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow-eclipse" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="blur-eclipse" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="noise-eclipse">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="g"/>
+      <feBlend in="SourceGraphic" in2="g" mode="overlay"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="url(#bg-eclipse)"/>
+  <rect width="256" height="256" fill="rgb(15,15,13)" filter="url(#noise-eclipse)" opacity="0.12"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="128" cy="128" rx="78" ry="78" fill="url(#ambi-eclipse)"/>
+
+  
+  <!-- Outer glow star -->
+  <polygon points="128.00,50.00 148.66,78.11 183.15,72.85 177.89,107.34 206.00,128.00 177.89,148.66 183.15,183.15 148.66,177.89 128.00,206.00 107.34,177.89 72.85,183.15 78.11,148.66 50.00,128.00 78.11,107.34 72.85,72.85 107.34,78.11" fill="#e8c020" opacity="0.07" filter="url(#blur-eclipse)"/>
+  <polygon points="128.00,58.00 145.60,85.50 177.50,78.50 170.50,110.40 198.00,128.00 170.50,145.60 177.50,177.50 145.60,170.50 128.00,198.00 110.40,170.50 78.50,177.50 85.50,145.60 58.00,128.00 85.50,110.40 78.50,78.50 110.40,85.50" fill="none" stroke="#e8c020" stroke-width="2" opacity="0.3"/>
+  <polygon points="128.00,66.00 143.31,91.04 171.84,84.16 164.96,112.69 190.00,128.00 164.96,143.31 171.84,171.84 143.31,164.96 128.00,190.00 112.69,164.96 84.16,171.84 91.04,143.31 66.00,128.00 91.04,112.69 84.16,84.16 112.69,91.04" fill="none" stroke="#fff080" stroke-width="1.5" opacity="0.5"/>
+  <!-- Main star -->
+  <polygon points="128.00,74.00 140.25,98.44 166.18,89.82 157.56,115.75 182.00,128.00 157.56,140.25 166.18,166.18 140.25,157.56 128.00,182.00 115.75,157.56 89.82,166.18 98.44,140.25 74.00,128.00 98.44,115.75 89.82,89.82 115.75,98.44" fill="url(#shape-eclipse)" filter="url(#glow-eclipse)" opacity="0.95"/>
+  <polygon points="128.00,74.00 140.25,98.44 166.18,89.82 157.56,115.75 182.00,128.00 157.56,140.25 166.18,166.18 140.25,157.56 128.00,182.00 115.75,157.56 89.82,166.18 98.44,140.25 74.00,128.00 98.44,115.75 89.82,89.82 115.75,98.44" fill="url(#inner-eclipse)"/>
+  <!-- Center -->
+  <circle cx="128" cy="128" r="14" fill="rgb(241,217,121)" filter="url(#glow-eclipse)"/>
+  <circle cx="128" cy="128" r="6" fill="rgb(248,236,188)"/>
+  <circle cx="128" cy="128" r="2.5" fill="white" opacity="0.9"/>
+
+  <!-- Particles -->
+  <circle cx="58" cy="62" r="2.5" fill="#e8c020" opacity="0.4"/>
+  <circle cx="192" cy="72" r="2" fill="#fff080" opacity="0.35"/>
+  <circle cx="44" cy="150" r="1.8" fill="#e8c020" opacity="0.3"/>
+  <circle cx="210" cy="58" r="2.2" fill="#fff080" opacity="0.32"/>
+  <circle cx="72" cy="196" r="1.6" fill="#e8c020" opacity="0.28"/>
+  <circle cx="186" cy="180" r="2" fill="#fff080" opacity="0.25"/>
+  <circle cx="40" cy="90" r="1.4" fill="#e8c020" opacity="0.2"/>
+  <circle cx="216" cy="170" r="1.5" fill="#fff080" opacity="0.22"/>
+</svg>

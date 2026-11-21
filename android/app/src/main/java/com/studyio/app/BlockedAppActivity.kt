@@ -33,7 +33,7 @@ class BlockedAppActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2000L)) {
+        if (MainActivity.isAppInForeground) {
             finish()
             return
         }
@@ -47,6 +47,9 @@ class BlockedAppActivity : AppCompatActivity() {
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
         val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
         val isUninstallShield = intent.getBooleanExtra(EXTRA_IS_SETTINGS_OR_UNINSTALL, false)
+
+        // Post instant heads-up alert notification the moment BlockedAppActivity appears
+        TimerForegroundService.showBlockedNotification(this, blockedName, isUltra, isUninstallShield)
 
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -225,7 +228,7 @@ class BlockedAppActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2000L)) {
+        if (MainActivity.isAppInForeground) {
             finish()
             return
         }
@@ -233,6 +236,8 @@ class BlockedAppActivity : AppCompatActivity() {
         val blockedName = intent.getStringExtra(EXTRA_BLOCKED_NAME) ?: "This app"
         val isUltra = intent.getBooleanExtra(EXTRA_IS_ULTRA, false)
         val isUninstallShield = intent.getBooleanExtra(EXTRA_IS_SETTINGS_OR_UNINSTALL, false)
+
+        TimerForegroundService.showBlockedNotification(this, blockedName, isUltra, isUninstallShield)
 
         subtitleView.text = if (isUninstallShield) "Uninstall Protection Active" else "$blockedName is blocked"
         descView.text = when {

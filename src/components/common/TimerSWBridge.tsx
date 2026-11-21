@@ -6,6 +6,7 @@ import { useServiceWorker } from '../../hooks/useServiceWorker';
 import { TimerNotification, isNativeAndroid } from '../../lib/timerNotificationPlugin';
 import { requestNotificationPermission } from '../../lib/notifications';
 import { getServerNow } from '../../lib/serverTime';
+import { loadTimerAlarmEnabled } from '../../lib/timerAlarm';
 
 /**
  * Detect touchscreen/mobile devices via the `pointer: coarse` media query.
@@ -180,8 +181,9 @@ export function TimerSWBridge() {
           console.warn('[Native Timer Bridge] start failed:', err)
         );
 
-        // Schedule exact AlarmManager alarm for countdown or pomodoro completion
-        if (timerMode === 'countdown' || timerMode === 'pomodoro') {
+        // Schedule exact AlarmManager alarm for countdown or pomodoro completion ONLY if alarm is enabled
+        const isAlarmOn = loadTimerAlarmEnabled();
+        if (isAlarmOn && (timerMode === 'countdown' || timerMode === 'pomodoro')) {
           const remainingSeconds = Math.max(0, target - elapsedSeconds);
           if (remainingSeconds > 0) {
             const isBreak = pomodoroPhase === 'shortBreak' || pomodoroPhase === 'longBreak';
@@ -199,6 +201,8 @@ export function TimerSWBridge() {
               console.warn('[Native Timer Bridge] scheduleAlarm failed:', err)
             );
           }
+        } else if (!isAlarmOn) {
+          TimerNotification.cancelAlarm().catch(() => {});
         }
 
         // Check for battery optimization on native Android so background timer is never restricted after 2 mins
@@ -275,8 +279,9 @@ export function TimerSWBridge() {
           console.warn('[Native Timer Bridge] update phase failed:', err)
         );
 
+        const isAlarmOn = loadTimerAlarmEnabled();
         const remainingSeconds = Math.max(0, target - elapsedSeconds);
-        if (remainingSeconds > 0) {
+        if (isAlarmOn && remainingSeconds > 0) {
           const isBreak = pomodoroPhase === 'shortBreak' || pomodoroPhase === 'longBreak';
           const alarmPhase: 'work' | 'break' = isBreak ? 'break' : 'work';
           const triggerAtMs = Date.now() + (remainingSeconds * 1000);
@@ -291,6 +296,8 @@ export function TimerSWBridge() {
           }).catch((err) =>
             console.warn('[Native Timer Bridge] scheduleAlarm phase update failed:', err)
           );
+        } else if (!isAlarmOn) {
+          TimerNotification.cancelAlarm().catch(() => {});
         }
       }
     }

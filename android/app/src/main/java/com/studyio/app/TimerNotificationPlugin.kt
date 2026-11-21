@@ -320,6 +320,40 @@ class TimerNotificationPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun setAlarmEnabled(call: PluginCall) {
+        try {
+            val enabled = call.getBoolean("enabled", true) ?: true
+            Log.d(TAG, "setAlarmEnabled called from plugin: enabled=$enabled")
+            AlarmScheduler.setAlarmEnabled(context, enabled)
+            if (!enabled) {
+                AlarmScheduler.cancelAlarm(context)
+                AlarmService.stopAlarmService(context)
+            }
+            val ret = JSObject().apply {
+                put("success", true)
+                put("enabled", enabled)
+            }
+            call.resolve(ret)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in setAlarmEnabled", e)
+            call.reject("Failed to set alarm enabled: ${e.message}", e)
+        }
+    }
+
+    @PluginMethod
+    fun isAlarmEnabled(call: PluginCall) {
+        try {
+            val enabled = AlarmScheduler.isAlarmEnabled(context)
+            val ret = JSObject().apply {
+                put("enabled", enabled)
+            }
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.resolve(JSObject().put("enabled", true))
+        }
+    }
+
+    @PluginMethod
     fun getAlarmState(call: PluginCall) {
         try {
             val isRinging = AlarmService.isRinging

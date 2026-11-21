@@ -129,6 +129,13 @@ class AlarmService : Service() {
             return START_NOT_STICKY
         }
 
+        if (!AlarmScheduler.isAlarmEnabled(this)) {
+            Log.d(TAG, "AlarmService onStartCommand: alarm disabled by user setting, stopping immediately")
+            stopRingingAndRelease()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         startRingingAlarm(intent)
         return START_NOT_STICKY
     }

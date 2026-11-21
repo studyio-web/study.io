@@ -1159,4 +1159,35 @@ describe('Real PostgreSQL Database Integration Tests (Migration, Security & RPCs
     assert.equal((activeCheck.rows[0] as any).session_id, idempotentId);
     assert.equal((activeCheck.rows[0] as any).status, 'running');
   });
+
+  it('start_session stores device_id and returns active_sessions row with exact same device_id [Role: authenticated]', async () => {
+    const testDeviceId = 'phone-android-galaxy-s24-ultra-persisted-uuid';
+    const testSessId = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a7a7';
+
+    await db.exec(`delete from public.active_sessions where user_id = '${testUserId}';`);
+
+    let startRes: any;
+    await asRole('authenticated', async () => {
+      const res = await db.query(`
+        select public.start_session(
+          p_session_id => '${testSessId}'::uuid,
+          p_mode => 'stopwatch',
+          p_device_id => '${testDeviceId}'
+        ) as res;
+      `);
+      startRes = (res.rows[0] as any).res;
+    });
+
+    assert.equal(startRes.session_id, testSessId);
+    assert.equal(startRes.device_id, testDeviceId, 'start_session RPC result must return the exact same device_id');
+
+    // Query active_sessions table directly to verify persistence
+    const checkDb = await db.query(`
+      select device_id, session_id, status from public.active_sessions where user_id = '${testUserId}';
+    `);
+    assert.equal(checkDb.rows.length, 1);
+    assert.equal((checkDb.rows[0] as any).device_id, testDeviceId, 'Database row in active_sessions must retain device_id unchanged');
+    assert.equal((checkDb.rows[0] as any).session_id, testSessId);
+    assert.equal((checkDb.rows[0] as any).status, 'running');
+  });
 });

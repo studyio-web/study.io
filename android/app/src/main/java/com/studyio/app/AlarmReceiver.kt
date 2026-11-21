@@ -17,6 +17,11 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Log.d(TAG, "AlarmReceiver fired! action=${intent.action}, mode=${intent.getStringExtra("mode")}, phase=${intent.getStringExtra("phase")}")
 
+        if (!AlarmScheduler.isAlarmEnabled(context)) {
+            Log.d(TAG, "AlarmReceiver: alarm disabled by user, skipping AlarmService start")
+            return
+        }
+
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
         val wakeLock = powerManager?.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,

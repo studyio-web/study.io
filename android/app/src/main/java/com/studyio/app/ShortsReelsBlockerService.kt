@@ -93,7 +93,7 @@ class ShortsReelsBlockerService : AccessibilityService() {
 
         // 2. Ultra Strict Uninstall & Turn-Off Protection
         if (StudyDeviceAdminReceiver.isUltraStrictSessionActive(this)) {
-            if (MainActivity.isAppInForeground || (System.currentTimeMillis() - MainActivity.lastForegroundTime < 2500L)) {
+            if (MainActivity.isAppInForeground) {
                 return
             }
             handleUninstallProtectionEvent(event, packageName)
@@ -147,6 +147,7 @@ class ShortsReelsBlockerService : AccessibilityService() {
         if (shouldBlock) {
             lastUninstallBlockTime = now
             Log.w(TAG, "Ultra Strict Uninstall Protection triggered in Accessibility for $packageName. Blocking.")
+            TimerForegroundService.showBlockedNotification(this, "Settings & App Management", isUltra = true, isUninstallShield = true)
             performGlobalAction(GLOBAL_ACTION_HOME)
             try {
                 val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {

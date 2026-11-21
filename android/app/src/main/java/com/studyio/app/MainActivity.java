@@ -188,9 +188,23 @@ public class MainActivity extends BridgeActivity {
                 }
 
                 @JavascriptInterface
+                public String getNativeDeviceId() {
+                    return getOrCreatePersistentDeviceId();
+                }
+
+                @JavascriptInterface
                 public void onPageLoaded() {
                     isWebLoaded = true;
                     Log.d(TAG, "WebView reported onPageLoaded");
+                    final String nativeDevId = getOrCreatePersistentDeviceId();
+                    runOnUiThread(() -> {
+                        if (getBridge() != null && getBridge().getWebView() != null) {
+                            getBridge().getWebView().evaluateJavascript(
+                                "window.__STUDYIO_NATIVE_DEVICE_ID__ = '" + nativeDevId + "';",
+                                null
+                            );
+                        }
+                    });
                     if (pendingAlarmScript != null) {
                         final String script = pendingAlarmScript;
                         pendingAlarmScript = null;
@@ -257,6 +271,21 @@ public class MainActivity extends BridgeActivity {
         }
 
         handleNotificationIntent(getIntent());
+    }
+
+    public String getOrCreatePersistentDeviceId() {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+            String deviceId = prefs.getString("studyio_device_id", null);
+            if (deviceId == null || deviceId.trim().isEmpty()) {
+                deviceId = java.util.UUID.randomUUID().toString();
+                prefs.edit().putString("studyio_device_id", deviceId).commit();
+            }
+            return deviceId;
+        } catch (Exception e) {
+            Log.e(TAG, "Error accessing persistent deviceId: " + e.getMessage());
+            return "android-native-" + (Build.SERIAL != null ? Build.SERIAL : "device");
+        }
     }
 
     @Override
@@ -332,7 +361,6 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         super.onPause();
         isAppInForeground = false;
-        lastForegroundTime = System.currentTimeMillis();
     }
 
     @Override

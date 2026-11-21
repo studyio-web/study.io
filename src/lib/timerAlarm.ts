@@ -1,3 +1,6 @@
+import { TimerNotification } from './timerNotificationPlugin';
+import { soundFx } from './audio';
+
 /**
  * Timer Alarm Helper & Preference Management
  * Supports optional 5-minute alarm for Countdown, Ultra Strict, and Pomodoro modes.
@@ -24,6 +27,15 @@ export function saveTimerAlarmEnabled(enabled: boolean): void {
     window.dispatchEvent(
       new CustomEvent('studyio_timer_alarm_changed', { detail: { enabled } })
     );
+
+    // Sync state directly to native Android plugin and SharedPreferences
+    TimerNotification.setAlarmEnabled({ enabled }).catch(() => {});
+
+    if (!enabled) {
+      soundFx.stopTimerAlarm();
+      TimerNotification.cancelAlarm().catch(() => {});
+      TimerNotification.stopAlarm().catch(() => {});
+    }
   } catch {
     // ignore
   }
