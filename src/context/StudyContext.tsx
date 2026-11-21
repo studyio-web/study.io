@@ -394,7 +394,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjectsState] = useState<Subject[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = getCachedUserState();
+        const cached = getCachedUserState(user?.id);
         if (cached?.subjects && Array.isArray(cached.subjects) && cached.subjects.length > 0) {
           return deduplicateSubjects(cached.subjects);
         }
@@ -666,6 +666,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   });
   const [todos, setTodos] = useState<TodoItem[]>(INITIAL_TODOS);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString(0));
+
+  const [prevUserIdSync, setPrevUserIdSync] = useState(user?.id);
+  if (user?.id !== prevUserIdSync) {
+    setPrevUserIdSync(user?.id);
+    setSessions([]);
+    setTodos(INITIAL_TODOS);
+    setSubjectsState([]);
+    setSelectedSubjectIdState('');
+  }
 
   const prevUserIdRef2 = useRef(user?.id);
   useEffect(() => {
@@ -2610,7 +2619,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
             // Update real streak, total study seconds, and evaluate official monthly Season RP
             const realStreak = calculateStreak(merged);
-            setCachedStreak(realStreak);
+            setCachedStreak(realStreak, undefined, activeUserId);
             const realTotalSeconds = calculateNonOverlappingSeconds(merged);
             const liveStats = resolveLiveSeasonStats(userRef.current, merged);
             const currentSeasonRp = liveStats.seasonRp;
@@ -2618,6 +2627,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             const rankDetails = liveStats.rankTier;
 
             saveCachedUserState({
+              userId: activeUserId,
               profile: userRef.current ? {
                 ...userRef.current,
                 seasonRp: currentSeasonRp,

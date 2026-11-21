@@ -45,13 +45,13 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   // Hydrate cached user state on client mount to guarantee zero SSR hydration mismatch
   useEffect(() => {
     try {
-      const cached = getCachedUserState();
+      const cached = getCachedUserState(user?.id);
       if (cached && typeof cached.isPro === 'boolean') {
         setRawIsPremium(cached.isPro);
         setLoading(false);
       }
     } catch {}
-  }, []);
+  }, [user?.id]);
 
   // Single error logging guard
   const hasLoggedErrorRef = useRef(false);

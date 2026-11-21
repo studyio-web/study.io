@@ -3,10 +3,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { UserProfile, StudyMode } from '../types';
-import { INITIAL_USER, cleanupLegacyDemoData, calculateStreak, getCachedStreak, setCachedStreak } from '../lib/mockData';
+import { INITIAL_USER, cleanupLegacyDemoData, calculateStreak, getCachedStreak, setCachedStreak, clearCachedStreak } from '../lib/mockData';
+import { clearRankCache } from './RankContext';
 import { getSupabase } from '../lib/supabase';
 import { getRankFromRp, getSoftResetRp, HARD_RESET_CAP_RP, calculateSeasonRp, getCurrentMonthFocusSeconds, getRankTier, resolveLiveSeasonStats } from '../lib/ranks';
-import { clearRankCache } from './RankContext';
 import { initPushNotifications, clearPushTokenOnLogout } from '../lib/pushNotifications';
 import { getCurrentSeasonId, resolveUserSeasonReset, getRankBadgePath } from '../lib/rankedSystem';
 import { getLevelFromLifetimeXP, getScholarTitle } from '../lib/gamification';
@@ -126,18 +126,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanMetaName = rawMetaName.includes('(') ? rawMetaName.split(' (')[0].trim() : rawMetaName;
 
     setUser(prev => {
+      const isSwitchingAccount = Boolean(
+        prev.id &&
+        prev.id !== authUser.id &&
+        isRealUserAccount(prev.id)
+      );
+
+      if (isSwitchingAccount) {
+        clearRankCache(prev.id);
+        clearRankCache();
+        clearCachedStreak(prev.id);
+        try {
+          localStorage.removeItem(`studyio_cached_user_entry_${prev.id}`);
+        } catch {}
+      }
+
       // Prioritize existing local state to prevent flickering back to raw oauth names during background refetches
-      const resolvedDisplayName = resolveScholarName({ ...prev, user_metadata: authUser.user_metadata });
-      const resolvedHandle = resolveScholarHandle({ ...prev, user_metadata: authUser.user_metadata });
-      const cleanAvatar = resolveAppAvatar(prev.avatarUrl, resolvedHandle || resolvedDisplayName || authUser.id);
+      const resolvedDisplayName = resolveScholarName({ ...(isSwitchingAccount ? {} : prev), user_metadata: authUser.user_metadata });
+      const resolvedHandle = resolveScholarHandle({ ...(isSwitchingAccount ? {} : prev), user_metadata: authUser.user_metadata });
+      const cleanAvatar = resolveAppAvatar(isSwitchingAccount ? undefined : prev.avatarUrl, resolvedHandle || resolvedDisplayName || authUser.id);
       
+      // Look up cached user state specifically for the incoming authUser.id
+      const cachedForThisUser = getCachedUserState(authUser.id);
+      const cachedStreakForUser = getCachedStreak(authUser.id);
+
+      const baseUser: UserProfile = isSwitchingAccount
+        ? {
+            ...INITIAL_USER,
+            ...(cachedForThisUser?.profile || {}),
+            id: authUser.id,
+            email: authUser.email || '',
+            displayName: resolvedDisplayName,
+            username: resolvedHandle || authUser.email?.split('@')[0] || 'scholar',
+            avatarUrl: cleanAvatar,
+            streakDays: cachedForThisUser?.streakCount ?? (cachedStreakForUser > 0 ? cachedStreakForUser : 0),
+            seasonRp: cachedForThisUser?.rp ?? 0,
+            rp: cachedForThisUser?.rp ?? 0,
+            rank_title: cachedForThisUser?.rankTitle || 'BRONZE I',
+          }
+        : {
+            ...prev,
+            id: authUser.id,
+            email: authUser.email || prev.email || '',
+            displayName: resolvedDisplayName,
+            username: resolvedHandle || prev.username,
+            avatarUrl: cleanAvatar,
+          };
+
       const merged: UserProfile = {
-        ...prev,
-        id: authUser.id,
-        email: authUser.email || prev.email || '',
-        displayName: resolvedDisplayName,
-        username: resolvedHandle || prev.username,
-        avatarUrl: cleanAvatar,
+        ...baseUser,
         user_metadata: {
           ...(authUser.user_metadata || {}),
           avatar_url: undefined,
@@ -658,11 +695,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (savedAuth === 'true') {
         setIsAuthenticated(true);
       }
-      const cachedStreak = getCachedStreak();
       const saved = localStorage.getItem('studypulse_active_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
+          const cachedStreak = getCachedStreak(parsed.id);
           parsed.avatarUrl = resolveAppAvatar(parsed.avatarUrl, parsed.username || parsed.displayName || parsed.id);
           parsed.streakDays = cachedStreak;
           const live = resolveLiveSeasonStats(parsed, []);
@@ -670,8 +707,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             parsed.season_base_rp = Math.max(Number(parsed.season_base_rp || 0), live.startingRp);
             parsed.carryover_rp = Math.max(Number(parsed.carryover_rp || 0), live.startingRp);
           }
-          // Preserve highest verified RP: never drop or downgrade existing earned season RP to baseline carryover
-          const cachedState = getCachedUserState();
+          // Preserve highest verified RP: strictly scoped to this user
+          const cachedState = getCachedUserState(parsed.id);
           const existingRp = Math.max(
             Number(parsed.seasonRp || 0),
             Number(parsed.rp || 0),
@@ -748,6 +785,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem('studypulse_todos');
           localStorage.removeItem('studypulse_active_sessions');
           if (session?.user) {
+            const currentActiveUserRaw = localStorage.getItem('studypulse_active_user');
+            if (currentActiveUserRaw) {
+              const parsed = JSON.parse(currentActiveUserRaw);
+              if (parsed?.id && parsed.id !== session.user.id) {
+                // Different account detected! Clear previous user active cache and rank cache immediately
+                localStorage.removeItem('studypulse_active_user');
+                clearRankCache(parsed.id);
+                clearRankCache();
+                clearCachedStreak(parsed.id);
+              }
+            }
             localStorage.removeItem(`study_io_sessions_${session.user.id}`);
             localStorage.removeItem(`study_io_todos_${session.user.id}`);
           }
@@ -1187,7 +1235,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(INITIAL_USER);
     setIsAuthenticated(false);
-    clearCachedUserState();
+    clearCachedUserState(user?.id);
+    clearCachedStreak(user?.id);
     clearRankCache();
     clearPushTokenOnLogout(user?.id);
     try {
@@ -1248,7 +1297,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(INITIAL_USER);
     setIsAuthenticated(false);
-    clearCachedUserState();
+    clearCachedUserState(user?.id);
+    clearCachedStreak(user?.id);
     clearRankCache();
     clearPushTokenOnLogout(user?.id);
   }, [saveUser]);

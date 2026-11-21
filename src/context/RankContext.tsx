@@ -85,19 +85,20 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-      const cachedState = getCachedUserState();
-      const rp = Number(cachedState?.rp || user?.seasonRp || (user as any)?.season_rp || 0);
+      const cachedState = getCachedUserState(uid);
+      const isUidMatch = Boolean(uid && cachedState && (cachedState.userId === uid || cachedState.profile?.id === uid));
+      const rp = Number((isUidMatch ? cachedState?.rp : 0) || user?.seasonRp || (user as any)?.season_rp || 0);
       if (rp > 0) {
         const tier = getRankTier(rp);
         return {
-          user_id: uid || cachedState?.profile?.id || 'me',
-          name: cachedState?.profile?.displayName || user?.displayName || 'Scholar',
-          display_name: cachedState?.profile?.displayName || user?.displayName || null,
-          username: cachedState?.profile?.username || user?.username || null,
-          avatar_url: cachedState?.profile?.avatarUrl || user?.avatarUrl || null,
-          level: Number(cachedState?.profile?.level ?? user?.level ?? 1),
-          lifetime_xp: Number(cachedState?.profile?.lifetime_xp ?? cachedState?.profile?.xp ?? user?.lifetime_xp ?? user?.xp ?? 0),
-          rank_title: cachedState?.rankTitle || tier.name,
+          user_id: uid || (isUidMatch ? cachedState?.profile?.id : undefined) || 'me',
+          name: (isUidMatch ? cachedState?.profile?.displayName : undefined) || user?.displayName || 'Scholar',
+          display_name: (isUidMatch ? cachedState?.profile?.displayName : undefined) || user?.displayName || null,
+          username: (isUidMatch ? cachedState?.profile?.username : undefined) || user?.username || null,
+          avatar_url: (isUidMatch ? cachedState?.profile?.avatarUrl : undefined) || user?.avatarUrl || null,
+          level: Number((isUidMatch ? cachedState?.profile?.level : undefined) ?? user?.level ?? 1),
+          lifetime_xp: Number((isUidMatch ? (cachedState?.profile?.lifetime_xp ?? cachedState?.profile?.xp) : undefined) ?? user?.lifetime_xp ?? user?.xp ?? 0),
+          rank_title: (isUidMatch ? cachedState?.rankTitle : undefined) || tier.name,
           tier: tier.tier,
           division: tier.division,
           badge: tier.badge,
@@ -118,28 +119,49 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
   const prevUserIdRef = useRef<string | null>(null);
   const inFlightRef = useRef<boolean>(false);
 
+  const [prevRankUserId, setPrevRankUserId] = useState<string | null>(user?.id || null);
+  if (user?.id !== prevRankUserId) {
+    setPrevRankUserId(user?.id || null);
+    if (prevRankUserId) {
+      clearRankCache(prevRankUserId);
+    }
+    clearRankCache();
+    setLeaderboard([]);
+    let newEntry: LeaderboardEntry | null = null;
+    if (user?.id && !user.id.startsWith('user-scholar') && user.id !== 'guest') {
+      try {
+        const stored = localStorage.getItem(`studyio_cached_user_entry_${user.id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.season_rp) {
+            newEntry = parsed;
+          }
+        }
+      } catch {}
+    }
+    setCurrentUserEntry(newEntry);
+  }
+
   // Clear cache on login / logout or user switch
   useEffect(() => {
     const currentId = user?.id || null;
     if (prevUserIdRef.current && prevUserIdRef.current !== currentId) {
-      const wasRealUser = prevUserIdRef.current && !prevUserIdRef.current.startsWith('user-scholar') && prevUserIdRef.current !== 'guest';
-      const isRealUser = currentId && !currentId.startsWith('user-scholar') && currentId !== 'guest';
-      if (wasRealUser && isRealUser && prevUserIdRef.current !== currentId) {
-        clearRankCache(prevUserIdRef.current);
-        clearRankCache();
-        setLeaderboard([]);
-        setCurrentUserEntry(null);
-      } else if (isRealUser) {
+      clearRankCache(prevUserIdRef.current);
+      clearRankCache();
+      setLeaderboard([]);
+      let newEntry: LeaderboardEntry | null = null;
+      if (currentId && !currentId.startsWith('user-scholar') && currentId !== 'guest') {
         try {
           const stored = localStorage.getItem(`studyio_cached_user_entry_${currentId}`);
           if (stored) {
             const parsed = JSON.parse(stored);
             if (parsed && parsed.season_rp) {
-              setCurrentUserEntry(parsed);
+              newEntry = parsed;
             }
           }
         } catch {}
       }
+      setCurrentUserEntry(newEntry);
     }
     prevUserIdRef.current = currentId;
   }, [user?.id]);
@@ -349,10 +371,15 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
 
     // Resolve authoritative live season RP from user state and leaderboard entry
     // Prioritize verified server leaderboard entry when available; fallback to verified user state baseline
-    const entrySeasonRp = Number(currentUserEntry?.season_rp || 0);
+    const isEntryValid = Boolean(
+      currentUserEntry &&
+      user?.id &&
+      (currentUserEntry.user_id === user.id || (user.username && currentUserEntry.username === user.username))
+    );
+    const entrySeasonRp = isEntryValid ? Number(currentUserEntry?.season_rp || 0) : 0;
     const userSeasonRp = Number(user?.seasonRp ?? (user as any)?.season_rp ?? user?.rp ?? 0);
     const userBaseRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(user?.season_base_rp ?? user?.carryover_rp ?? 0)));
-    const cachedStateRp = Number(getCachedUserState()?.rp || 0);
+    const cachedStateRp = Number(getCachedUserState(user?.id)?.rp || 0);
     const authoritativeRp = Math.max(entrySeasonRp, userSeasonRp, userBaseRp, cachedStateRp);
 
     const tier = getRankTier(authoritativeRp);
@@ -362,8 +389,8 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
       progress = Math.min(100, Math.max(0, Math.round(((authoritativeRp - tier.minRp) / (nextTier.minRp - tier.minRp)) * 100)));
     }
 
-    const focusMinutes = currentUserEntry?.focus_minutes ?? (user?.totalFocusMinutes || 0);
-    const thisMonthSeconds = currentUserEntry?.this_month_seconds ?? (currentUserEntry?.total_seconds || 0);
+    const focusMinutes = (isEntryValid ? currentUserEntry?.focus_minutes : undefined) ?? (user?.totalFocusMinutes || 0);
+    const thisMonthSeconds = (isEntryValid ? (currentUserEntry?.this_month_seconds ?? currentUserEntry?.total_seconds) : undefined) || 0;
 
     return {
       seasonRp: authoritativeRp,

@@ -248,16 +248,37 @@ export function calculateGoalStreak(sessions: StudySession[] | any[], dailyGoalS
 
 /**
  * Retrieves the cached streak from localStorage, validating that the last study
- * date was either today or yesterday. If the cache is stale (older than yesterday),
+ * date was either today or yesterday. If forUserId is specified, guarantees only
+ * streak data belonging to that user is returned. If the cache is stale (older than yesterday),
  * it purges the cache and returns 0.
  */
-export function getCachedStreak(): number {
+export function getCachedStreak(forUserId?: string): number {
   if (typeof window === 'undefined') return 0;
   try {
+    // 1. Try user-scoped storage key first if specific user ID is provided
+    if (forUserId) {
+      const userScoped = localStorage.getItem(`studypulse_cached_streak_${forUserId}`);
+      if (userScoped) {
+        const data = JSON.parse(userScoped);
+        if (data && typeof data.streak === 'number' && typeof data.lastStudyDate === 'string') {
+          const today = getTodayDateString(0);
+          const yesterday = getTodayDateString(-1);
+          if (data.lastStudyDate === today || data.lastStudyDate === yesterday) {
+            return Math.max(0, data.streak);
+          }
+        }
+      }
+    }
+
+    // 2. Global fallback cache (strictly validated against forUserId)
     const raw = localStorage.getItem('studypulse_cached_streak_v2');
     if (raw) {
       const data = JSON.parse(raw);
       if (data && typeof data.streak === 'number' && typeof data.lastStudyDate === 'string') {
+        // If caller requested a specific user and cache belongs to another, reject!
+        if (forUserId && data.userId && data.userId !== forUserId) {
+          return 0;
+        }
         const today = getTodayDateString(0);
         const yesterday = getTodayDateString(-1);
         if (data.lastStudyDate === today || data.lastStudyDate === yesterday) {
@@ -273,27 +294,43 @@ export function getCachedStreak(): number {
 }
 
 /**
- * Persists the streak to localStorage along with date metadata for freshness verification.
+ * Persists the streak to localStorage along with date and user metadata for freshness verification.
  * If streak is 0, removes the cache entirely.
  */
-export function setCachedStreak(streak: number, lastStudyDate?: string): void {
+export function setCachedStreak(streak: number, lastStudyDate?: string, userId?: string): void {
   if (typeof window === 'undefined') return;
   try {
     if (streak <= 0) {
       localStorage.removeItem('studypulse_cached_streak');
       localStorage.removeItem('studypulse_cached_streak_v2');
+      if (userId) {
+        localStorage.removeItem(`studypulse_cached_streak_${userId}`);
+      }
     } else {
       const today = getTodayDateString(0);
       const effectiveDate = lastStudyDate || today;
-      localStorage.setItem(
-        'studypulse_cached_streak_v2',
-        JSON.stringify({
-          streak: Math.max(0, streak),
-          lastStudyDate: effectiveDate,
-          updatedDate: today,
-        })
-      );
+      const payload = {
+        streak: Math.max(0, streak),
+        lastStudyDate: effectiveDate,
+        updatedDate: today,
+        userId: userId || undefined,
+      };
+      localStorage.setItem('studypulse_cached_streak_v2', JSON.stringify(payload));
       localStorage.setItem('studypulse_cached_streak', String(Math.max(0, streak)));
+      if (userId) {
+        localStorage.setItem(`studypulse_cached_streak_${userId}`, JSON.stringify(payload));
+      }
+    }
+  } catch {}
+}
+
+export function clearCachedStreak(userId?: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem('studypulse_cached_streak');
+    localStorage.removeItem('studypulse_cached_streak_v2');
+    if (userId) {
+      localStorage.removeItem(`studypulse_cached_streak_${userId}`);
     }
   } catch {}
 }

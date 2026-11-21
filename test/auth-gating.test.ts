@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { isRealUserAccount, hasValidCachedSession, saveCachedUserState, clearCachedUserState, CACHED_USER_STATE_KEY } from '../src/lib/userCache';
-import { cleanupLegacyDemoData } from '../src/lib/mockData';
+import { isRealUserAccount, hasValidCachedSession, saveCachedUserState, getCachedUserState, clearCachedUserState, CACHED_USER_STATE_KEY } from '../src/lib/userCache';
+import { cleanupLegacyDemoData, getCachedStreak, setCachedStreak, clearCachedStreak } from '../src/lib/mockData';
 
 // In-memory mock for localStorage in Node test environment
 const storageMock: Record<string, string> = {};
@@ -93,5 +93,51 @@ describe('Strict Authentication & Guest Account Gating Specification', () => {
     assert.strictEqual((globalThis as any).localStorage.getItem('studypulse_is_authenticated'), null);
     assert.strictEqual((globalThis as any).localStorage.getItem(CACHED_USER_STATE_KEY), null);
     assert.strictEqual(hasValidCachedSession(), false);
+  });
+
+  it('guarantees account switching does NOT leak cached rank, RP or streak across accounts', () => {
+    const userA = 'user-a-uuid-1111-2222-3333';
+    const userB = 'user-b-uuid-4444-5555-6666';
+
+    // 1. User A logs in and earns 1200 RP (Silver I) and a 14-day streak
+    saveCachedUserState({
+      userId: userA,
+      profile: { id: userA, displayName: 'User Alpha', seasonRp: 1200, streakDays: 14 } as any,
+      rp: 1200,
+      streakCount: 14,
+      rankTitle: 'SILVER I',
+    });
+    setCachedStreak(14, undefined, userA);
+
+    // Verify User A reads User A data
+    const cachedA = getCachedUserState(userA);
+    assert.strictEqual(cachedA?.rp, 1200);
+    assert.strictEqual(cachedA?.streakCount, 14);
+    assert.strictEqual(getCachedStreak(userA), 14);
+
+    // 2. User switches to User B (a brand new user with 0 RP and 0 streak)
+    // User B's cache query MUST NOT return User A's 1200 RP or 14 streak!
+    const cachedB = getCachedUserState(userB);
+    assert.strictEqual(cachedB, null);
+    assert.strictEqual(getCachedStreak(userB), 0);
+
+    // 3. User B saves their own initial state (0 RP, 0 streak)
+    saveCachedUserState({
+      userId: userB,
+      profile: { id: userB, displayName: 'User Beta', seasonRp: 0, streakDays: 0 } as any,
+      rp: 0,
+      streakCount: 0,
+      rankTitle: 'BRONZE I',
+    });
+
+    const cachedBUpdated = getCachedUserState(userB);
+    assert.strictEqual(cachedBUpdated?.rp, 0);
+    assert.strictEqual(cachedBUpdated?.streakCount, 0);
+    assert.strictEqual(cachedBUpdated?.rankTitle, 'BRONZE I');
+
+    // User A's cached state must still remain isolated
+    const cachedAIsolated = getCachedUserState(userA);
+    assert.strictEqual(cachedAIsolated?.rp, 1200);
+    assert.strictEqual(cachedAIsolated?.streakCount, 14);
   });
 });

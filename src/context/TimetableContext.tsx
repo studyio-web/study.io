@@ -159,9 +159,11 @@ export function TimetableProvider({ children }: { children: ReactNode }) {
       }
 
       const streakKey = `studypulse_timetable_streaks_${userStorageSuffix}`;
-      const savedStreak = localStorage.getItem(streakKey) || localStorage.getItem('studypulse_timetable_streaks');
+      const savedStreak = localStorage.getItem(streakKey);
       if (savedStreak) {
         setStreak(JSON.parse(savedStreak));
+      } else {
+        setStreak(INITIAL_STREAK);
       }
 
       const manualKey = `studypulse_timetable_manual_${userStorageSuffix}`;

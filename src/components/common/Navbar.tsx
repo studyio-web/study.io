@@ -221,19 +221,22 @@ export function Navbar({
   };
 
   const displayStreak = useMemo(() => {
-    // 1. If sessions are available, calculate the live streak
+    // 1. If sessions are available and belong to current user, calculate the live streak
     if (Array.isArray(sessions) && sessions.length > 0) {
-      const s = calculateStreak(sessions);
-      setCachedStreak(s);
-      return s;
+      const validSessions = sessions.filter(s => !s.userId || !user?.id || s.userId === user.id);
+      if (validSessions.length > 0) {
+        const s = calculateStreak(validSessions);
+        setCachedStreak(s, undefined, user?.id);
+        return s;
+      }
     }
     // 2. Fall back to user profile streak if available
     if (user?.streakDays !== undefined && user.streakDays !== null) {
       return Math.max(0, user.streakDays);
     }
-    // 3. Fall back to validated non-expired cached streak
-    return getCachedStreak();
-  }, [sessions, user?.streakDays]);
+    // 3. Fall back to validated non-expired cached streak strictly for this user
+    return getCachedStreak(user?.id);
+  }, [sessions, user?.streakDays, user?.id]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
