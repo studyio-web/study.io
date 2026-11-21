@@ -165,8 +165,6 @@ export function StudyTimer() {
     isLoadingSessions,
     isRemoteTransitioning,
     isRemoteSession,
-    takeOverSession,
-    endRemoteSession,
     isUltraStrict,
     setIsUltraStrict,
     syncTimerMode,
@@ -2234,43 +2232,6 @@ export function StudyTimer() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="w-full flex flex-col items-center shrink-0"
         >
-          {/* Remote Device Active Session Banner */}
-          {isRemoteSession && isStudying && (
-            <div className="mb-2 flex items-center justify-center animate-in fade-in duration-200">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-400 text-xs font-hud font-semibold uppercase tracking-wider shadow-[0_0_12px_rgba(56,189,248,0.12)]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
-                </span>
-                <span>Timer active on another device</span>
-                <div className="flex items-center gap-1.5 ml-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      takeOverSession();
-                    }}
-                    className="px-2 py-0.5 rounded-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white text-[10px] font-sans font-medium transition-colors cursor-pointer"
-                    title="Take over this session on this phone"
-                  >
-                    Take Over
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      endRemoteSession();
-                    }}
-                    className="px-2 py-0.5 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-rose-100 text-[10px] font-sans font-medium transition-colors cursor-pointer"
-                    title="End remote session"
-                  >
-                    End
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 1. Mode selector */}
           <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
             {(['stopwatch', 'countdown', 'pomodoro'] as TimerMode[]).map((mode) => {
