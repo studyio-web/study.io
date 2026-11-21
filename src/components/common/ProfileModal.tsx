@@ -15,7 +15,7 @@ import { getSupabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { isAppropriateHandle, isValidHandleFormat, sanitizeHandleInput } from '../../lib/validation';
 import { updateScholarProfile } from '../../app/actions/profile';
-import { PRESET_AVATARS, VAULT_CATEGORIES, PREMIUM_AVATAR_MAP, resolveAppAvatar, resolveAvatarImage, isAppAvatar } from '@/lib/avatars';
+import { PRESET_AVATARS, VAULT_CATEGORIES, PREMIUM_AVATAR_MAP, resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
 import { resolveScholarName, resolveScholarHandle, isRawOAuthName } from '@/lib/scholarIdentity';
 
 interface ProfileModalProps {
@@ -334,7 +334,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                           : 'border border-white/10 opacity-70 hover:opacity-100 hover:scale-105 hover:border-amber-500/50 hover:bg-amber-500/10'
                       }`}
                     >
-                      <img src={resolveAvatarImage(url)} alt={`Preset ${i}`} loading="lazy" className="w-full h-full object-cover" />
+                      <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
                     </button>
                   );
                 })}
@@ -686,7 +686,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                       : 'border-white/10 bg-white/[0.03] hover:scale-105 hover:border-amber-500/50 hover:bg-amber-500/10'
                                   }`}
                                 >
-                                  <img src={resolveAvatarImage(url)} alt={`Vault ${idx}-${i}`} loading="lazy" className="w-full h-full object-cover" />
+                                  <img src={url} alt={`Vault ${idx}-${i}`} className="w-full h-full object-cover" />
                                 </button>
                               );
                             })}

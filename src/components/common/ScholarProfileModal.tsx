@@ -11,7 +11,7 @@ import { getRankTier, calculateSeasonRp, RANKS, RankTier, RankTierName, RankDivi
 import { getTierColor, formatTierTitle } from '../leaderboard/LeaderboardRow';
 import { FlairFrame, fetchFlairMap } from '../../lib/flair';
 import { calculateStreak } from '../../lib/mockData';
-import { resolveAppAvatar, resolveAvatarImage, isAppAvatar } from '@/lib/avatars';
+import { resolveAppAvatar, isAppAvatar } from '@/lib/avatars';
 import { ClassicNudgeButton } from '../rooms/ClassicNudgeButton';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 
@@ -341,7 +341,7 @@ export function ScholarProfileModal({
               >
                 {scholar.avatarUrl && isAppAvatar(scholar.avatarUrl) && !avatarError ? (
                   <img
-                    src={resolveAvatarImage(scholar.avatarUrl)}
+                    src={scholar.avatarUrl}
                     alt={displayName}
                     className="w-full h-full object-cover rounded-full"
                     referrerPolicy="no-referrer"
