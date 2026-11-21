@@ -147,4 +147,145 @@ describe('Realtime Cross-Device Zero-Lag Sync Specification', () => {
     assert.equal(stopRes.accepted, true);
     assert.equal(enginePhone.getState().isStudying, false);
   });
+
+  it('6. Alternating multi-device pause and resume cycles without version conflict, drift, or stuck states', () => {
+    const sessionId = '22222222-3333-4444-5555-666666666666';
+    let currentServerTime = mockNow;
+
+    // Cycle 0: PC starts timer
+    const pcStart = enginePc.startTimer({ mode: 'stopwatch', sessionId, serverNow: currentServerTime });
+    assert.equal(pcStart.version, 1);
+    assert.equal(enginePc.getState().isStudying, true);
+    assert.equal(enginePc.getState().isPaused, false);
+
+    // Sync to Phone at +10s
+    currentServerTime += 10000;
+    const phoneStartSync = enginePhone.handleRemoteSync({
+      status: 'running',
+      session_id: sessionId,
+      device_id: 'device-pc',
+      session_created_at: new Date(mockNow).toISOString(),
+      started_at: new Date(mockNow).toISOString(),
+      accumulated_seconds: 0,
+      mode: 'stopwatch',
+      version: 1,
+    }, { serverNow: currentServerTime });
+    assert.equal(phoneStartSync.accepted, true);
+    assert.equal(phoneStartSync.elapsedSeconds, 10);
+    assert.equal(enginePhone.getState().isPaused, false);
+
+    // Cycle 1: Run to +60s. Phone clicks PAUSE.
+    currentServerTime = mockNow + 60000;
+    const phonePause = enginePhone.pauseTimer({ serverNow: currentServerTime });
+    assert.equal(phonePause.accumulatedSeconds, 60);
+    assert.equal(phonePause.version, 2);
+    assert.equal(enginePhone.getState().isPaused, true);
+
+    // Broadcast pause to PC
+    const pcPauseSync = enginePc.handleRemoteSync({
+      status: 'paused',
+      session_id: sessionId,
+      device_id: 'device-phone',
+      session_created_at: new Date(mockNow).toISOString(),
+      last_paused_at: new Date(currentServerTime).toISOString(),
+      accumulated_seconds: 60,
+      mode: 'stopwatch',
+      version: 2,
+    }, { serverNow: currentServerTime + 15 });
+    assert.equal(pcPauseSync.accepted, true);
+    assert.equal(pcPauseSync.elapsedSeconds, 60);
+    assert.equal(enginePc.getState().isPaused, true);
+    assert.equal(enginePc.getState().accumulatedSeconds, 60);
+
+    // Cycle 2: PC clicks RESUME 20s later (+80s total)
+    currentServerTime = mockNow + 80000;
+    const pcResume = enginePc.resumeTimer({ serverNow: currentServerTime });
+    assert.equal(pcResume.version, 3);
+    assert.equal(pcResume.accumulatedSeconds, 60);
+    assert.equal(enginePc.getState().isPaused, false);
+
+    // Broadcast resume to Phone
+    const phoneResumeSync = enginePhone.handleRemoteSync({
+      status: 'running',
+      session_id: sessionId,
+      device_id: 'device-pc',
+      session_created_at: new Date(mockNow).toISOString(),
+      started_at: new Date(currentServerTime).toISOString(),
+      accumulated_seconds: 60,
+      mode: 'stopwatch',
+      version: 3,
+    }, { serverNow: currentServerTime + 12 });
+    assert.equal(phoneResumeSync.accepted, true);
+    assert.equal(phoneResumeSync.elapsedSeconds, 60);
+    assert.equal(enginePhone.getState().isPaused, false);
+    assert.equal(enginePhone.getState().accumulatedSeconds, 60);
+
+    // Both tick 40s (to +120s total, 60s + 40s = 100s study time)
+    currentServerTime = mockNow + 120000;
+    assert.equal(enginePc.getElapsedSeconds(currentServerTime), 100);
+    assert.equal(enginePhone.getElapsedSeconds(currentServerTime), 100);
+
+    // Cycle 3: PC clicks PAUSE at 100s study time
+    const pcPause2 = enginePc.pauseTimer({ serverNow: currentServerTime });
+    assert.equal(pcPause2.accumulatedSeconds, 100);
+    assert.equal(pcPause2.version, 4);
+
+    // Broadcast pause to Phone
+    const phonePauseSync2 = enginePhone.handleRemoteSync({
+      status: 'paused',
+      session_id: sessionId,
+      device_id: 'device-pc',
+      session_created_at: new Date(mockNow).toISOString(),
+      last_paused_at: new Date(currentServerTime).toISOString(),
+      accumulated_seconds: 100,
+      mode: 'stopwatch',
+      version: 4,
+    }, { serverNow: currentServerTime + 10 });
+    assert.equal(phonePauseSync2.accepted, true);
+    assert.equal(phonePauseSync2.elapsedSeconds, 100);
+    assert.equal(enginePhone.getState().isPaused, true);
+    assert.equal(enginePhone.getState().accumulatedSeconds, 100);
+
+    // Cycle 4: Phone clicks RESUME 30s later (+150s total)
+    currentServerTime = mockNow + 150000;
+    const phoneResume2 = enginePhone.resumeTimer({ serverNow: currentServerTime });
+    assert.equal(phoneResume2.version, 5);
+    assert.equal(phoneResume2.accumulatedSeconds, 100);
+    assert.equal(enginePhone.getState().isPaused, false);
+
+    // Broadcast resume to PC
+    const pcResumeSync2 = enginePc.handleRemoteSync({
+      status: 'running',
+      session_id: sessionId,
+      device_id: 'device-phone',
+      session_created_at: new Date(mockNow).toISOString(),
+      started_at: new Date(currentServerTime).toISOString(),
+      accumulated_seconds: 100,
+      mode: 'stopwatch',
+      version: 5,
+    }, { serverNow: currentServerTime + 14 });
+    assert.equal(pcResumeSync2.accepted, true);
+    assert.equal(pcResumeSync2.elapsedSeconds, 100);
+    assert.equal(enginePc.getState().isPaused, false);
+    assert.equal(enginePc.getState().accumulatedSeconds, 100);
+
+    // Both tick 30s (to +180s total, 100s + 30s = 130s study time)
+    currentServerTime = mockNow + 180000;
+    assert.equal(enginePc.getElapsedSeconds(currentServerTime), 130);
+    assert.equal(enginePhone.getElapsedSeconds(currentServerTime), 130);
+
+    // Cycle 5: PC stops timer
+    const pcStop = enginePc.stopTimer({ serverNow: currentServerTime });
+    assert.equal(pcStop.durationSeconds, 130);
+    assert.equal(enginePc.getState().isStudying, false);
+
+    const phoneStopSync = enginePhone.handleRemoteSync({
+      status: 'idle',
+      session_id: sessionId,
+      device_id: 'device-pc',
+      version: 6,
+    }, { serverNow: currentServerTime + 20 });
+    assert.equal(phoneStopSync.accepted, true);
+    assert.equal(enginePhone.getState().isStudying, false);
+  });
 });

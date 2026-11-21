@@ -1591,6 +1591,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       client_session_id?: string | null;
       device_id?: string;
       action?: string;
+      version?: number;
+      expectedVersion?: number;
+      last_paused_at?: string | null;
     }
   ) => {
     const supabase = getSupabase();
@@ -1721,6 +1724,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           accumulated_seconds_after: effectiveAccumulated,
         });
 
+        const effectiveVersion = extra?.version || sessionVersionRef.current || 1;
+        const expectedVersion = extra?.expectedVersion ?? (sessionVersionRef.current > 1 ? sessionVersionRef.current - 1 : 1);
+
         // 1. Instant peer broadcast over WebSocket (<30ms latency)
         try {
           activeChannelRef.current?.send({
@@ -1732,8 +1738,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               user_id: uid,
               client_session_id: effectiveClientSessionId,
               session_id: effectiveClientSessionId,
-              started_at: sessionStartTimeRef.current ? sessionStartTimeRef.current.toISOString() : new Date().toISOString(),
+              started_at: null,
+              last_paused_at: extra?.last_paused_at || new Date().toISOString(),
               accumulated_seconds: effectiveAccumulated,
+              accumulated_ms: effectiveAccumulated * 1000,
+              version: effectiveVersion,
               mode: effectiveMode,
               timer_mode: effectiveMode,
               is_ultra_strict: effectiveIsUltra,
@@ -1755,10 +1764,20 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           try {
             const res = await supabase.rpc('pause_session', {
               p_session_id: effectiveClientSessionId,
-              p_expected_version: sessionVersionRef.current || 1,
+              p_expected_version: expectedVersion,
               p_device_id: finalDeviceId,
             });
-            rpcError = res.error;
+            if (res.data?.error === 'VERSION_CONFLICT') {
+              console.warn('[Timer Write: pause_session VERSION_CONFLICT]', res.data);
+              if (res.data.current_version) {
+                sessionVersionRef.current = res.data.current_version;
+              }
+              rpcError = res.data;
+            } else if (res.error) {
+              rpcError = res.error;
+            } else if (res.data?.version) {
+              sessionVersionRef.current = res.data.version;
+            }
           } catch (e) {
             rpcError = e;
           }
@@ -1768,16 +1787,22 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
         if (rpcError) {
           console.warn('[Timer Write: pause_session fallback API route]', rpcError);
-          await fetch('/api/timer/action', {
+          const apiRes = await fetch('/api/timer/action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'pause',
               session_id: effectiveClientSessionId || crypto.randomUUID(),
-              expected_version: sessionVersionRef.current,
+              expected_version: expectedVersion,
               device_id: finalDeviceId,
             }),
-          }).catch(() => {});
+          }).catch(() => null);
+          if (apiRes && apiRes.ok) {
+            const data = await apiRes.json().catch(() => null);
+            if (data?.session?.version) {
+              sessionVersionRef.current = data.session.version;
+            }
+          }
         }
       } else if (status === 'running') {
         const sub = activeSubjectRef.current || (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === selectedSubjectId);
@@ -1801,6 +1826,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         );
         const effectiveAccumulated = extra?.accumulatedSeconds ?? extra?.elapsedBeforePause ?? accumulatedSecondsRef.current;
         const startedAtIso = extra?.startedAt !== undefined ? extra.startedAt : new Date().toISOString();
+        const effectiveVersion = extra?.version || sessionVersionRef.current || 1;
+        const isResumeAction = extra?.action === 'resume' || (extra?.action !== 'start' && isPausedRef.current);
+        const expectedVersion = extra?.expectedVersion ?? (sessionVersionRef.current > 1 ? sessionVersionRef.current - 1 : 1);
 
         console.log('[Timer Write: syncActiveSessionToDb (running)]', {
           timestamp: new Date().toISOString(),
@@ -1810,6 +1838,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           startedAt: startedAtIso,
           mode: dbMode,
           isUltra: effectiveIsUltra,
+          isResume: isResumeAction,
+          version: effectiveVersion,
+          expectedVersion,
         });
 
         // 1. Instant peer broadcast over WebSocket (<30ms latency)
@@ -1824,7 +1855,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               client_session_id: effectiveClientSessionId,
               session_id: effectiveClientSessionId,
               started_at: startedAtIso,
+              last_paused_at: null,
               accumulated_seconds: effectiveAccumulated,
+              accumulated_ms: effectiveAccumulated * 1000,
+              version: effectiveVersion,
               mode: effectiveMode,
               timer_mode: effectiveMode,
               is_ultra_strict: effectiveIsUltra,
@@ -1842,14 +1876,24 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
         // 2. Authoritative RPC or guarded API action (resuming or starting)
         let rpcError = null;
-        if (isPausedRef.current && effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
+        if (isResumeAction && effectiveClientSessionId && isUuid(effectiveClientSessionId)) {
           try {
             const res = await supabase.rpc('resume_session', {
               p_session_id: effectiveClientSessionId,
-              p_expected_version: sessionVersionRef.current || 1,
+              p_expected_version: expectedVersion,
               p_device_id: finalDeviceId,
             });
-            rpcError = res.error;
+            if (res.data?.error === 'VERSION_CONFLICT') {
+              console.warn('[Timer Write: resume_session VERSION_CONFLICT]', res.data);
+              if (res.data.current_version) {
+                sessionVersionRef.current = res.data.current_version;
+              }
+              rpcError = res.data;
+            } else if (res.error) {
+              rpcError = res.error;
+            } else if (res.data?.version) {
+              sessionVersionRef.current = res.data.version;
+            }
           } catch (e) {
             rpcError = e;
           }
@@ -1863,7 +1907,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               p_is_ultra: effectiveIsUltra,
               p_device_id: finalDeviceId,
             });
-            rpcError = res.error;
+            if (res.error) {
+              rpcError = res.error;
+            } else if (res.data?.version) {
+              sessionVersionRef.current = res.data.version;
+            }
           } catch (e) {
             rpcError = e;
           }
@@ -1873,20 +1921,26 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
         if (rpcError) {
           console.warn('[Timer Write: running session fallback API route]', rpcError);
-          await fetch('/api/timer/action', {
+          const apiRes = await fetch('/api/timer/action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              action: isPausedRef.current ? 'resume' : 'start',
+              action: isResumeAction ? 'resume' : 'start',
               session_id: effectiveClientSessionId || crypto.randomUUID(),
-              expected_version: sessionVersionRef.current,
+              expected_version: expectedVersion,
               mode: dbMode,
               subject_id: isUuid(activeSubId) ? activeSubId : null,
               planned_duration_seconds: targetDuration,
               is_ultra: effectiveIsUltra,
               device_id: finalDeviceId,
             }),
-          }).catch(() => {});
+          }).catch(() => null);
+          if (apiRes && apiRes.ok) {
+            const data = await apiRes.json().catch(() => null);
+            if (data?.session?.version) {
+              sessionVersionRef.current = data.session.version;
+            }
+          }
         }
       }
     };
@@ -2292,40 +2346,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const sessMatch = rawDeviceId.match(/#sess:([a-f0-9-]+)/i);
     const syncedSessionId = remoteSession.client_session_id || remoteSession.session_id || (sessMatch ? sessMatch[1] : null);
 
-    // CRITICAL: Determine whether this session is the active session owned by THIS local device
-    const isThisDeviceActiveSession = Boolean(
-      (clientSessionIdRef.current && syncedSessionId && clientSessionIdRef.current === syncedSessionId) ||
-      (clientSessionIdRef.current && remoteSession?.session_id && clientSessionIdRef.current === remoteSession.session_id) ||
-      (timerIntervalRef.current !== null && isStudyingRef.current && !isRemoteSessionRef.current)
-    );
+    if (syncedSessionId && !clientSessionIdRef.current) {
+      clientSessionIdRef.current = syncedSessionId;
+    }
 
-    // A session is "remote" ONLY if:
-    // 1. It is NOT the session actively running locally on this device
-    // 2. AND server device_id is present and differs from this device's persisted ID
-    // 3. AND the session is running or paused.
+    // A session is "remote" if server device_id is present and differs from this device's persisted ID
     const isRemoteDevice = Boolean(
-      !isThisDeviceActiveSession &&
       serverDeviceId &&
       serverDeviceId !== myDeviceId &&
       (sessionStatus === 'running' || sessionStatus === 'paused')
     );
-
-    if (isThisDeviceActiveSession) {
-      if (!clientSessionIdRef.current && syncedSessionId) {
-        clientSessionIdRef.current = syncedSessionId;
-      }
-      // If server device_id diverged from this device's persistent ID, self-heal
-      if (serverDeviceId && serverDeviceId !== myDeviceId) {
-        console.log('[StudyContext] Self-healing active session device_id to current device:', {
-          serverDeviceId,
-          myDeviceId,
-          sessionId: clientSessionIdRef.current,
-        });
-        syncActiveSessionToDb(sessionStatus, { device_id: myDeviceId }).catch(() => {});
-      }
-    } else if (syncedSessionId && !clientSessionIdRef.current) {
-      clientSessionIdRef.current = syncedSessionId;
-    }
 
     // Version Guard: Reject remote session state whose version is older than local version
     const remoteVersion = typeof remoteSession.version === 'number' ? remoteSession.version : null;
@@ -2339,8 +2369,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       sessionVersionRef.current = remoteVersion;
     }
 
-    // Echo prevention: Ignore pull results that originate from this device's own writes
-    if (!isRemoteDevice && (serverDeviceId === myDeviceId || isThisDeviceActiveSession)) {
+    // Echo prevention: Ignore sync events that originate from this device's own recent local writes
+    if (!isRemoteDevice && serverDeviceId === myDeviceId) {
       if (
         lastLocalActionRef.current &&
         lastLocalActionRef.current.status === remoteSession.status &&
@@ -2359,7 +2389,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setIsRemoteSession(true);
       isRemoteSessionRef.current = true;
     } else {
-      // Unconditionally adopt as local if device_id matches (or empty) or session is owned locally
+      // Unconditionally adopt as local if device_id matches (or empty)
       setIsRemoteSession(false);
       isRemoteSessionRef.current = false;
     }
@@ -2457,10 +2487,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const syncRes = timerEngineRef.current.handleRemoteSync(remoteSession, { serverNow });
       const calculatedElapsed = syncRes.elapsedSeconds;
 
+      isStudyingRef.current = true;
+      isPausedRef.current = false;
+
       if (timerIntervalRef.current !== null) {
         // We are already running locally.
-        // If drift is significant (> 3s), gently re-anchor local timer anchor
-        if (Math.abs(calculatedElapsed - (accumulatedSecondsRef.current || elapsedSeconds)) > 3) {
+        // If drift is significant (> 2s), gently re-anchor local timer anchor
+        if (Math.abs(calculatedElapsed - (accumulatedSecondsRef.current || elapsedSeconds)) > 2) {
           accumulatedSecondsRef.current = baseAccumulated;
           startTimeRef.current = serverNow - (calculatedElapsed * 1000);
           setElapsedSeconds(calculatedElapsed);
@@ -2484,6 +2517,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setElapsedSeconds(targetDuration);
         setIsStudying(true);
         setIsPaused(true);
+        isPausedRef.current = true;
         setPomodoroCompletedPhase('work');
       } else {
         accumulatedSecondsRef.current = baseAccumulated;
@@ -2495,10 +2529,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         setPomodoroCompletedPhase(null);
       }
     } else if (status === 'paused') {
+      const serverNow = getServerNow();
+      timerEngineRef.current.handleRemoteSync(remoteSession, { serverNow });
+
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
       }
+      isStudyingRef.current = true;
+      isPausedRef.current = true;
       accumulatedSecondsRef.current = baseAccumulated;
       startTimeRef.current = null;
       setElapsedSeconds(baseAccumulated);
@@ -3486,6 +3525,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     sessionVersionRef.current = engineStart.version;
     startTimeRef.current = engineStart.startTime;
     sessionStartTimeRef.current = new Date(engineStart.sessionCreatedAt);
+    isStudyingRef.current = true;
+    isPausedRef.current = false;
     setIsStudying(true);
     setIsPaused(false);
     setIsRemoteSession(false);
@@ -3515,15 +3556,19 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     });
     const isUuid = (id?: string | null) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     syncActiveSessionToDb('running', {
-      startedAt: new Date().toISOString(),
-      accumulatedSeconds: accumulatedSecondsRef.current,
-      elapsedBeforePause: accumulatedSecondsRef.current,
+      action: 'start',
+      expectedVersion: 0,
+      version: engineStart.version,
+      startedAt: new Date(nowAnchor).toISOString(),
+      accumulatedSeconds: 0,
+      elapsedBeforePause: 0,
       subjectId: isUuid(targetSub.id) ? targetSub.id : null,
       subjectName: targetSub.name,
       mode: timerMode,
       targetDuration: timerMode === 'countdown' ? countdownTargetRef.current : (timerMode === 'pomodoro' ? (pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration) : null),
       pomodoroPhase,
       isUltraStrict: timerMode === 'countdown' ? isUltraStrictRef.current : false,
+      client_session_id: engineStart.sessionId,
     });
     return true;
   }, [checkDebounce, selectedSubjectId, selectedSubject, subjects, timerMode, pomodoroPhase, setSelectedSubjectId, updateProfile, syncActiveSessionToDb, pomodoroWorkDuration, pomodoroBreakDuration]);
@@ -3538,12 +3583,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     const serverNow = getServerNow();
+    const previousVersion = sessionVersionRef.current || 1;
     const enginePause = timerEngineRef.current.pauseTimer({ serverNow });
     const actualElapsed = enginePause.accumulatedSeconds || accumulatedSecondsRef.current || elapsedSeconds;
     accumulatedSecondsRef.current = actualElapsed;
     setElapsedSeconds(actualElapsed);
     sessionVersionRef.current = enginePause.version;
     startTimeRef.current = null;
+    isPausedRef.current = true;
     // CRITICAL: Preserve clientSessionIdRef.current across pauses so countdown / pause sessions
     // retain their deterministic session ID across all devices for idempotent saves
     if (timerIntervalRef.current) {
@@ -3567,7 +3614,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     soundFx.pauseAmbient();
     updateProfile({ status: 'resting' });
     syncActiveSessionToDb('paused', {
+      action: 'pause',
+      expectedVersion: previousVersion,
+      version: enginePause.version,
       startedAt: null,
+      last_paused_at: new Date(serverNow).toISOString(),
       accumulatedSeconds: actualElapsed,
       elapsedBeforePause: actualElapsed,
       mode: timerMode,
@@ -3591,11 +3642,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
 
     const serverNow = getServerNow();
+    const previousVersion = sessionVersionRef.current || 1;
     const engineResume = timerEngineRef.current.resumeTimer({ serverNow });
     const resumeAnchor = serverNow - (engineResume.accumulatedSeconds * 1000);
     startTimeRef.current = resumeAnchor;
     accumulatedSecondsRef.current = engineResume.accumulatedSeconds;
     sessionVersionRef.current = engineResume.version;
+    isPausedRef.current = false;
     setIsPaused(false);
     if (typeof window !== 'undefined') {
       try {
@@ -3629,7 +3682,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       });
     }
     syncActiveSessionToDb('running', {
-      startedAt: new Date(resumeAnchor).toISOString(),
+      action: 'resume',
+      expectedVersion: previousVersion,
+      version: engineResume.version,
+      startedAt: new Date(serverNow).toISOString(),
       accumulatedSeconds: accumulatedSecondsRef.current,
       elapsedBeforePause: accumulatedSecondsRef.current,
       mode: timerMode,
@@ -4233,6 +4289,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     clientSessionIdRef.current = null;
     accumulatedSecondsRef.current = 0;
     sessionVersionRef.current = 0;
+    isStudyingRef.current = false;
+    isPausedRef.current = false;
     setIsStudying(false);
     setIsPaused(false);
     setIsRemoteSession(false);
@@ -4427,6 +4485,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     accumulatedSecondsRef.current = 0;
     sessionVersionRef.current = 0;
     sessionStartTimeRef.current = null;
+    isStudyingRef.current = false;
+    isPausedRef.current = false;
     setIsStudying(false);
     setIsPaused(false);
     soundFx.stopAmbient();

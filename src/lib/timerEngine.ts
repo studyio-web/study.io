@@ -23,6 +23,7 @@ export interface TimerSessionState {
 export interface ActiveSessionRemote {
   session_id: string;
   user_id?: string;
+  device_id?: string | null;
   status: 'running' | 'paused' | 'idle';
   mode?: TimerMode;
   started_at?: string | number | null;
