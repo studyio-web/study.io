@@ -115,7 +115,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
     const map: Record<string, { totalSeconds: number; count: number; sessions: typeof sessions }> = {};
     sessions.forEach(s => {
       const rawName = ((s as any).subject_name || s.subjectName || (s as any).subject?.name || (s as any).subject || '').trim().toLowerCase();
-      const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
+      const duration = Number((s as any).credited_seconds ?? (s as any).creditedSeconds ?? s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
       if (rawName === 'unassigned' || duration <= 0) {
         return;
       }
@@ -149,7 +149,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
 
     const validSessions = sessions.filter(s => {
       const rawName = ((s as any).subject_name || s.subjectName || (s as any).subject?.name || (s as any).subject || '').trim().toLowerCase();
-      const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
+      const duration = Number((s as any).credited_seconds ?? (s as any).creditedSeconds ?? s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
       const sessionDateStr = s.startTime || (s as any).started_at || s.createdAt || (s as any).created_at;
       return rawName && rawName !== 'unassigned' && duration > 0 && Boolean(sessionDateStr);
     });
@@ -259,7 +259,7 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
     return sessions.filter(s => {
       // Exclude stray unassigned/dummy test sessions so donut chart resets cleanly
       const rawName = ((s as any).subject_name || s.subjectName || (s as any).subject?.name || (s as any).subject || '').trim().toLowerCase();
-      const duration = Number(s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
+      const duration = Number((s as any).credited_seconds ?? (s as any).creditedSeconds ?? s.durationSeconds ?? (s as any).duration_seconds ?? (s as any).duration ?? (s as any).seconds ?? 0);
       if (rawName === 'unassigned' || duration <= 0) {
         return false;
       }

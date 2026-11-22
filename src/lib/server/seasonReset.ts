@@ -97,7 +97,7 @@ export async function executeMonthlySeasonReset(
   // 2. Fetch all study sessions from previous season month (UTC)
   const { data: prevMonthSessions, error: sessErr } = await dbClient
     .from('study_sessions')
-    .select('user_id, duration_seconds, started_at')
+    .select('user_id, credited_seconds, duration_seconds, started_at')
     .gte('started_at', new Date(prevMonthStartUTC).toISOString())
     .lte('started_at', new Date(prevMonthEndUTC).toISOString());
 
@@ -110,7 +110,7 @@ export async function executeMonthlySeasonReset(
   (prevMonthSessions || []).forEach((s) => {
     if (!s.user_id) return;
     const current = userPrevSecondsMap.get(s.user_id) || 0;
-    userPrevSecondsMap.set(s.user_id, current + Math.max(0, Number(s.duration_seconds || 0)));
+    userPrevSecondsMap.set(s.user_id, current + Math.max(0, Number(s.credited_seconds ?? s.duration_seconds ?? 0)));
   });
 
   const snapshots: SeasonResetResult['snapshots'] = [];

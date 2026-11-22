@@ -27,6 +27,10 @@ export interface OfflineSession {
   id: string;
   user_id: string;
   duration_seconds: number;
+  credited_seconds?: number;
+  raw_seconds?: number;
+  overlap_seconds_removed?: number;
+  overlap_adjusted?: boolean;
   started_at: string;
   ended_at: string;
   subject_id?: string | null;

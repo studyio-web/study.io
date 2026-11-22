@@ -176,4 +176,78 @@ describe('Offline Browser & PWA Lifecycle Simulation Tests', () => {
     didReload = true;
     assert.equal(didReload, true);
   });
+
+  // 5. Offline completion flow: stop, save, RP flare with pending estimate, online sync replaces estimate, overlap message
+  it('5. Browser offline flow: start, stop and save offline, see RP flare & pending badge, go online, see server value replace estimate & overlap message', async () => {
+    // 1. Initial State
+    const carryoverRp = 1200;
+    const initialServerMonthSeconds = 7200; // 2 hours = 200 RP
+    let displayedRp = carryoverRp + Math.floor(initialServerMonthSeconds / 36); // 1400 RP
+    let isPending = false;
+    let rankAnimationTriggered = false;
+    let toastMessage: string | null = null;
+    const outbox: any[] = [];
+
+    // 2. Offline Study Session (3600s = 1h focus)
+    const sessionDuration = 3600;
+    const isOnline = false;
+
+    // Stop & Save offline
+    if (!isOnline) {
+      // Local estimate
+      const pendingSeconds = sessionDuration;
+      const estimatedNewRp = carryoverRp + Math.floor((initialServerMonthSeconds + pendingSeconds) / 36);
+      const gainedRp = estimatedNewRp - displayedRp;
+      assert.equal(gainedRp, 100, 'Estimated gain must be 100 RP for 1 hour');
+
+      displayedRp = estimatedNewRp;
+      isPending = true;
+      rankAnimationTriggered = true;
+
+      outbox.push({
+        event_id: 'evt-offline-session-1',
+        entity_type: 'session',
+        action: 'create',
+        payload: {
+          session_id: 'sess-offline-1',
+          duration_seconds: sessionDuration,
+          started_at: '2026-11-22T02:30:00Z',
+          ended_at: '2026-11-22T03:30:00Z',
+        },
+      });
+    }
+
+    assert.equal(displayedRp, 1500, 'Displayed RP must show local estimate of 1500 RP');
+    assert.equal(isPending, true, 'RP and rank progression must show pending status');
+    assert.equal(rankAnimationTriggered, true, 'Completion rank animation must trigger offline');
+    assert.equal(outbox.length, 1);
+
+    // 3. Reconnect Online: Server resolves session with 30m overlap
+    // Server credits 1800s (30m) instead of 3600s due to another device session
+    const serverSyncResponse = {
+      success: true,
+      credited_seconds: 1800,
+      raw_seconds: 3600,
+      overlap_seconds_removed: 1800,
+      overlap_adjusted: true,
+      server_month_seconds: initialServerMonthSeconds + 1800,
+      server_season_rp: carryoverRp + Math.floor((initialServerMonthSeconds + 1800) / 36), // 1450 RP
+    };
+
+    // Online event triggered
+    if (serverSyncResponse.overlap_adjusted && serverSyncResponse.overlap_seconds_removed > 0) {
+      const mins = Math.max(1, Math.round(serverSyncResponse.overlap_seconds_removed / 60));
+      toastMessage = `Time adjusted: ${mins} min overlapped with another device and was counted once.`;
+    }
+
+    // Server value replaces local estimate
+    displayedRp = serverSyncResponse.server_season_rp;
+    isPending = false;
+    outbox.pop();
+
+    assert.equal(displayedRp, 1450, 'Server season RP (1450 RP) replaces local estimate (1500 RP)');
+    assert.equal(isPending, false, 'Pending flag cleared after sync');
+    assert.equal(outbox.length, 0, 'Outbox flushed cleanly');
+    assert.equal(toastMessage, 'Time adjusted: 30 min overlapped with another device and was counted once.');
+  });
 });

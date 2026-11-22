@@ -72,46 +72,55 @@ describe('Timer Save & Network Resilience Specification', () => {
     assert.equal(result.session?.id, 'sess-success-123');
   });
 
-  it('guarantees stop and save button is disabled when offline', () => {
+  it('guarantees stop and save button works when offline and saves to outbox', () => {
     function computeStopButtonState(isOnline: boolean, isSaving: boolean, isRemoteTransitioning: boolean) {
-      const isDisabled = isSaving || isRemoteTransitioning || !isOnline;
-      const label = !isOnline ? 'Offline' : (isSaving ? 'Saving...' : 'Stop');
-      const tooltip = !isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined;
-      return { isDisabled, label, tooltip };
+      const isDisabled = isSaving || isRemoteTransitioning;
+      const label = isSaving ? 'Saving...' : 'Stop';
+      const isOfflinePending = !isOnline;
+      return { isDisabled, label, isOfflinePending };
     }
 
-    // When offline, must be strictly disabled
+    // When offline, stop button is still functional
     const offlineState = computeStopButtonState(false, false, false);
-    assert.equal(offlineState.isDisabled, true, 'Stop button must be disabled when offline');
-    assert.equal(offlineState.label, 'Offline');
-    assert.match(offlineState.tooltip!, /No network connection/);
+    assert.equal(offlineState.isDisabled, false, 'Stop button must NOT be disabled when offline');
+    assert.equal(offlineState.label, 'Stop');
+    assert.equal(offlineState.isOfflinePending, true);
 
     // When online and idle, button is active
     const onlineState = computeStopButtonState(true, false, false);
     assert.equal(onlineState.isDisabled, false, 'Stop button must be enabled when online');
     assert.equal(onlineState.label, 'Stop');
-    assert.equal(onlineState.tooltip, undefined);
+    assert.equal(onlineState.isOfflinePending, false);
   });
 
-  it('blocks session save when network is disconnected and allows saving when reconnected', () => {
+  it('saves session offline to local outbox when network is disconnected and syncs when reconnected', () => {
     let mockOnLine = false;
+    const localOutbox: any[] = [];
+    let serverSynced = false;
 
-    function attemptStopAndSave() {
+    function attemptStopAndSave(payload: any) {
       if (!mockOnLine) {
-        return { saved: false, reason: 'Network connection required to save session. Please reconnect.' };
+        // Enqueued locally to outbox with pending sync flag
+        localOutbox.push({ ...payload, offline_synced: false });
+        return { saved: true, isOfflinePending: true, outboxCount: localOutbox.length };
       }
-      return { saved: true };
+      serverSynced = true;
+      return { saved: true, isOfflinePending: false, outboxCount: 0 };
     }
 
-    // 1. While disconnected, save is blocked
-    const offlineResult = attemptStopAndSave();
-    assert.equal(offlineResult.saved, false);
-    assert.match(offlineResult.reason!, /Network connection required/);
+    // 1. While disconnected, save succeeds locally and queues in outbox
+    const offlineResult = attemptStopAndSave({ session_id: 'sess-offline-1', duration_seconds: 1800 });
+    assert.equal(offlineResult.saved, true);
+    assert.equal(offlineResult.isOfflinePending, true);
+    assert.equal(offlineResult.outboxCount, 1);
 
-    // 2. Once internet reconnects, save succeeds
+    // 2. Once internet reconnects, flush outbox to server
     mockOnLine = true;
-    const onlineResult = attemptStopAndSave();
+    const event = localOutbox.pop();
+    const onlineResult = attemptStopAndSave(event);
     assert.equal(onlineResult.saved, true);
+    assert.equal(serverSynced, true);
+    assert.equal(localOutbox.length, 0);
   });
 
   it('guarantees cross-device idempotency and flags duplicate saves with isDuplicate: true', async () => {

@@ -102,6 +102,9 @@ import { useRank } from '../../context/RankContext';
 import { useStudyMode } from '../../context/StudyModeContext';
 import { triggerHaptic, registerBackButtonHandler } from '../../lib/native-feel';
 import { hapticMedium, hapticSuccess } from '@/lib/haptics';
+import { db } from '../../lib/db';
+import { enqueueSyncEvent } from '../../lib/syncOutbox';
+import { getDeviceId } from '../../lib/deviceId';
 
 const EMPTY_STATE_QUOTES = [
   'Every long streak starts with one session.',
@@ -1376,6 +1379,51 @@ export function StudyTimer() {
         }
       }
 
+      // Offline Stop & Save: Persist to Dexie and enqueue to outbox with device_id & timestamps
+      if (!isServerValidated && currentUserId) {
+        if (typeof window !== 'undefined' && db && db.sessions) {
+          try {
+            db.sessions.put({
+              id: currentClientSessionId,
+              user_id: currentUserId,
+              duration_seconds: finalDurationSeconds,
+              credited_seconds: finalDurationSeconds,
+              raw_seconds: finalDurationSeconds,
+              overlap_seconds_removed: 0,
+              overlap_adjusted: false,
+              started_at: finalStartedAt,
+              ended_at: finalEndedAt,
+              subject_id: subjectId,
+              mode: currentMode,
+              notes: notesToSave,
+              client_session_id: currentClientSessionId,
+              offline_synced: false,
+              created_at: new Date().toISOString(),
+            }).catch((err) => console.warn('[StudyTimer] Dexie local save error:', err));
+          } catch {}
+        }
+
+        const devId = typeof window !== 'undefined' ? getDeviceId() : null;
+        enqueueSyncEvent(
+          'session',
+          'create',
+          {
+            user_id: currentUserId,
+            subject_id: subjectId,
+            duration_seconds: finalDurationSeconds,
+            started_at: finalStartedAt,
+            ended_at: finalEndedAt,
+            notes: notesToSave,
+            mode: currentMode,
+            device_id: devId,
+            client_session_id: currentClientSessionId,
+            session_id: currentClientSessionId,
+          },
+          currentClientSessionId,
+          finalEndedAt
+        ).catch((err) => console.warn('[StudyTimer] Outbox enqueue error:', err));
+      }
+
       // 4. Immediately append the new session to local state so Project Time Distribution and stats update in real time
       const newSession: StudySession = {
         id: insertedRecordId || `sess-${Date.now()}`,
@@ -1446,12 +1494,13 @@ export function StudyTimer() {
         todayString,
       });
 
-      const { seasonRp: liveRp, startingRp: effectiveBaseRp } = resolveLiveSeasonStats(user, sessions);
-      const prevRP = liveRp;
-      // Competitive Anti-Exploit: Only award RP and rank tier advancement if verified by server (or guest mode)
-      const isEligibleForRP = !activeUser?.id || isServerValidated;
-      const gainedRP = isEligibleForRP ? rpBreakdown.totalGained : 0;
-      const newRP = prevRP + gainedRP;
+      const { startingRp: effectiveBaseRp } = resolveLiveSeasonStats(user, sessions);
+      const currentMonthSeconds = getCurrentMonthFocusSeconds(allSessionsWithNew);
+      const currentMonthSecondsBefore = Math.max(0, currentMonthSeconds - finalDurationSeconds);
+      const prevRP = calculateSeasonRp(effectiveBaseRp, currentMonthSecondsBefore);
+      const computedNewRP = calculateSeasonRp(effectiveBaseRp, currentMonthSeconds);
+      const gainedRP = Math.max(0, computedNewRP - prevRP);
+      const newRP = computedNewRP;
 
       // XP Calculation & Anti-Exploit Rules:
       // Award rate: 10 XP per full minute of recorded focus time: Math.floor(duration_seconds / 60) * 10

@@ -102,17 +102,17 @@ export async function GET(req: NextRequest) {
     const thisMonthSecondsByUser: Record<string, number> = {};
     const timeframeSecondsByUser: Record<string, number> = {};
 
-    // 4. Query current month sessions for all users to compute current season RP
+    // 4. Query current month sessions for all users to compute current season RP (using credited_seconds)
     const { data: monthSessions, error: monthErr } = await supabase
       .from('study_sessions')
-      .select('user_id, duration_seconds')
+      .select('user_id, credited_seconds, duration_seconds')
       .gte('started_at', currentMonthStartISO)
       .lte('started_at', currentMonthEndISO);
 
     if (!monthErr && Array.isArray(monthSessions)) {
       for (const s of monthSessions) {
         if (!s?.user_id) continue;
-        const dur = Math.max(0, Number(s.duration_seconds || 0));
+        const dur = Math.max(0, Number(s.credited_seconds ?? s.duration_seconds ?? 0));
         thisMonthSecondsByUser[s.user_id] = (thisMonthSecondsByUser[s.user_id] || 0) + dur;
       }
     }
@@ -124,12 +124,12 @@ export async function GET(req: NextRequest) {
     } else if (timeframe === 'all') {
       const { data: allSessions, error: allErr } = await supabase
         .from('study_sessions')
-        .select('user_id, duration_seconds');
+        .select('user_id, credited_seconds, duration_seconds');
 
       if (!allErr && Array.isArray(allSessions)) {
         for (const s of allSessions) {
           if (!s?.user_id) continue;
-          const dur = Math.max(0, Number(s.duration_seconds || 0));
+          const dur = Math.max(0, Number(s.credited_seconds ?? s.duration_seconds ?? 0));
           timeframeSecondsByUser[s.user_id] = (timeframeSecondsByUser[s.user_id] || 0) + dur;
         }
       }
@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
       // 'today' or 'week'
       let tfQuery = supabase
         .from('study_sessions')
-        .select('user_id, duration_seconds');
+        .select('user_id, credited_seconds, duration_seconds');
 
       if (timeframeStartISO) {
         tfQuery = tfQuery.gte('started_at', timeframeStartISO);
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
       if (!tfErr && Array.isArray(tfSessions)) {
         for (const s of tfSessions) {
           if (!s?.user_id) continue;
-          const dur = Math.max(0, Number(s.duration_seconds || 0));
+          const dur = Math.max(0, Number(s.credited_seconds ?? s.duration_seconds ?? 0));
           timeframeSecondsByUser[s.user_id] = (timeframeSecondsByUser[s.user_id] || 0) + dur;
         }
       }

@@ -668,7 +668,7 @@ export function resolveUserSeasonReset(
         const t = raw ? new Date(raw).getTime() : 0;
         return t >= startOfPrevMonthUTC && t < startOfCurrentMonthUTC;
       })
-      .reduce((sum, s) => sum + Math.max(0, Math.floor(Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? 0))), 0);
+      .reduce((sum, s) => sum + Math.max(0, Math.floor(Number(s.credited_seconds ?? s.creditedSeconds ?? s.durationSeconds ?? s.duration_seconds ?? s.duration ?? 0))), 0);
   }
 
   // Inactive decay rule: If the user logged 0 focus time in the expiring month, carryover RP decays to 0

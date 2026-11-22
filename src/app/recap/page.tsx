@@ -150,7 +150,7 @@ export default async function RecapPage(props: {
     const [sessionsRes, subjectsRes, todosRes] = await Promise.all([
       supabase
         .from('study_sessions')
-        .select('duration_seconds, subject_id, started_at')
+        .select('credited_seconds, duration_seconds, subject_id, started_at')
         .eq('user_id', user.id)
         .gte('started_at', startIso)
         .lt('started_at', endIso),
@@ -171,7 +171,7 @@ export default async function RecapPage(props: {
     const subjects = subjectsRes.data || [];
     completedTasks = todosRes.data?.length || 0;
 
-    totalSeconds = sessions.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0);
+    totalSeconds = sessions.reduce((sum, s) => sum + (Number(s.credited_seconds ?? s.duration_seconds) || 0), 0);
 
     const subjectMap = new Map<string, number>();
     const activeDates = new Set<string>();
@@ -179,7 +179,7 @@ export default async function RecapPage(props: {
     const hourCounts: Record<number, number> = {};
 
     sessions.forEach((s) => {
-      const dur = Number(s.duration_seconds) || 0;
+      const dur = Number(s.credited_seconds ?? s.duration_seconds) || 0;
       if (s.subject_id) {
         subjectMap.set(s.subject_id, (subjectMap.get(s.subject_id) || 0) + dur);
       }

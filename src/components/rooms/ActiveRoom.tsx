@@ -1655,7 +1655,7 @@ CREATE POLICY "Hosts can update their own study rooms"
         try {
           const { data: todaySessionsData } = await supabase
             .from('study_sessions')
-            .select('user_id, duration_seconds, started_at')
+            .select('user_id, credited_seconds, duration_seconds, started_at')
             .in('user_id', allUserIds)
             .gte('started_at', queryIso);
 
@@ -1664,7 +1664,7 @@ CREATE POLICY "Hosts can update their own study rooms"
           todaySessionsData.forEach((s: any) => {
             const time = new Date(s.started_at).getTime();
             if (time >= startOfDay.getTime()) {
-              const sec = Number(s.duration_seconds || 0);
+              const sec = Number(s.credited_seconds ?? s.duration_seconds ?? 0);
               userTodayMap.set(s.user_id, (userTodayMap.get(s.user_id) || 0) + sec);
             }
           });

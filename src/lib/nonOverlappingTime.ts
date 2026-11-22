@@ -22,6 +22,8 @@ export interface SessionWithTime {
   endTime?: string | number | Date | null;
   duration_seconds?: number | null;
   durationSeconds?: number | null;
+  credited_seconds?: number | null;
+  creditedSeconds?: number | null;
   duration?: number | null;
   seconds?: number | null;
   [key: string]: any;
@@ -34,7 +36,7 @@ export function sessionToInterval(s: SessionWithTime): TimeInterval | null {
   if (!s) return null;
 
   const rawDuration = Number(
-    s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0
+    s.credited_seconds ?? s.creditedSeconds ?? s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0
   );
 
   const rawStart = s.started_at ?? s.startTime;
@@ -121,7 +123,7 @@ export function calculateNonOverlappingSeconds(sessions: SessionWithTime[]): num
       // Fallback for sessions with no start/end timestamps
       unanchoredDurationSeconds += Math.max(
         0,
-        Number(s?.durationSeconds ?? s?.duration_seconds ?? s?.duration ?? s?.seconds ?? 0)
+        Number(s?.credited_seconds ?? s?.creditedSeconds ?? s?.durationSeconds ?? s?.duration_seconds ?? s?.duration ?? s?.seconds ?? 0)
       );
     }
   }

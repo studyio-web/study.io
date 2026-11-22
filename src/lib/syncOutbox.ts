@@ -192,11 +192,28 @@ export async function flushSyncOutbox(): Promise<void> {
         if (res.ok) {
           const json = await res.json().catch(() => ({}));
           console.log(`[SyncOutbox] Event ${event.event_id} (${event.entity_type}:${event.action}) synced.`);
+
+          const overlapAdjusted = Boolean(json.overlap_adjusted ?? json.result?.overlap_adjusted ?? json.result?.session?.overlap_adjusted);
+          const overlapRemoved = Number(json.overlap_seconds_removed ?? json.result?.overlap_seconds_removed ?? json.result?.session?.overlap_seconds_removed ?? 0);
+
+          if (overlapAdjusted && overlapRemoved > 0) {
+            const mins = Math.max(1, Math.round(overlapRemoved / 60));
+            toast(`Time adjusted: ${mins} min overlapped with another device and was counted once.`, {
+              id: `sync-overlap-${event.event_id}`,
+              icon: '⏱️',
+              duration: 6000,
+            });
+          }
+
           if (json.rejected) {
             toast(`Sync note: ${json.reason || 'Server has newer updates'}`, {
               id: `sync-reject-${event.event_id}`,
               icon: 'ℹ️',
             });
+          }
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('studyio:reconnect-synced', { detail: { event, response: json } }));
           }
         } else if (res.status === 409) {
           // Version / conflict: dropped per last-write-wins

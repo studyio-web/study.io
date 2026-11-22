@@ -64,7 +64,7 @@ export function getSessionTimestamp(s: any): number {
 
 export function getSessionDurationSeconds(s: any): number {
   if (!s || typeof s !== 'object') return 0;
-  let dur = Number(s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0);
+  let dur = Number(s.credited_seconds ?? s.creditedSeconds ?? s.durationSeconds ?? s.duration_seconds ?? s.duration ?? s.seconds ?? 0);
 
   // If active session currently running without fixed duration:
   if ((s.status === 'running' || s.status === 'paused') && s.started_at) {

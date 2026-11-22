@@ -195,12 +195,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Compute total accumulated study minutes across all rows in study_sessions for the current user
       const { data: dbSessions } = await supabase
         .from('study_sessions')
-        .select('id, user_id, subject_id, duration_seconds, started_at, ended_at, notes, mode')
+        .select('id, user_id, subject_id, credited_seconds, duration_seconds, started_at, ended_at, notes, mode')
         .eq('user_id', authUser.id);
 
       const currentMonthStudySeconds = getCurrentMonthFocusSeconds(dbSessions || []);
       const totalStudySeconds = dbSessions
-        ? dbSessions.reduce((acc: any, s: any) => acc + (Number(s.duration_seconds ?? 0)), 0)
+        ? dbSessions.reduce((acc: any, s: any) => acc + (Number(s.credited_seconds ?? s.duration_seconds ?? 0)), 0)
         : 0;
         
       const currentMonthStr = new Date().toISOString().substring(0, 7);
@@ -246,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const mappedDbSessions = (dbSessions || []).map((s: any) => ({
         id: s.id,
         startTime: s.started_at,
-        durationSeconds: Number(s.duration_seconds || 0),
+        durationSeconds: Number(s.credited_seconds ?? s.duration_seconds ?? 0),
       })) as any;
       const computedStreak = calculateStreak(mappedDbSessions);
       setCachedStreak(computedStreak);
@@ -512,7 +512,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const currentMonthStr = new Date().toISOString().substring(0, 7);
         const { data: dbSessions } = await supabase
           .from('study_sessions')
-          .select('id, user_id, duration_seconds, started_at')
+          .select('id, user_id, credited_seconds, duration_seconds, started_at')
           .eq('user_id', user.id);
 
         const liveStats = resolveLiveSeasonStats(data, dbSessions || []);
@@ -527,7 +527,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const mappedSess = (dbSessions || []).map((s: any) => ({
           id: s.id,
           startTime: s.started_at,
-          durationSeconds: Number(s.duration_seconds || 0),
+          durationSeconds: Number(s.credited_seconds ?? s.duration_seconds ?? 0),
         })) as any;
         const computedStreak = calculateStreak(mappedSess);
         setCachedStreak(computedStreak);
@@ -574,7 +574,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const sessionsTotalSeconds = (dbSessions || []).reduce(
-          (acc: number, s: any) => acc + Number(s.duration_seconds || 0),
+          (acc: number, s: any) => acc + Number(s.credited_seconds ?? s.duration_seconds ?? 0),
           0
         );
         const sessionsXP = Math.floor(sessionsTotalSeconds / 60) * 10;

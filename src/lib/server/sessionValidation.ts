@@ -6,6 +6,9 @@ import { calculateOverlappingSeconds } from '../nonOverlappingTime';
 export const MAX_SESSION_SECONDS = 12 * 3600; // 43,200 seconds (12 hours)
 export const MAX_DAILY_SECONDS = 24 * 3600;   // 86,400 seconds (24 hours)
 
+export type OverlapMode = 'union' | 'keep_longest';
+export const OVERLAP_MODE: OverlapMode = 'union';
+
 export interface SessionValidationInput {
   started_at: string | number | Date;
   ended_at?: string | number | Date | null;
@@ -14,6 +17,8 @@ export interface SessionValidationInput {
   mode?: string | null;
   planned_duration_seconds?: number | null;
   client_session_id?: string | null;
+  overlap_mode?: OverlapMode | null;
+  focus_intervals?: Array<{ start: string | number | Date; end: string | number | Date }> | null;
 }
 
 export interface SessionValidationResult {
@@ -27,6 +32,10 @@ export interface SessionValidationResult {
     user_id: string;
     subject_id: string | null;
     duration_seconds: number;
+    credited_seconds?: number;
+    raw_seconds?: number;
+    overlap_seconds_removed?: number;
+    overlap_adjusted?: boolean;
     started_at: string;
     ended_at: string;
     notes: string | null;
@@ -35,6 +44,10 @@ export interface SessionValidationResult {
     created_at?: string;
   } | null;
   calculatedSeconds?: number;
+  credited_seconds?: number;
+  raw_seconds?: number;
+  overlap_seconds_removed?: number;
+  overlap_adjusted?: boolean;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -170,7 +183,7 @@ export async function validateAndSaveSession(
       startTime = new Date(endTime.getTime() - MAX_SESSION_SECONDS * 1000);
     }
 
-    // 7. Enforce 24-Hour Calendar Day Cap (UTC)
+    // 7. Enforce 24-Hour Calendar Day Cap (UTC) using credited_seconds
     const dayStart = new Date(startTime);
     dayStart.setUTCHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart);
@@ -178,7 +191,7 @@ export async function validateAndSaveSession(
 
     const { data: daySessions, error: dayQueryError } = await dbClient
       .from('study_sessions')
-      .select('duration_seconds')
+      .select('credited_seconds, duration_seconds')
       .eq('user_id', user.id)
       .gte('started_at', dayStart.toISOString())
       .lt('started_at', dayEnd.toISOString());
@@ -188,7 +201,7 @@ export async function validateAndSaveSession(
     }
 
     const existingDaySeconds = (daySessions || []).reduce(
-      (sum: number, s: any) => sum + (Number(s.duration_seconds) || 0),
+      (sum: number, s: any) => sum + (Number(s.credited_seconds ?? s.duration_seconds) || 0),
       0
     );
 
@@ -202,52 +215,109 @@ export async function validateAndSaveSession(
       startTime = new Date(endTime.getTime() - calculatedSeconds * 1000);
     }
 
-    // If completely capped to 0, discard cleanly
-    if (calculatedSeconds <= 0) {
-      return {
-        success: true,
-        discarded: true,
-        reason: 'Daily 24-hour study limit reached or zero duration recorded.',
-        session: null,
-        calculatedSeconds: 0,
-      };
-    }
+    const rawSeconds = calculatedSeconds;
+    let creditedSeconds = rawSeconds;
+    let overlapSecondsRemoved = 0;
+    let overlapAdjusted = false;
 
-    // 8. Overlap Protection: Prevent multi-device concurrent focus time cheat
-    // Physical time is absolute: if there are 2 hours of focus time in 1 hour, remove the overlapping hour
+    // 8. Overlap Protection: Prevent double-counted time when devices run overlapping sessions
+    const overlapMode = input.overlap_mode || OVERLAP_MODE;
+
     const { data: overlappingSessions } = await dbClient
       .from('study_sessions')
-      .select('id, started_at, ended_at, duration_seconds')
+      .select('id, session_id, started_at, ended_at, duration_seconds, credited_seconds, raw_seconds')
       .eq('user_id', user.id)
       .lt('started_at', endTime.toISOString())
       .gt('ended_at', startTime.toISOString());
 
-    if (overlappingSessions && overlappingSessions.length > 0) {
-      const overlapSec = calculateOverlappingSeconds(
-        startTime.getTime(),
-        endTime.getTime(),
-        overlappingSessions
+    // Also check live active sessions on other devices
+    let activeIntervals: Array<{ start: number; end: number }> = [];
+    try {
+      const { data: activeOther } = await dbClient
+        .from('active_sessions')
+        .select('started_at, device_id')
+        .eq('user_id', user.id)
+        .eq('status', 'running')
+        .not('started_at', 'is', null)
+        .lt('started_at', endTime.toISOString())
+        .maybeSingle();
+
+      if (activeOther && activeOther.started_at) {
+        const actStart = new Date(activeOther.started_at).getTime();
+        const actEnd = serverNow.getTime();
+        if (actStart < endTime.getTime() && actEnd > startTime.getTime()) {
+          activeIntervals.push({
+            start: Math.max(startTime.getTime(), actStart),
+            end: Math.min(endTime.getTime(), actEnd),
+          });
+        }
+      }
+    } catch {}
+
+    const validOverlaps = (overlappingSessions || []).filter(
+      (s: any) => Number(s.credited_seconds ?? s.duration_seconds ?? 0) > 0 &&
+        (!clientSessionId || s.session_id !== clientSessionId)
+    );
+
+    if (overlapMode === 'keep_longest') {
+      const maxConflictingRaw = validOverlaps.reduce(
+        (max: number, s: any) => Math.max(max, Number(s.raw_seconds ?? s.duration_seconds ?? 0)),
+        0
       );
 
-      if (overlapSec > 0) {
-        console.warn(`[Anti-Tamper] Detected ${overlapSec}s overlap with existing sessions in interval.`);
-        const netUniqueSeconds = Math.max(0, calculatedSeconds - overlapSec);
-
-        // If completely overlapping with existing session(s) (allow <= 3s network jitter tolerance)
-        if (netUniqueSeconds <= 3) {
-          return {
-            success: true,
-            discarded: true,
-            isDuplicate: true,
-            reason: 'Focus time already recorded for this time window on another device or session.',
-            session: null,
-            calculatedSeconds: 0,
-          };
+      if (maxConflictingRaw > 0) {
+        if (rawSeconds <= maxConflictingRaw) {
+          creditedSeconds = 0;
+          overlapSecondsRemoved = rawSeconds;
+          overlapAdjusted = true;
+        } else {
+          creditedSeconds = rawSeconds - maxConflictingRaw;
+          overlapSecondsRemoved = maxConflictingRaw;
+          overlapAdjusted = true;
         }
+      }
+    } else {
+      // Standard interval union
+      const rawIntervals: Array<{ start: number; end: number }> = [];
 
-        // Partial overlap: deduct overlapping time so only genuine non-overlapping focus time is credited
-        calculatedSeconds = netUniqueSeconds;
-        startTime = new Date(endTime.getTime() - calculatedSeconds * 1000);
+      for (const s of validOverlaps) {
+        const sStart = new Date(s.started_at).getTime();
+        const sEnd = new Date(s.ended_at).getTime();
+        const clampedStart = Math.max(startTime.getTime(), sStart);
+        const clampedEnd = Math.min(endTime.getTime(), sEnd);
+        if (clampedStart < clampedEnd) {
+          rawIntervals.push({ start: clampedStart, end: clampedEnd });
+        }
+      }
+
+      for (const act of activeIntervals) {
+        rawIntervals.push(act);
+      }
+
+      if (rawIntervals.length > 0) {
+        rawIntervals.sort((a, b) => a.start - b.start || b.end - a.end);
+        let unionDurationMs = 0;
+        let curStart = rawIntervals[0].start;
+        let curEnd = rawIntervals[0].end;
+
+        for (let i = 1; i < rawIntervals.length; i++) {
+          const iv = rawIntervals[i];
+          if (iv.start <= curEnd) {
+            curEnd = Math.max(curEnd, iv.end);
+          } else {
+            unionDurationMs += (curEnd - curStart);
+            curStart = iv.start;
+            curEnd = iv.end;
+          }
+        }
+        unionDurationMs += (curEnd - curStart);
+
+        const overlapSec = Math.round(unionDurationMs / 1000);
+        if (overlapSec > 0) {
+          creditedSeconds = Math.max(0, rawSeconds - overlapSec);
+          overlapSecondsRemoved = rawSeconds - creditedSeconds;
+          overlapAdjusted = overlapSecondsRemoved > 0;
+        }
       }
     }
 
@@ -258,7 +328,11 @@ export async function validateAndSaveSession(
     const payload: any = {
       user_id: user.id,
       subject_id: subjectId,
-      duration_seconds: calculatedSeconds,
+      duration_seconds: creditedSeconds,
+      credited_seconds: creditedSeconds,
+      raw_seconds: rawSeconds,
+      overlap_seconds_removed: overlapSecondsRemoved,
+      overlap_adjusted: overlapAdjusted,
       started_at: startTime.toISOString(),
       ended_at: endTime.toISOString(),
       notes: input.notes && input.notes.trim().length > 0 ? input.notes.trim() : null,
@@ -273,6 +347,18 @@ export async function validateAndSaveSession(
       .from('study_sessions')
       .insert([payload])
       .select();
+
+    // If credited_seconds or other audit columns do not exist in older schema, retry without them
+    if (insertError && (insertError.code === '42703' || insertError.message?.toLowerCase().includes('credited_seconds'))) {
+      const { credited_seconds: _c, raw_seconds: _r, overlap_seconds_removed: _o, overlap_adjusted: _a, ...compatPayload } = payload;
+      const retryCompat = await dbClient
+        .from('study_sessions')
+        .insert([compatPayload])
+        .select();
+
+      data = retryCompat.data;
+      insertError = retryCompat.error;
+    }
 
     // If client_session_id column does not exist in schema (code 42703), retry immediately without it
     if (insertError && (insertError.code === '42703' || insertError.message?.toLowerCase().includes('client_session_id'))) {
@@ -301,7 +387,11 @@ export async function validateAndSaveSession(
               success: true,
               isDuplicate: true,
               session: dup,
-              calculatedSeconds: Number(dup.duration_seconds || 0),
+              calculatedSeconds: Number(dup.credited_seconds ?? dup.duration_seconds ?? 0),
+              credited_seconds: Number(dup.credited_seconds ?? dup.duration_seconds ?? 0),
+              raw_seconds: Number(dup.raw_seconds ?? dup.duration_seconds ?? 0),
+              overlap_seconds_removed: Number(dup.overlap_seconds_removed ?? 0),
+              overlap_adjusted: Boolean(dup.overlap_adjusted),
               reason: 'Session already recorded (idempotent constraint hit).',
             };
           }
@@ -330,7 +420,11 @@ export async function validateAndSaveSession(
     return {
       success: true,
       session: savedSession,
-      calculatedSeconds,
+      calculatedSeconds: creditedSeconds,
+      credited_seconds: creditedSeconds,
+      raw_seconds: rawSeconds,
+      overlap_seconds_removed: overlapSecondsRemoved,
+      overlap_adjusted: overlapAdjusted,
     };
   } catch (err: any) {
     console.error('[Anti-Tamper] Exception in validateAndSaveSession:', err);

@@ -163,7 +163,7 @@ export function ScholarProfileModal({
             .maybeSingle(),
           supabase
             .from('study_sessions')
-            .select('duration_seconds, started_at')
+            .select('credited_seconds, duration_seconds, started_at')
             .eq('user_id', uid),
         ]);
 
@@ -172,7 +172,7 @@ export function ScholarProfileModal({
         const sessions = sessRes.data || [];
         const mappedSessions = sessions.map((s: any) => ({
           startTime: s.started_at,
-          durationSeconds: Number(s.duration_seconds || 0),
+          durationSeconds: Number(s.credited_seconds ?? s.duration_seconds ?? 0),
         }));
         const liveStreak = calculateStreak(mappedSessions);
 
@@ -187,7 +187,7 @@ export function ScholarProfileModal({
             createdAt: p.created_at || undefined,
           });
         }
-        const sumSecs = sessions.reduce((acc, s) => acc + (Number(s.duration_seconds) || 0), 0);
+        const sumSecs = sessions.reduce((acc, s) => acc + (Number(s.credited_seconds ?? s.duration_seconds) || 0), 0);
 
         const dateSet = new Set(
           sessions

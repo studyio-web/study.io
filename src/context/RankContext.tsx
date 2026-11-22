@@ -298,7 +298,7 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
 
             const { data: monthSessions } = await supabase
               .from('study_sessions')
-              .select('user_id, duration_seconds')
+              .select('user_id, credited_seconds, duration_seconds')
               .gte('started_at', monthStartISO)
               .lte('started_at', monthEndISO);
 
@@ -306,7 +306,7 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
             if (Array.isArray(monthSessions)) {
               for (const s of monthSessions) {
                 if (!s?.user_id) continue;
-                monthSecsByUser[s.user_id] = (monthSecsByUser[s.user_id] || 0) + Math.max(0, Number(s.duration_seconds || 0));
+                monthSecsByUser[s.user_id] = (monthSecsByUser[s.user_id] || 0) + Math.max(0, Number(s.credited_seconds ?? s.duration_seconds ?? 0));
               }
             }
 

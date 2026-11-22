@@ -265,7 +265,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (entity_type === 'session') {
-      // Validate and record session with full server validation
+      // Validate and record session with full server validation & overlap protection
       const result = await validateAndSaveSession(dbClient, user, {
         ...payload,
         offline_synced: true,
@@ -275,6 +275,10 @@ export async function POST(req: NextRequest) {
         success: result.success,
         action: 'session_saved',
         result,
+        credited_seconds: result.credited_seconds,
+        raw_seconds: result.raw_seconds,
+        overlap_seconds_removed: result.overlap_seconds_removed,
+        overlap_adjusted: result.overlap_adjusted,
       });
     }
 
