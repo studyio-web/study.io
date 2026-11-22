@@ -17,6 +17,7 @@ import { RankBadgePreloader } from './RankBadgePreloader';
 import { NativeFeelBridge } from './NativeFeelBridge';
 import { PushNotificationBridge } from './PushNotificationBridge';
 import { SingleTabGuard } from './SingleTabGuard';
+import { UpdatePrompt } from './UpdatePrompt';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -40,6 +41,8 @@ export function Providers({ children }: { children: ReactNode }) {
                         <PushNotificationBridge />
                         {/* Desktop Web: Enforce single active tab per account */}
                         <SingleTabGuard />
+                        {/* Service Worker Update Prompt */}
+                        <UpdatePrompt />
                         {children}
                       </RankProvider>
                     </TimetableProvider>

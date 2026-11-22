@@ -9,7 +9,7 @@ import { getRankTier, calculateSeasonRp, calculateRpFromSeconds, RankTierName, R
 import { getRankTheme } from '../../lib/rankTheme';
 import { getLevelFromLifetimeXP } from '../../lib/gamification';
 import { LeaderboardEntry } from '../../types';
-import { Clock, Trophy, Sparkles, ChevronRight, Loader2 } from 'lucide-react';
+import { Clock, Trophy, Sparkles, ChevronRight, Loader2, WifiOff } from 'lucide-react';
 import { soundFx } from '../../lib/audio';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { useRankTheme } from '../../hooks/useRankTheme';
@@ -264,6 +264,8 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
     isFetching,
     userRank: sharedUserRank,
     refetchRank,
+    lastUpdated,
+    isOffline,
   } = useRank();
 
   const [animationKey, setAnimationKey] = useState<number>(0);
@@ -619,9 +621,17 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--text)] font-sans">
                   Leaderboard
                 </h1>
-                <p className="text-sm text-[var(--text-dim)] mt-1">
-                  {monthYearLabel} · ranked by focus time
-                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <p className="text-sm text-[var(--text-dim)]">
+                    {monthYearLabel} · ranked by focus time
+                  </p>
+                  {isOffline && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-[11px]">
+                      <WifiOff className="w-3 h-3 shrink-0" />
+                      <span>Offline · Last updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}</span>
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">

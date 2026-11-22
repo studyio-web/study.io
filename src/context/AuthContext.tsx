@@ -750,27 +750,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Check current active session in Supabase
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const hasCachedAuth = hasValidCachedSession();
+
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (!isSubscribed) return;
       if (session?.user) {
         setIsAuthenticated(true);
         try { localStorage.setItem('studypulse_is_authenticated', 'true'); } catch {}
         await syncSupabaseProfile(supabase, session.user);
       } else {
-        setIsAuthenticated(false);
-        setUser(INITIAL_USER);
-        try {
-          localStorage.removeItem('studypulse_is_authenticated');
-          localStorage.removeItem('studypulse_active_user');
-          clearCachedUserState();
-        } catch {}
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        if (isOffline && hasCachedAuth) {
+          console.log('[Auth] App started offline with stored session; preserving auth state.');
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+          setUser(INITIAL_USER);
+          try {
+            localStorage.removeItem('studypulse_is_authenticated');
+            localStorage.removeItem('studypulse_active_user');
+            clearCachedUserState();
+          } catch {}
+        }
       }
       if (isSubscribed) {
         setIsLoading(false);
       }
     }).catch(() => {
       if (isSubscribed) {
-        setIsAuthenticated(false);
+        if (hasCachedAuth) {
+          console.log('[Auth] getSession failed (network error); preserving cached session.');
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
         setIsLoading(false);
       }
     });
@@ -814,8 +827,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('studypulse:auth-changed', { detail: { session } }));
         }
+      } else if (event === 'SIGNED_OUT') {
+        // User explicitly signed out
+        setIsAuthenticated(false);
+        setUser(INITIAL_USER);
+        try {
+          localStorage.removeItem('studypulse_is_authenticated');
+          localStorage.removeItem('studypulse_active_user');
+          localStorage.removeItem('study_io_selected_subject_guest');
+          localStorage.removeItem('studypulse_selected_subject_id');
+          localStorage.removeItem('studypulse_sessions');
+          localStorage.removeItem('studypulse_subjects');
+          localStorage.removeItem('studypulse_todos');
+          localStorage.removeItem('studypulse_pending_sessions');
+          clearCachedUserState();
+        } catch {}
       } else {
-        // Any session absence / sign out: strictly unauthenticated
+        // If network is offline, do NOT sign the user out on transient token refresh failure
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        if (isOffline && hasCachedAuth) {
+          console.log('[Auth] Preserving user session across offline state.');
+          return;
+        }
         setIsAuthenticated(false);
         setUser(INITIAL_USER);
         try {
@@ -835,9 +868,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    const handleReconnectAuth = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          syncSupabaseProfile(supabase, session.user);
+        }
+      }).catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleReconnectAuth);
+    }
+
     return () => {
       isSubscribed = false;
       subscription.unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleReconnectAuth);
+      }
     };
   }, [syncSupabaseProfile]);
 

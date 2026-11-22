@@ -1,23 +1,51 @@
 /**
- * study.io Service Worker
- * Handles background timer tracking and persistent (non-dismissable) notifications.
- *
- * Messages received from page:
- *   { type: 'TIMER_START',  startTime: <ms epoch anchor>, subject: <string>, mode: <string>, target: <seconds|null>, hidden: <bool> }
- *   { type: 'TIMER_PAUSE',  elapsed: <seconds> }
- *   { type: 'TIMER_RESUME', startTime: <ms epoch anchor>, subject: <string>, hidden: <bool> }
- *   { type: 'TIMER_STOP' }
- *   { type: 'TIMER_TICK',   startTime: <ms epoch anchor>, elapsed: <seconds>, subject: <string> }
- *   { type: 'APP_HIDDEN' }
- *   { type: 'APP_VISIBLE' }
- *
- * startTime is the epoch anchor: Date.now() - elapsedSeconds * 1000
- * So live elapsed = Math.floor((Date.now() - startTime) / 1000)
+ * study.io Service Worker (v4)
+ * - Offline App Shell & Static Asset Caching
+ * - Android WebView Airplane Mode Support
+ * - Background Timer Tracking & Persistent Notifications
+ * - Versioned Cache Purging & Skip Waiting Update Cycle
  */
+
+const SHELL_CACHE_NAME  = 'studyio-shell-v4';
+const STATIC_CACHE_NAME = 'studyio-static-v4';
+const API_CACHE_NAME    = 'studyio-api-v4';
+
+const CURRENT_CACHES = [SHELL_CACHE_NAME, STATIC_CACHE_NAME, API_CACHE_NAME];
 
 const NOTIF_TAG = 'studyio-timer-running';
 const ICON      = '/icon-192.png';
 const BADGE     = '/icon-192.png';
+
+const PRECACHE_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/manifest.json',
+  '/favicon.ico',
+  '/favicon.svg',
+  '/logo.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+];
+
+const PRECACHE_STATIC = [
+  '/ranks/bronze-1.webp',
+  '/ranks/bronze-1.png',
+  '/ranks/silver-1.webp',
+  '/ranks/silver-1.png',
+  '/ranks/gold-1.webp',
+  '/ranks/gold-1.png',
+  '/ranks/platinum-1.webp',
+  '/ranks/platinum-1.png',
+  '/ranks/diamond-1.webp',
+  '/ranks/diamond-1.png',
+  '/ranks/master.webp',
+  '/ranks/master.png',
+  '/ranks/grandmaster.webp',
+  '/ranks/grandmaster.png',
+  '/ranks/champion.webp',
+  '/ranks/champion.png',
+];
 
 let state = {
   running:   false,
@@ -74,9 +102,7 @@ async function showNotif() {
       badge:            BADGE,
       tag:              NOTIF_TAG,
       renotify:         true,
-      // Non-dismissable: requires explicit interaction (won't auto-dismiss)
       requireInteraction: true,
-      // sticky: true is a Chrome-specific hint to prevent swipe-dismiss
       sticky:           true,
       silent:           true,
       actions: [
@@ -97,18 +123,16 @@ async function clearNotif() {
   } catch (e) {}
 }
 
-// ─── Interval loop — updates every second while running ─────────────────────
-
 function startLoop() {
   stopLoop();
-  showNotif(); // show immediately
+  showNotif();
   notifInterval = setInterval(function() {
     if (state.running) {
       showNotif();
     } else {
       stopLoop();
     }
-  }, 1000); // update every second
+  }, 1000);
 }
 
 function stopLoop() {
@@ -118,13 +142,70 @@ function stopLoop() {
   }
 }
 
-// ─── Message handler ─────────────────────────────────────────────────────────
+// ─── Lifecycle: Install & Activate ──────────────────────────────────────────
+
+self.addEventListener('install', function(event) {
+  event.waitUntil(
+    (async function() {
+      // 1. Precache App Shell
+      try {
+        const shellCache = await caches.open(SHELL_CACHE_NAME);
+        await Promise.allSettled(
+          PRECACHE_SHELL.map(function(url) {
+            return shellCache.add(url).catch(function(err) {
+              console.warn('[SW Precache] Shell item skipped:', url, err);
+            });
+          })
+        );
+      } catch (err) {
+        console.warn('[SW Precache] Shell cache open failed:', err);
+      }
+
+      // 2. Precache Rank Badges & Static Assets
+      try {
+        const staticCache = await caches.open(STATIC_CACHE_NAME);
+        await Promise.allSettled(
+          PRECACHE_STATIC.map(function(url) {
+            return staticCache.add(url).catch(function(err) {
+              console.warn('[SW Precache] Static item skipped:', url, err);
+            });
+          })
+        );
+      } catch (err) {
+        console.warn('[SW Precache] Static cache open failed:', err);
+      }
+    })()
+  );
+});
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.map(function(key) {
+          if (!CURRENT_CACHES.includes(key)) {
+            console.log('[SW] Purging outdated cache:', key);
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
+  );
+});
+
+// ─── Message Handler ────────────────────────────────────────────────────────
 
 self.addEventListener('message', function(event) {
   var d = event.data;
   if (!d || !d.type) return;
 
   switch (d.type) {
+    case 'SKIP_WAITING':
+      self.skipWaiting();
+      break;
+
     case 'TIMER_START':
       state = {
         running:   true,
@@ -134,7 +215,6 @@ self.addEventListener('message', function(event) {
         mode:      d.mode || 'stopwatch',
         target:    d.target || null,
       };
-      // Always start the notification loop when timer starts, regardless of visibility
       startLoop();
       break;
 
@@ -142,7 +222,6 @@ self.addEventListener('message', function(event) {
       state.running   = true;
       state.startTime = d.startTime || Date.now();
       if (d.subject) state.subject = d.subject;
-      // Always restart notification loop on resume
       startLoop();
       break;
 
@@ -151,7 +230,6 @@ self.addEventListener('message', function(event) {
       state.startTime = null;
       if (d.elapsed !== undefined) state.elapsed = d.elapsed;
       stopLoop();
-      // Show a static "paused" notification (still non-dismissable)
       (async function() {
         try {
           await self.registration.showNotification('⏸ Timer Paused — ' + formatTime(state.elapsed), {
@@ -182,20 +260,15 @@ self.addEventListener('message', function(event) {
       break;
 
     case 'TIMER_TICK':
-      // Keep state fresh from the page
       if (d.startTime !== undefined) state.startTime = d.startTime;
       if (d.subject) state.subject = d.subject;
-      // Don't update elapsed here — we compute it from startTime
       break;
 
     case 'APP_HIDDEN':
-      // App went to background — loop should already be running, ensure it is
       if (state.running && notifInterval === null) startLoop();
       break;
 
     case 'APP_VISIBLE':
-      // App came back to foreground — keep notification running (user requested it stays)
-      // We just continue the loop unchanged
       break;
 
     case 'PING':
@@ -220,7 +293,7 @@ self.addEventListener('message', function(event) {
   }
 });
 
-// ─── Notification click ───────────────────────────────────────────────────────
+// ─── Notification Click ─────────────────────────────────────────────────────
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
@@ -239,7 +312,6 @@ self.addEventListener('notificationclick', function(event) {
     return;
   }
 
-  // 'open' action or tap on notification body → focus or open the app
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clients) {
       var found = clients.find(function(c) {
@@ -251,40 +323,15 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-// ─── Notification dismiss / close ───────────────────────────────────────────
-
 self.addEventListener('notificationclose', function(event) {
-  // If user swiped away the notification while timer is actively running,
-  // re-anchor it immediately so the notification stays pinned during focus.
   if (state && state.running) {
     showNotif();
   }
 });
 
-// ─── Lifecycle & Static Asset Caching (Cache-First) ───────────────────────────
+// ─── Fetch Handling: Cache Strategies ───────────────────────────────────────
 
-const CACHE_NAME = 'studyio-static-v3';
 const STATIC_ASSET_REGEX = /\.(js|css|woff|woff2|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$/i;
-
-self.addEventListener('install', function() {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', function(event) {
-  event.waitUntil(
-    caches.keys().then(function(keys) {
-      return Promise.all(
-        keys.map(function(key) {
-          if (key !== CACHE_NAME && key.startsWith('studyio-static-')) {
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(function() {
-      return self.clients.claim();
-    })
-  );
-});
 
 self.addEventListener('fetch', function(event) {
   // Only intercept GET requests
@@ -292,39 +339,93 @@ self.addEventListener('fetch', function(event) {
 
   const url = new URL(event.request.url);
 
-  // Bypass API, database, realtime socket, auth & payment requests
+  // Bypass Auth, Supabase DB/RPC, Payments (Razorpay), and WebSockets
   if (
-    url.pathname.startsWith('/api/') ||
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('razorpay.com') ||
+    url.pathname.startsWith('/auth/') ||
+    url.pathname.startsWith('/api/billing/') ||
+    url.pathname.startsWith('/api/razorpay/') ||
+    url.pathname.startsWith('/api/verify-payment') ||
     url.protocol.startsWith('ws')
   ) {
     return;
   }
 
-  // Cache-first for Next.js chunks, Google Fonts, and static image/font assets
+  // 1. Navigation Requests (App Shell - Network-First with Cache Fallback)
+  // Ensures Android WebView in airplane mode loading from Vercel URL displays the app shell
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request)
+        .then(function(networkResponse) {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(SHELL_CACHE_NAME).then(function(cache) {
+              cache.put('/', responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(function() {
+          // Network failed (offline / airplane mode): return cached app shell
+          return caches.open(SHELL_CACHE_NAME).then(function(cache) {
+            return cache.match('/').then(function(cachedShell) {
+              if (cachedShell) return cachedShell;
+              return cache.match(event.request);
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // 2. Static Assets (Cache-First)
   const isNextStatic = url.pathname.startsWith('/_next/static/');
   const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   const isStaticFile = STATIC_ASSET_REGEX.test(url.pathname);
 
   if (isNextStatic || isGoogleFont || isStaticFile) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(function(cache) {
+      caches.open(STATIC_CACHE_NAME).then(function(cache) {
         return cache.match(event.request).then(function(cachedResponse) {
           if (cachedResponse) {
             return cachedResponse;
           }
-          return fetch(event.request).then(function(networkResponse) {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch(function() {
-            return cachedResponse;
-          });
+          return fetch(event.request)
+            .then(function(networkResponse) {
+              if (networkResponse && networkResponse.status === 200) {
+                cache.put(event.request, networkResponse.clone());
+              }
+              return networkResponse;
+            })
+            .catch(function() {
+              return cachedResponse;
+            });
         });
       })
     );
+    return;
+  }
+
+  // 3. API Reads (Network-First with Cache Fallback)
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function(networkResponse) {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(API_CACHE_NAME).then(function(cache) {
+              cache.put(event.request, clone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(function() {
+          return caches.open(API_CACHE_NAME).then(function(cache) {
+            return cache.match(event.request);
+          });
+        })
+    );
+    return;
   }
 });
-

@@ -945,6 +945,12 @@ export function StudyTimer() {
     setShowRecoveryBanner(false);
 
     // Warning confirmation prompt before starting Countdown with Strict Mode / Ultra Strict Mode
+    if (isUltraStrict && typeof navigator !== 'undefined' && !navigator.onLine) {
+      triggerHaptic('warning');
+      toast('Needs internet for Ultra Strict session', { icon: '⚠️' });
+      return;
+    }
+
     if (isAndroid && (isStrictMode || isUltraStrict) && timerMode === 'countdown') {
       pendingStartSubjectIdRef.current = activeSub.id;
       hapticMedium();
@@ -975,6 +981,12 @@ export function StudyTimer() {
   }, [activeSubjects, selectedSubject, selectedSubjectId, startTimer, handleOpenSubjectManager, isAndroid, isStrictMode, allowedApps, isUltraStrict, timerMode]);
 
   const handleConfirmStrictCountdown = useCallback(async () => {
+    if (isUltraStrict && typeof navigator !== 'undefined' && !navigator.onLine) {
+      triggerHaptic('warning');
+      toast('Needs internet for Ultra Strict session', { icon: '⚠️' });
+      setIsStrictWarningModalOpen(false);
+      return;
+    }
     const subId = pendingStartSubjectIdRef.current || selectedSubject?.id;
     setIsStrictWarningModalOpen(false);
     if (!subId) return;
@@ -2450,14 +2462,6 @@ export function StudyTimer() {
                   type="button"
                   onClick={async () => {
                     toast.dismiss();
-                    if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
-                      triggerHaptic('warning');
-                      toast.error('Network connection required to save session. Please reconnect.', {
-                        id: 'offline-stop-blocked',
-                        duration: 4000,
-                      });
-                      return;
-                    }
                     // Immediately silence & disarm alarm so save proceeds unhindered
                     soundFx.stopTimerAlarm();
                     setIsAlarmRinging(false);
@@ -2476,21 +2480,12 @@ export function StudyTimer() {
                     }
                   }}
                   disabled={isSaving}
-                  className={`flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 relative z-20 cursor-pointer pointer-events-auto ${!isOnline
-                    ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-pointer'
-                    : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]'
-                    }`}
-                  title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
+                  className="flex-1 h-[52px] rounded-full font-bold text-sm active:scale-[0.98] transition-all duration-120 flex items-center justify-center gap-2 relative z-20 cursor-pointer pointer-events-auto text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 disabled:opacity-50 shadow-lg shadow-[0_0_20px_var(--glow)]"
                 >
                   {isSaving ? (
                     <>
                       <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       <span>Saving...</span>
-                    </>
-                  ) : !isOnline ? (
-                    <>
-                      <WifiOff className="w-4 h-4 text-white/40" />
-                      <span>Offline (Reconnect)</span>
                     </>
                   ) : (
                     <>
@@ -2525,13 +2520,6 @@ export function StudyTimer() {
             <div className="flex items-center gap-2.5 w-full max-w-[360px] justify-center">
               <button
                 onClick={async () => {
-                  if (!isOnline) {
-                    toast.error('Network connection required to save session. Please reconnect.', {
-                      id: 'offline-stop-blocked',
-                      duration: 4000,
-                    });
-                    return;
-                  }
                   setIsSaving(true);
                   try {
                     await saveAndStartBreak();
@@ -2539,22 +2527,13 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
-                className={`flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 ${!isOnline
-                  ? 'border border-white/10 bg-white/[0.04] text-white/40 cursor-not-allowed opacity-60'
-                  : 'text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm'
-                  }`}
-                title={!isOnline ? 'No network connection. Reconnect to stop & save session.' : undefined}
+                disabled={isSaving || isRemoteTransitioning}
+                className="flex-1 h-[52px] rounded-full font-medium text-sm active:scale-[0.98] transition-transform duration-120 flex items-center justify-center gap-2 text-[var(--accent-contrast)] bg-[var(--accent)] hover:brightness-105 cursor-pointer disabled:opacity-50 shadow-sm"
               >
                 {isSaving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-[var(--accent-contrast)] border-t-transparent rounded-full animate-spin" />
                     <span>Saving...</span>
-                  </>
-                ) : !isOnline ? (
-                  <>
-                    <WifiOff className="w-4 h-4 text-white/40" />
-                    <span>Offline</span>
                   </>
                 ) : (
                   <>
@@ -2565,13 +2544,6 @@ export function StudyTimer() {
               </button>
               <button
                 onClick={async () => {
-                  if (!isOnline) {
-                    toast.error('Network connection required to save session. Please reconnect.', {
-                      id: 'offline-stop-blocked',
-                      duration: 4000,
-                    });
-                    return;
-                  }
                   setIsSaving(true);
                   try {
                     await skipPomodoroBreak();
@@ -2579,7 +2551,7 @@ export function StudyTimer() {
                     setIsSaving(false);
                   }
                 }}
-                disabled={isSaving || isRemoteTransitioning || !isOnline}
+                disabled={isSaving || isRemoteTransitioning}
                 className="px-5 h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text)] font-medium text-sm active:scale-[0.98] transition-transform duration-120 cursor-pointer disabled:opacity-50"
               >
                 <span>Skip</span>

@@ -23,6 +23,7 @@ import {
   Clock,
   PieChart as PieIcon,
   Sparkles,
+  WifiOff,
 } from 'lucide-react';
 
 import {
@@ -528,6 +529,19 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
     return cells;
   }, [calMonth, sessionsByDateMap, dailyGoalSeconds, calSelectedDate, todayStr]);
 
+  const [isOffline, setIsOffline] = useState(() => (typeof navigator !== 'undefined' ? !navigator.onLine : false));
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
   const handleCalSelectDay = (dateKey: string) => {
     if (!isPremium && dateKey !== todayStr) {
       openPremiumModal();
@@ -720,6 +734,12 @@ export function AnalyticsDashboard({ onStartSession, onOpenSettings }: Analytics
 
   return (
     <div className="w-full space-y-5 sm:space-y-6 text-[var(--text)]">
+      {isOffline && (
+        <div className="flex items-center gap-1.5 py-1 px-3 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-[11px] w-fit">
+          <WifiOff className="w-3.5 h-3.5 shrink-0" />
+          <span>Offline · Showing cached stats</span>
+        </div>
+      )}
       {/* 1. Top Row — 3 Focus Time Metric Cards (Chronological Granularity: Today -> Week -> Month) */}
 
       <div className="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-4 w-full">

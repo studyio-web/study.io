@@ -17,6 +17,7 @@ import { LeaderboardEntry } from '@/types';
 import { useDevRankPreview } from '@/lib/devRankPreview';
 import { getCachedUserState, saveCachedUserState } from '@/lib/userCache';
 import { getLevelFromLifetimeXP } from '@/lib/gamification';
+import { db } from '@/lib/db';
 
 export interface UserRankState {
   seasonRp: number;
@@ -40,6 +41,8 @@ interface RankContextType {
   isFetching: boolean;
   refetchRank: () => Promise<void>;
   refetchLeaderboard: () => Promise<void>;
+  lastUpdated: number | null;
+  isOffline: boolean;
 }
 
 const RankContext = createContext<RankContextType | undefined>(undefined);
@@ -72,6 +75,43 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
 
   const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const snap = localStorage.getItem('studyio_rank_last_updated');
+      return snap ? Number(snap) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isOffline, setIsOffline] = useState<boolean>(() => {
+    if (typeof navigator !== 'undefined') return !navigator.onLine;
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // Dexie Stale-While-Revalidate initial load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && db && db.leaderboard) {
+      db.leaderboard.get(timeframe).then((snap) => {
+        if (snap && Array.isArray(snap.data) && snap.data.length > 0) {
+          setLeaderboard((prev) => (prev.length === 0 ? snap.data : prev));
+          setLastUpdated((prev) => prev || snap.updated_at);
+        }
+      }).catch(() => {});
+    }
+  }, [timeframe]);
   const [currentUserEntry, setCurrentUserEntry] = useState<LeaderboardEntry | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -197,6 +237,19 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
           if (data.success && Array.isArray(data.entries)) {
             apiSucceeded = true;
             setLeaderboard(data.entries);
+            const nowTs = Date.now();
+            setLastUpdated(nowTs);
+            try {
+              localStorage.setItem('studyio_rank_last_updated', String(nowTs));
+            } catch {}
+            if (typeof window !== 'undefined' && db && db.leaderboard) {
+              db.leaderboard.put({
+                id: timeframe,
+                season_id: 'current',
+                data: data.entries,
+                updated_at: nowTs,
+              }).catch(() => {});
+            }
 
             let myEntry: LeaderboardEntry | null = data.currentUserEntry || null;
             if (!myEntry && user?.id) {
@@ -417,6 +470,8 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
         isFetching,
         refetchRank: fetchRankData,
         refetchLeaderboard: fetchRankData,
+        lastUpdated,
+        isOffline,
       }}
     >
       {children}

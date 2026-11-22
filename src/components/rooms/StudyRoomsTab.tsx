@@ -575,6 +575,10 @@ CREATE POLICY "Hosts can update their own study rooms"
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Needs internet');
+      return;
+    }
     if (!user || !createRoomData.name.trim()) return;
     if (isPrivateCreate && !createRoomData.password.trim()) {
       alert('Please enter a password for this restricted room.');
@@ -793,6 +797,10 @@ CREATE POLICY "Hosts can update their own study rooms"
   };
 
   const joinRoom = async (roomId: string, passwordAttempt: string | null) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Needs internet');
+      return;
+    }
     if (!user) return;
     setIsJoining(true);
     const supabase = getSupabase();

@@ -54,6 +54,8 @@ import {
   hasPendingOutboxEvents,
   TimerOutboxEvent,
 } from '../lib/timerOutbox';
+import { db } from '../lib/db';
+import { enqueueSyncEvent, subscribeSyncOutbox, flushSyncOutbox, registerAutoSync } from '../lib/syncOutbox';
 import { calculateNonOverlappingSeconds } from '../lib/nonOverlappingTime';
 import { notify, initNotificationChannels, requestNotificationPermission as requestNotifyPermission } from '../lib/notifications';
 import { isNativeAndroid } from '../lib/timerNotificationPlugin';
@@ -324,11 +326,42 @@ export function mergeAndDeduplicateSessions(existing: StudySession[], incoming: 
 }
 
 export function getStoredSessions(uid?: string, subjectList: Subject[] = [], currentUser?: UserProfile): StudySession[] {
-  return []; // Local storage session caching disabled
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('studyio_cached_recent_sessions');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
 }
 
 export function persistSessionsToLocalStorage(sessions: StudySession[], uid?: string) {
-  // Local storage session caching disabled
+  if (typeof window === 'undefined') return;
+  try {
+    const oneMonthAgo = Date.now() - 31 * 24 * 3600 * 1000;
+    const recent = sessions.filter(s => new Date(s.startTime || (s as any).started_at || 0).getTime() >= oneMonthAgo);
+    try {
+      localStorage.setItem('studyio_cached_recent_sessions', JSON.stringify(recent.slice(0, 100)));
+    } catch {}
+
+    if (db && db.sessions) {
+      const dbRecords = recent.map(s => ({
+        id: s.id,
+        user_id: uid || s.userId || 'guest',
+        duration_seconds: s.durationSeconds,
+        started_at: s.startTime,
+        ended_at: s.endTime,
+        subject_id: s.subjectId || null,
+        mode: 'stopwatch',
+        notes: s.notes || null,
+        client_session_id: s.client_session_id || s.id,
+        created_at: s.startTime,
+      }));
+      db.sessions.clear().then(() => db.sessions.bulkPut(dbRecords)).catch(() => {});
+    }
+  } catch {}
 }
 
 export function deduplicateSubjects(list: Subject[]): Subject[] {
@@ -4038,8 +4071,16 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         }
 
         if (insertedRecordIds.length === 0 && sessionPayloads.length > 0) {
-          console.warn('[StudyContext]: All payloads were duplicate sessions already saved on another device.');
-          return false;
+          const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+          if (isOffline) {
+            console.log('[StudyContext] Offline detected; enqueuing session payloads to outbox.');
+            for (const payload of sessionPayloads) {
+              await enqueueSyncEvent('session', 'create', payload, payload.client_session_id, payload.ended_at);
+            }
+          } else {
+            console.warn('[StudyContext]: All payloads were duplicate sessions already saved on another device.');
+            return false;
+          }
         }
 
         // Direct client fallback if validated save did not produce records
@@ -4957,13 +4998,34 @@ export function StudyProvider({ children }: { children: ReactNode }) {
 
   // Outbox status subscription & flush on reconnect
   useEffect(() => {
-    const unsub = subscribeOutboxStatus((pending) => {
-      setHasPendingSync(pending);
+    let timerPending = hasPendingOutboxEvents();
+    let syncPending = false;
+
+    const checkPending = () => {
+      setHasPendingSync(timerPending || syncPending);
+    };
+
+    const unsubTimer = subscribeOutboxStatus((pending) => {
+      timerPending = pending;
+      checkPending();
     });
+
+    const unsubSync = subscribeSyncOutbox((pending) => {
+      syncPending = pending;
+      checkPending();
+    });
+
+    registerAutoSync();
+
     if (typeof navigator !== 'undefined' && navigator.onLine) {
-      flushTimerOutbox();
+      flushTimerOutbox().catch(() => {});
+      flushSyncOutbox().catch(() => {});
     }
-    return unsub;
+
+    return () => {
+      unsubTimer();
+      unsubSync();
+    };
   }, []);
 
   return (

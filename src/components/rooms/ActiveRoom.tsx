@@ -2428,6 +2428,10 @@ CREATE POLICY "Hosts can update their own study rooms"
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Needs internet');
+      return;
+    }
     if (!newMessage.trim() || !user || isSending) return;
 
     setIsSending(true);

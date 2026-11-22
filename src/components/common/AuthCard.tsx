@@ -48,6 +48,10 @@ export function AuthCard({ onSuccess, isModal = false, className = '' }: AuthCar
   }, [onSuccess, router]);
 
   const handleGoogleSignIn = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setErrorMsg('Needs internet');
+      return;
+    }
     try {
       setIsLoading(true);
       setErrorMsg('');

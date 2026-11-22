@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSupabase } from '../../lib/supabase';
+import { db } from '../../lib/db';
+import { enqueueSyncEvent } from '../../lib/syncOutbox';
 import { soundFx } from '../../lib/audio';
 import confetti from 'canvas-confetti';
 import {
@@ -140,18 +142,43 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
     setDraggableRowId(null);
   };
 
-  // Local storage persistence helper
+  // Local storage & Dexie IndexedDB persistence helper (Offline First)
   const saveLocal = (items: DailyTodo[]) => {
     try {
       localStorage.setItem('studypulse_todos', JSON.stringify(items));
       window.dispatchEvent(new Event('studypulse_todos_updated'));
+
+      if (typeof window !== 'undefined' && db && db.tasks) {
+        const offlineItems = items.map((t) => ({
+          id: t.id,
+          user_id: t.user_id || 'guest',
+          task: t.task,
+          is_completed: Boolean(t.is_completed),
+          priority: (t.priority || 'medium') as 'low' | 'medium' | 'high',
+          due_date: (t as any).due_date,
+          estimated_minutes: (t as any).estimated_minutes,
+          subject_id: t.subject_id || null,
+          created_at: t.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+        db.tasks.clear().then(() => db.tasks.bulkPut(offlineItems)).catch(() => {});
+      }
     } catch (err) {
-      console.warn('Failed to save todos to localStorage:', err);
+      console.warn('Failed to save todos to local storage:', err);
     }
   };
 
-  // 1. Initial load from localStorage (instant rendering, zero flash) + fetch from Supabase
+  // 1. Initial load from Dexie & localStorage (instant offline rendering, zero flash) + fetch from Supabase
   useEffect(() => {
+    // Read from Dexie first (persistent IndexedDB)
+    if (typeof window !== 'undefined' && db && db.tasks) {
+      db.tasks.toArray().then((cached) => {
+        if (cached && cached.length > 0) {
+          setTodos(cached.map(normalizeTodo));
+        }
+      }).catch(() => {});
+    }
+
     const syncFromLocal = () => {
       try {
         const saved = localStorage.getItem('studypulse_todos');
@@ -318,6 +345,11 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       duration: 3500,
     });
 
+    // Enqueue offline sync events
+    optimisticItems.forEach((item) => {
+      enqueueSyncEvent('task', 'create', item, item.id, item.created_at);
+    });
+
     const supabase = getSupabase();
     if (!supabase) {
       inFlightOpsRef.current = Math.max(0, inFlightOpsRef.current - 1);
@@ -422,6 +454,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       return updated;
     });
 
+    enqueueSyncEvent('task', 'create', optimisticItem, optimisticItem.id, optimisticItem.created_at);
+
     hapticMedium();
     setTaskInput('');
     // Retain input focus across mobile and desktop so the keyboard remains open
@@ -499,6 +533,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       return updated;
     });
 
+    enqueueSyncEvent('task', 'update', { id, is_completed: nextCompleted }, id, new Date().toISOString());
+
     const supabase = getSupabase();
     if (supabase && !id.startsWith('temp-') && !id.startsWith('local-')) {
       try {
@@ -533,6 +569,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       return updated;
     });
 
+    enqueueSyncEvent('task', 'delete', { id }, id, new Date().toISOString());
+
     const supabase = getSupabase();
     if (supabase && !id.startsWith('temp-') && !id.startsWith('local-')) {
       try {
@@ -563,6 +601,8 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       return updated;
     });
 
+    enqueueSyncEvent('task', 'update', { id, task: newText }, id, new Date().toISOString());
+
     const supabase = getSupabase();
     if (supabase && !id.startsWith('temp-') && !id.startsWith('local-')) {
       try {
@@ -588,6 +628,10 @@ export function DailyTodoList({ isEmbedded = false }: { isEmbedded?: boolean } =
       const active = prev.filter(t => !t.is_completed);
       saveLocal(active);
       return active;
+    });
+
+    completedIds.forEach((id) => {
+      enqueueSyncEvent('task', 'delete', { id }, id, new Date().toISOString());
     });
 
     const supabase = getSupabase();

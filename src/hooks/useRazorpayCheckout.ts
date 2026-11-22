@@ -145,6 +145,11 @@ export function useRazorpayCheckout() {
   // Trigger checkout modal using Standard Web Checkout (Orders API)
   const startCheckout = useCallback(
     async (plan: 'monthly' | 'yearly', onSuccessCallback?: () => void) => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        toast.error('Needs internet');
+        return;
+      }
+
       if (!user || user.id.startsWith('guest')) {
         toast.error('Please sign in to subscribe to study.io Pro');
         return;
