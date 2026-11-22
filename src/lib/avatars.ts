@@ -18,31 +18,31 @@
  */
 export const FREE_AVATAR_IMAGE_MAP: Record<string, string> = {
   // Scholars & Archivists (12)
-  'https://api.dicebear.com/9.x/micah/svg?seed=Sage1':   '/images/avatars/scholars/sage1.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Cipher':  '/images/avatars/scholars/cipher.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Aura':    '/images/avatars/scholars/aura.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Raven':   '/images/avatars/scholars/raven.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Atlas':   '/images/avatars/scholars/atlas.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Zenith':  '/images/avatars/scholars/zenith.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Orion':   '/images/avatars/scholars/orion.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Lyra':    '/images/avatars/scholars/lyra.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Kaelen':  '/images/avatars/scholars/kaelen.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Nova':    '/images/avatars/scholars/nova.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Vesper':  '/images/avatars/scholars/vesper.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Rowan':   '/images/avatars/scholars/rowan.svg',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Sage1':   '/images/avatars/scholars/sage1.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Cipher':  '/images/avatars/scholars/cipher.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Aura':    '/images/avatars/scholars/aura.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Raven':   '/images/avatars/scholars/raven.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Atlas':   '/images/avatars/scholars/atlas.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Zenith':  '/images/avatars/scholars/zenith.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Orion':   '/images/avatars/scholars/orion.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Lyra':    '/images/avatars/scholars/lyra.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Kaelen':  '/images/avatars/scholars/kaelen.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Nova':    '/images/avatars/scholars/nova.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Vesper':  '/images/avatars/scholars/vesper.webp?v=3',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Rowan':   '/images/avatars/scholars/rowan.webp?v=3',
   // Adventurers & Strategists (12)
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Alchemist':  '/images/avatars/adventurers/alchemist.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Novelist':   '/images/avatars/adventurers/novelist.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Tactician':  '/images/avatars/adventurers/tactician.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Oracle':     '/images/avatars/adventurers/oracle.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Vanguard':   '/images/avatars/adventurers/vanguard.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Chronos':    '/images/avatars/adventurers/chronos.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Shinobi':    '/images/avatars/adventurers/shinobi.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Sorcerer':   '/images/avatars/adventurers/sorcerer.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Paladin':    '/images/avatars/adventurers/paladin.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Ranger':     '/images/avatars/adventurers/ranger.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Glitch':     '/images/avatars/adventurers/glitch.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Explorer':   '/images/avatars/adventurers/explorer.svg',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Alchemist':  '/images/avatars/adventurers/alchemist.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Novelist':   '/images/avatars/adventurers/novelist.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Tactician':  '/images/avatars/adventurers/tactician.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Oracle':     '/images/avatars/adventurers/oracle.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Vanguard':   '/images/avatars/adventurers/vanguard.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Chronos':    '/images/avatars/adventurers/chronos.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Shinobi':    '/images/avatars/adventurers/shinobi.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Sorcerer':   '/images/avatars/adventurers/sorcerer.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Paladin':    '/images/avatars/adventurers/paladin.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Ranger':     '/images/avatars/adventurers/ranger.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Glitch':     '/images/avatars/adventurers/glitch.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Explorer':   '/images/avatars/adventurers/explorer.webp?v=3',
   // Cybernetic Cognition (6)
   'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=QuantumCore':    '/images/avatars/cybernetic/quantum-core.svg',
   'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CyberZen':       '/images/avatars/cybernetic/cyber-zen.svg',
@@ -60,12 +60,12 @@ export const FREE_AVATAR_IMAGE_MAP: Record<string, string> = {
   'https://api.dicebear.com/9.x/shapes/svg?seed=Hypercube':  '/images/avatars/sigils/hypercube.svg',
   'https://api.dicebear.com/9.x/shapes/svg?seed=Monolith':   '/images/avatars/sigils/monolith.svg',
   // Preset defaults (6)
-  'https://api.dicebear.com/9.x/micah/svg?seed=ScholarA&backgroundColor=0d1117':          '/images/avatars/scholars/sage1.svg',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Archivist&backgroundColor=0d1117':    '/images/avatars/adventurers/alchemist.svg',
+  'https://api.dicebear.com/9.x/micah/svg?seed=ScholarA&backgroundColor=0d1117':          '/images/avatars/scholars/sage1.webp?v=3',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Archivist&backgroundColor=0d1117':    '/images/avatars/adventurers/alchemist.webp?v=3',
   'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Nexus&backgroundColor=0d1117':    '/images/avatars/cybernetic/quantum-core.svg',
   'https://api.dicebear.com/9.x/shapes/svg?seed=FocusSigil&backgroundColor=0d1117':       '/images/avatars/sigils/focus.svg',
-  'https://api.dicebear.com/9.x/micah/svg?seed=Nocturne&backgroundColor=0d1117':          '/images/avatars/scholars/raven.svg',
-  'https://api.dicebear.com/9.x/lorelei/svg?seed=Lyra&backgroundColor=0d1117':            '/images/avatars/scholars/lyra.svg',
+  'https://api.dicebear.com/9.x/micah/svg?seed=Nocturne&backgroundColor=0d1117':          '/images/avatars/scholars/raven.webp?v=3',
+  'https://api.dicebear.com/9.x/lorelei/svg?seed=Lyra&backgroundColor=0d1117':            '/images/avatars/scholars/lyra.webp?v=3',
 };
 
 /**
@@ -79,6 +79,15 @@ export function resolveAvatarImage(id: string): string {
   // Free avatar local artwork map
   const local = FREE_AVATAR_IMAGE_MAP[id];
   if (local) return local;
+  // Legacy .svg path lookups mapping to .webp?v=3
+  if (id.startsWith('/images/avatars/scholars/') && id.endsWith('.svg')) {
+    const base = id.replace('/images/avatars/scholars/', '').replace('.svg', '');
+    return `/images/avatars/scholars/${base}.webp?v=3`;
+  }
+  if (id.startsWith('/images/avatars/adventurers/') && id.endsWith('.svg')) {
+    const base = id.replace('/images/avatars/adventurers/', '').replace('.svg', '');
+    return `/images/avatars/adventurers/${base}.webp?v=3`;
+  }
   // Passthrough for already-local paths
   if (id.startsWith('/')) return id;
   // Fallback: original DiceBear URL (graceful degradation while artwork is deploying)
@@ -372,13 +381,23 @@ export function getDeterministicDefaultAvatar(identifier?: string): string {
 export function resolveAppAvatar(url?: string | null, seed?: string): string {
   if (url && typeof url === 'string') {
     const trimmed = url.trim();
+    // Clean URL without query params for dictionary lookup
+    const cleanUrl = trimmed.split('?')[0];
+
     // Premium collectible?
-    if (PREMIUM_AVATAR_MAP[trimmed]) {
-      return PREMIUM_AVATAR_MAP[trimmed].image;
+    if (PREMIUM_AVATAR_MAP[cleanUrl] || PREMIUM_AVATAR_MAP[trimmed]) {
+      return (PREMIUM_AVATAR_MAP[cleanUrl] || PREMIUM_AVATAR_MAP[trimmed]).image;
     }
     // Free avatar with local artwork override?
     if (FREE_AVATAR_IMAGE_MAP[trimmed]) {
       return FREE_AVATAR_IMAGE_MAP[trimmed];
+    }
+    if (FREE_AVATAR_IMAGE_MAP[cleanUrl]) {
+      return FREE_AVATAR_IMAGE_MAP[cleanUrl];
+    }
+    // Legacy SVG path lookup mapped to webp?v=3
+    if (trimmed.startsWith('/images/avatars/scholars/') || trimmed.startsWith('/images/avatars/adventurers/')) {
+      return resolveAvatarImage(cleanUrl);
     }
     // Any other valid in-app avatar (already-local path or unregistered DiceBear)
     if (isAppAvatar(trimmed)) {

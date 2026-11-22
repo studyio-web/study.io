@@ -1,121 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <!-- Background gradient -->
-    <radialGradient id="bg-raven" cx="50%" cy="45%" r="58%">
-      <stop offset="0%" stop-color="rgb(32,14,51)"/>
-      <stop offset="60%" stop-color="rgb(17,11,29)"/>
+    <linearGradient id="bg-raven" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1c1b26"/>
+      <stop offset="65%" stop-color="#121118"/>
       <stop offset="100%" stop-color="#07090e"/>
-    </radialGradient>
-    <!-- Ambient glow behind head -->
-    <radialGradient id="ambi-raven" cx="50%" cy="44%" r="38%">
-      <stop offset="0%" stop-color="#a040c0" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#a040c0" stop-opacity="0"/>
-    </radialGradient>
-    <!-- Skin gradient: key light upper-left, shadow lower-right -->
-    <linearGradient id="skin-raven" x1="20%" y1="15%" x2="85%" y2="90%">
-      <stop offset="0%" stop-color="#6b3e1c"/>
-      <stop offset="45%" stop-color="#8b5e3c"/>
-      <stop offset="100%" stop-color="rgb(95,64,41)"/>
     </linearGradient>
-    <!-- Hair gradient -->
-    <linearGradient id="hair-raven" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="rgb(54,52,57)"/>
-      <stop offset="100%" stop-color="rgb(8,6,11)"/>
-    </linearGradient>
-    <!-- Rim light -->
-    <radialGradient id="rim-raven" cx="80%" cy="50%" r="40%">
-      <stop offset="0%" stop-color="#a040c0" stop-opacity="0.70"/>
-      <stop offset="100%" stop-color="#a040c0" stop-opacity="0"/>
+    <radialGradient id="glow-raven" cx="50%" cy="42%" r="44%">
+      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.32"/>
+      <stop offset="60%" stop-color="#818cf8" stop-opacity="0.112"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
     </radialGradient>
-    <!-- Eye glow -->
-    <radialGradient id="eye-raven" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="rgb(196,152,224)"/>
-      <stop offset="60%" stop-color="#8830c0"/>
-      <stop offset="100%" stop-color="rgb(95,34,134)"/>
-    </radialGradient>
-    <!-- Glow filter -->
-    <filter id="glow-raven" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="soft-raven" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="3"/>
-    </filter>
-    <filter id="rim-blur-raven" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="4"/>
-    </filter>
-    <!-- Subtle noise texture -->
-    <filter id="noise-raven">
-      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
-      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
-      <feBlend in="SourceGraphic" in2="grayNoise" mode="overlay" result="blended"/>
-      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
-    </filter>
   </defs>
-
-  <!-- Layer 1: Background -->
+  <!-- Dark rich vertical gradient background -->
   <rect width="256" height="256" fill="url(#bg-raven)"/>
-
-  <!-- Layer 2: Noise texture overlay -->
-  <rect width="256" height="256" fill="rgb(14,10,24)" filter="url(#noise-raven)" opacity="0.12"/>
-
-  <!-- Layer 3: Ambient head glow -->
-  <ellipse cx="128" cy="112" rx="72" ry="68" fill="url(#ambi-raven)"/>
-
-  <!-- Layer 4: Shoulders/torso -->
-  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(76,52,33)"/>
-  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(15,11,26)" opacity="0.4"/>
-
-  <!-- Layer 5: Neck -->
-  <ellipse cx="128" cy="175" rx="18" ry="12" fill="url(#skin-raven)"/>
-  <rect x="112" y="168" width="32" height="22" rx="8" fill="url(#skin-raven)"/>
-
-  <!-- Layer 6: Hair back/sides -->
-  <ellipse cx="128" cy="102" rx="45" ry="48" fill="url(#hair-raven)"/>
-
-  <!-- Layer 7: Face/head -->
-  <ellipse cx="128" cy="108" rx="35" ry="40" fill="url(#skin-raven)"/>
-  <path d="M100,142 Q98,162 128,166 Q158,162 156,142" fill="url(#skin-raven)"/>
-
-  <!-- Layer 8: Brow ridge -->
-  <ellipse cx="128" cy="94" rx="26" ry="5" fill="rgb(114,77,49)" opacity="0.5"/>
-
-  <!-- Layer 9: Eyes -->
-  <ellipse cx="112" cy="108" rx="7" ry="5" fill="#0a0c10"/>
-  <ellipse cx="144" cy="108" rx="7" ry="5" fill="#0a0c10"/>
-  <ellipse cx="112" cy="108" rx="4.5" ry="3.5" fill="url(#eye-raven)" filter="url(#glow-raven)"/>
-  <ellipse cx="144" cy="108" rx="4.5" ry="3.5" fill="url(#eye-raven)" filter="url(#glow-raven)"/>
-  <!-- Eye shine -->
-  <ellipse cx="114" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
-  <ellipse cx="146" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
-
-  <!-- Layer 10: Nose (subtle) -->
-  <path d="M124,118 Q128,126 132,118" stroke="rgb(104,71,45)" stroke-width="1.2" fill="none" opacity="0.5"/>
-
-  <!-- Layer 11: Lips -->
-  <path d="M120,133 Q128,139 136,133" stroke="rgb(97,66,42)" stroke-width="1.5" fill="none" opacity="0.6"/>
-
-  <!-- Layer 12: Hair front/fringe -->
-  <path d="M91,102 Q99,64 128,62 Q157,64 165,102" fill="url(#hair-raven)"/>
-
-  <!-- Layer 13: Rim light (right edge of head) -->
-  <ellipse cx="162" cy="108" rx="22" ry="38" fill="url(#rim-raven)" opacity="0.65"/>
-
-  <!-- Layer 14: Key light (upper-left face) -->
-  <ellipse cx="104" cy="88" rx="24" ry="20" fill="#6b3e1c" opacity="0.18"/>
-
-  <!-- Layer 15: Accessory / motif -->
-  <g transform="translate(146,60)" opacity="0.85">
-    <path d="M0,80 Q10,40 30,0" stroke="#a040c0" stroke-width="1.5" fill="none" opacity="0.7"/>
-    <path d="M30,0 Q20,20 10,30 Q18,16 28,4 Q22,22 14,38" stroke="#a040c0" stroke-width="1" fill="none" opacity="0.5"/>
-    <path d="M0,80 L4,78" stroke="#a040c0" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-  </g>
-
-  <!-- Layer 16: Particles -->
-  <circle cx="58" cy="68" r="2" fill="#a040c0" opacity="0.35"/>
-  <circle cx="192" cy="80" r="1.5" fill="#a040c0" opacity="0.25"/>
-  <circle cx="42" cy="140" r="1.2" fill="#a040c0" opacity="0.2"/>
-  <circle cx="208" cy="52" r="1.8" fill="#a040c0" opacity="0.3"/>
-  <circle cx="76" cy="192" r="1.4" fill="#a040c0" opacity="0.18"/>
-  <circle cx="184" cy="168" r="1.6" fill="#a040c0" opacity="0.22"/>
+  <!-- Soft radial glow behind head -->
+  <circle cx="128" cy="112" r="92" fill="url(#glow-raven)"/>
+  <!-- Lorelei character bounded safely in central 80% -->
+  <svg x="0" y="0" width="256" height="256" viewBox="0 0 980 980">
+    <metadata xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><rdf:RDF><rdf:Description><dc:title>Lorelei</dc:title><dc:creator>Lisa Wischofsky</dc:creator><dc:source xsi:type="dcterms:URI">https://www.figma.com/community/file/1198749693280469639</dc:source><dcterms:license xsi:type="dcterms:URI">https://creativecommons.org/publicdomain/zero/1.0/</dcterms:license><dc:rights>Remix of „Lorelei” (https://www.figma.com/community/file/1198749693280469639) by „Lisa Wischofsky”, licensed under „CC0 1.0” (https://creativecommons.org/publicdomain/zero/1.0/)</dc:rights></rdf:Description></rdf:RDF></metadata><mask id="viewboxMask"><rect width="980" height="980" rx="0" ry="0" x="0" y="0" fill="#fff" /></mask><g mask="url(#viewboxMask)"><g transform="translate(0 29.4)"><g transform="translate(98 98) scale(0.8)"><g transform="translate(10 -60)"><path d="M366 180c12 1 23 4 33 10 13 6 25 17 31 30 27 0 54-2 81 0a287 287 0 0 1 136 46c8 6 16 12 22 19 5 5 11 10 15 16 6 8 11 16 15 26 8 17 12 36 9 55-2 11-6 22-13 30-3 4-9 5-12 1-7-8-13-19-19-28-14-26-27-51-42-76l-16-1c-3 0-5-2-8-5l-11-8c-1 4-2 8-5 11-1 2-4 3-6 3-4-1-7-3-11-3a344 344 0 0 0-103-4 550 550 0 0 0-63 7l-18-6c1 8 4 17 3 26-1 4 0 7-2 10l-13 23-11 24c-6 16-11 32-14 48-1 2-2 5-4 6l-12 2c5 8 5 18 5 28-1 13-2 27-9 38 7 10 10 21 10 33 2 19 0 39-8 56l-7 10c2 23 6 47 13 70 7 24 17 48 27 71l17 36c1 3 3 7 1 10-2 6-6 10-11 14-7 5-15 8-24 10-13 3-27 2-38-5-8-4-15-10-20-18a180 180 0 0 0 18 49c-10 1-20-1-29-6a76 76 0 0 1-33-38c-8-19-12-39-15-59-12 23-32 43-55 55-7 3-14 5-21 1l2-7c7-10 15-21 21-32 10-17 18-36 20-55 2-13 2-27 1-40l-5-45-8-77-4-50a685 685 0 0 1 6-124 264 264 0 0 1 85-156c16-13 35-22 54-28 15-4 30-5 45-3Z" fill="#0f172a"/><path d="M495 231a231 231 0 0 1 219 204c1 10 2 21 0 30-1 4-1 7-4 8-3-10-3-19-4-29a220 220 0 0 0-239-205c-42 4-83 19-117 44l-17 13a221 221 0 0 0-78 164c0 23 7 43 15 64h17c3 1 4 4 2 6l-6 2c-15 1-31 7-42 17-8 9-14 19-16 31-3 15 0 32 8 45 9 15 24 27 40 33 14 5 29 7 43 5 4-1 8-2 11 0v3c-5 5-11 6-18 7-16 3-33-1-47-8a86 86 0 0 1-47-58c-4-18-1-37 9-53 8-12 20-21 34-26-7-14-10-28-12-43-2-18-2-35 0-53 1-13 4-25 8-38a227 227 0 0 1 99-122c41-28 92-43 142-41Z" fill="#000"/><path d="M535 244a220 220 0 0 1 171 200c1 10 1 19 4 29l-2 18v22c-3 4-4 9-4 14-2 8-2 15-2 23v65c0 21-3 42-11 61-4 13-10 24-18 35-10 12-21 22-34 31-11 9-24 17-37 24l-22 14-12 8 9-2c-3 11-3 24-4 36 0 8 1 16 7 22a235 235 0 0 0 81 45c6 7 11 16 13 25 1 9 0 18-4 27-6 10-14 18-23 24-13 10-28 17-43 22a417 417 0 0 1-217 11c-16-3-33-9-48-17-10-5-21-12-28-21-6-6-10-14-11-22-2-10 0-21 5-30 21-13 39-32 49-54 5-11 7-22 8-34 1-16 0-32-1-47-2-20-3-41-8-61 11 12 23 24 37 32 17 11 36 20 55 26 20 7 41 13 63 18l25 3c3 0 6 0 8-2 2-1 1-2 2-3l-17-2c-29-7-58-16-87-27-18-7-36-15-53-27-18-13-33-30-47-47l-11-16-1-1v-3c-3-2-7-1-11 0-14 2-29 0-43-5-16-6-31-18-40-33-8-13-11-30-8-45 2-12 8-22 16-31 11-10 27-16 42-17l6-2c2-2 1-5-2-6h-17c-8-21-15-41-15-64-1-14 2-27 5-41a221 221 0 0 1 73-123l17-13a230 230 0 0 1 185-39Z" fill="#d49d79"/><path d="M708 513c3 3 2 7 3 12v29c0 26 2 54 0 80-3 31-14 63-36 86-25 28-57 51-93 64l2 7v35c1 6 4 10 8 14l26 19 32 20 24 12c2 0 3 1 5 3l-19-5c-19-6-37-14-54-25-9-5-19-12-26-20-6-6-7-14-7-22 1-12 1-25 4-36l-9 2 12-8 22-14c13-7 26-15 37-24 13-9 24-19 34-31a178 178 0 0 0 29-96v-65c0-8 0-15 2-23 0-5 1-10 4-14ZM278 574c5 5 4 14 0 19l-3 7c1 3 5 5 7 6 6 3 12 7 19 9 0 4-3 5-7 5-6-1-13-3-18-6-7-3-13-8-13-16 0-6 5-9 6-14 2-4 0-7-1-11 4-1 7-2 10 1ZM328 667l11 16c14 17 29 34 47 47 17 12 35 20 53 27a714 714 0 0 0 104 29c-1 1 0 2-2 3-2 2-5 2-8 2l-25-3a478 478 0 0 1-118-44c-14-8-26-20-37-32 5 20 6 41 8 61 1 15 2 31 1 47-1 12-3 23-8 34-10 22-28 41-49 54l-14 8c2-4 6-6 9-9 13-11 24-25 34-39 6-10 12-21 14-33 4-19 3-39 3-58l-3-59 2-10c-10-11-19-26-22-41Z" fill="#000"/><g fill="#000000"><path d="M446 479c15-2 30 2 43 10 14 7 23 20 29 34 1 4 3 9 0 13-5-4-8-9-11-14-6-8-14-17-23-22-11-7-25-11-38-9-14 1-27 9-38 18l-12 11c-4-4-2-10 1-14 11-17 30-26 49-27ZM676 480c6 2 10 6 13 11 3 8 2 17-1 25-1 3-4 6-8 5s-5-5-4-9c0-6 2-14-2-18-2-3-7-4-10-4-8-1-17 3-24 7-12 7-21 17-28 28-1 2-2 6-4 6-3-2-1-8 0-11 4-13 14-24 26-31 6-5 13-8 21-10 7-2 14-2 21 1Z"/><path d="M644 506c6 0 10 5 12 11 2 9 0 17-4 25l30-10c-5 9-16 14-24 17-10 4-21 8-32 8-5 0-10 0-13-4 3-5 7-4 12-6-3-6-3-12-2-19 0-6 2-12 7-16 4-4 8-7 14-6ZM484 515c4-1 8 1 11 4 4 4 6 8 7 13 3 7 1 15 1 22h13c2 0 3 2 2 4-1 3-4 4-6 5-11 3-23 3-34 3-17 0-34-3-49-10-5-2-10-4-14-8l11 3c12 3 25 4 37 5-2-9-3-20 2-28 3-7 11-12 19-13Z"/></g><path d="M658 387c7 1 14 2 20 5l6 5c-8 5-18 8-28 8h-17l-16 2c-6 1-10 7-13 12-6 11-8 25-10 37-4-3-3-8-3-12 0-14 2-29 10-41 4-6 10-13 17-14 11-3 23-3 34-2ZM533 426c6-1 12 0 17 3 2 0 2 1 2 3l-8 8c-3 3-8 4-12 6l-18 3-47 3c-14 1-28 1-41 4-14 4-26 10-37 18l-9 8c-1-2-1-4 1-6 3-6 9-12 14-17 16-12 35-19 55-22l69-7c5 0 9-3 14-4Z" fill="#000000"/><path d="M293 643c3-2 7-1 9 1 3 2 4 6 3 10-2 4-7 7-12 5-3-1-5-5-4-8 0-4 1-7 4-8Z" fill="#000000"/><path d="M594 572a37 37 0 0 1 19 29c0 9-5 18-13 22l-17 7c-4 1-6 2-9 0-2-3-1-4 1-6 6-5 15-7 21-12 3-2 5-5 5-9 0-10-5-17-7-26v-5Z" fill="#000000"/><path d="M607 684c3 2 2 6 1 9-2 8-4 15-9 22-5 5-10 10-17 12-10 4-22 2-31-3-4-2-9-5-11-9-1-1-2-3-1-4 2-2 5-3 8-3 9 1 18 6 27 7 7 1 13-3 17-8 5-6 8-15 12-22 1-2 2-2 4-1Z" fill="#000000"/><path fill-rule="evenodd" clip-rule="evenodd" d="M482 429c13 2 26 7 37 15 3-2 7-2 10 0a94 94 0 0 1 39 90c9-6 20-8 30-5-1-34 16-68 44-87 11-7 25-12 39-12 9 0 19 2 27 7l4 1 5 1c10 7 18 16 23 26 8 16 10 33 8 51-3 29-20 57-45 72-14 8-31 13-47 11-13-2-25-8-35-17-9-8-15-19-19-31-1-4-6-7-9-9-9-3-18 0-26 5l-5 7c-7 19-21 36-39 47a99 99 0 0 1-57 14c-31-1-60-18-76-45a92 92 0 0 1 30-127c18-11 41-16 62-14Zm35 19 1 4c0 2 2 3 4 5 12 8 22 19 27 33a81 81 0 0 1-56 111c-26 6-55-1-75-19a82 82 0 0 1-23-90c9-25 32-45 59-51 21-5 43-2 63 6v1Zm190-1c-1-1-1-2-3-2-8-4-17-5-26-4-15 2-29 9-40 20a88 88 0 0 0-26 77c2 13 9 26 19 36 9 7 19 11 30 12 14 1 27-4 39-11 25-18 40-52 35-82a63 63 0 0 0-23-41l-4-3-1-2Z" fill="#94a3b8"/><path d="M508 220a271 271 0 0 1 97 24c14 7 29 14 42 23 8 5 16 11 22 18l22 25c-9 4-18 3-27 2-17-2-34-4-51-3l-8-1-7-5-12-8c0 4-1 7-3 11-2 2-4 3-7 3-4-1-7-3-11-3a470 470 0 0 0-155 3h-11l-18-6c1 9 4 18 3 26-1 4-1 8-3 11-7 14-15 27-21 42-7 17-13 35-17 53 0 2-1 4-3 5l-12 2c5 9 6 20 5 30-1 12-3 26-9 36 7 9 10 21 10 33 1 19 0 37-7 55-2 4-5 9-10 11-1 1-4 1-4-1-2-4-2-9-3-13-2-15-9-29-20-40-8-7-17-14-26-19-6-2-11-4-16-8l-6-8c-12-32-16-67-12-101a285 285 0 0 1 37-113c10-16 22-30 35-43 10-9 20-17 31-23l14-5 32-11 19-2h43c23 0 44-2 67 0Z" fill="#0f172a"/></g><g transform="translate(10 -60)"></g></g></g></g>
+  </svg>
 </svg>

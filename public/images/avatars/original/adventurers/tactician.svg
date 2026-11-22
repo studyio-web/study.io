@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bg-tactician" cx="50%" cy="45%" r="58%">
+      <stop offset="0%" stop-color="rgb(36,42,58)"/>
+      <stop offset="60%" stop-color="rgb(19,22,32)"/>
+      <stop offset="100%" stop-color="#07090e"/>
+    </radialGradient>
+    <!-- Ambient glow behind head -->
+    <radialGradient id="ambi-tactician" cx="50%" cy="44%" r="38%">
+      <stop offset="0%" stop-color="#c0c8d8" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#c0c8d8" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Skin gradient: key light upper-left, shadow lower-right -->
+    <linearGradient id="skin-tactician" x1="20%" y1="15%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#e8b898"/>
+      <stop offset="45%" stop-color="#f8d5be"/>
+      <stop offset="100%" stop-color="rgb(169,145,129)"/>
+    </linearGradient>
+    <!-- Hair gradient -->
+    <linearGradient id="hair-tactician" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgb(210,210,223)"/>
+      <stop offset="100%" stop-color="rgb(128,128,147)"/>
+    </linearGradient>
+    <!-- Rim light -->
+    <radialGradient id="rim-tactician" cx="80%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#c0c8d8" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#c0c8d8" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Eye glow -->
+    <radialGradient id="eye-tactician" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgb(224,228,236)"/>
+      <stop offset="60%" stop-color="#c0c8d8"/>
+      <stop offset="100%" stop-color="rgb(134,140,151)"/>
+    </radialGradient>
+    <!-- Glow filter -->
+    <filter id="glow-tactician" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft-tactician" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="rim-blur-tactician" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <!-- Subtle noise texture -->
+    <filter id="noise-tactician">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="overlay" result="blended"/>
+      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Layer 1: Background -->
+  <rect width="256" height="256" fill="url(#bg-tactician)"/>
+
+  <!-- Layer 2: Noise texture overlay -->
+  <rect width="256" height="256" fill="rgb(15,18,26)" filter="url(#noise-tactician)" opacity="0.12"/>
+
+  <!-- Layer 3: Ambient head glow -->
+  <ellipse cx="128" cy="112" rx="72" ry="68" fill="url(#ambi-tactician)"/>
+
+  <!-- Layer 4: Shoulders/torso -->
+  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(136,117,105)"/>
+  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(17,20,29)" opacity="0.4"/>
+
+  <!-- Layer 5: Neck -->
+  <ellipse cx="128" cy="175" rx="18" ry="12" fill="url(#skin-tactician)"/>
+  <rect x="112" y="168" width="32" height="22" rx="8" fill="url(#skin-tactician)"/>
+
+  <!-- Layer 6: Hair back/sides -->
+  <ellipse cx="128" cy="102" rx="46" ry="48" fill="url(#hair-tactician)"/>
+
+  <!-- Layer 7: Face/head -->
+  <ellipse cx="128" cy="108" rx="36" ry="40" fill="url(#skin-tactician)"/>
+  <path d="M94,144 L94,162 Q128,170 162,162 L162,144" fill="url(#skin-tactician)"/>
+
+  <!-- Layer 8: Brow ridge -->
+  <ellipse cx="128" cy="92" rx="28" ry="6" fill="rgb(203,175,156)" opacity="0.5"/>
+
+  <!-- Layer 9: Eyes -->
+  <ellipse cx="112" cy="108" rx="7" ry="5" fill="#0a0c10"/>
+  <ellipse cx="144" cy="108" rx="7" ry="5" fill="#0a0c10"/>
+  <ellipse cx="112" cy="108" rx="4.5" ry="3.5" fill="url(#eye-tactician)" filter="url(#glow-tactician)"/>
+  <ellipse cx="144" cy="108" rx="4.5" ry="3.5" fill="url(#eye-tactician)" filter="url(#glow-tactician)"/>
+  <!-- Eye shine -->
+  <ellipse cx="114" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
+  <ellipse cx="146" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
+
+  <!-- Layer 10: Nose (subtle) -->
+  <path d="M124,118 Q128,126 132,118" stroke="rgb(186,160,143)" stroke-width="1.2" fill="none" opacity="0.5"/>
+
+  <!-- Layer 11: Lips -->
+  <path d="M120,133 Q128,139 136,133" stroke="rgb(174,149,133)" stroke-width="1.5" fill="none" opacity="0.6"/>
+
+  <!-- Layer 12: Hair front/fringe -->
+  <path d="M90,100 Q96,68 128,66 Q160,68 166,100" fill="url(#hair-tactician)" opacity="0.9"/>
+
+  <!-- Layer 13: Rim light (right edge of head) -->
+  <ellipse cx="162" cy="108" rx="22" ry="38" fill="url(#rim-tactician)" opacity="0.65"/>
+
+  <!-- Layer 14: Key light (upper-left face) -->
+  <ellipse cx="104" cy="88" rx="24" ry="20" fill="#e8b898" opacity="0.18"/>
+
+  <!-- Layer 15: Accessory / motif -->
+  <g opacity="0.85">
+    <circle cx="112" cy="108" r="12" fill="none" stroke="#c0c8d8" stroke-width="1.8"/>
+    <circle cx="144" cy="108" r="12" fill="none" stroke="#c0c8d8" stroke-width="1.8"/>
+    <line x1="124" y1="108" x2="132" y2="108" stroke="#c0c8d8" stroke-width="1.5"/>
+    <line x1="100" y1="106" x2="94" y2="104" stroke="#c0c8d8" stroke-width="1.2"/>
+    <line x1="156" y1="106" x2="162" y2="104" stroke="#c0c8d8" stroke-width="1.2"/>
+  </g>
+
+  <!-- Layer 16: Particles -->
+  <circle cx="58" cy="68" r="2" fill="#c0c8d8" opacity="0.35"/>
+  <circle cx="192" cy="80" r="1.5" fill="#c0c8d8" opacity="0.25"/>
+  <circle cx="42" cy="140" r="1.2" fill="#c0c8d8" opacity="0.2"/>
+  <circle cx="208" cy="52" r="1.8" fill="#c0c8d8" opacity="0.3"/>
+  <circle cx="76" cy="192" r="1.4" fill="#c0c8d8" opacity="0.18"/>
+  <circle cx="184" cy="168" r="1.6" fill="#c0c8d8" opacity="0.22"/>
+</svg>

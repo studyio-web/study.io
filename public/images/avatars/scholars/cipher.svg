@@ -1,123 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <!-- Background gradient -->
-    <radialGradient id="bg-cipher" cx="50%" cy="45%" r="58%">
-      <stop offset="0%" stop-color="rgb(5,47,51)"/>
-      <stop offset="60%" stop-color="rgb(6,24,29)"/>
+    <linearGradient id="bg-cipher" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d1810"/>
+      <stop offset="65%" stop-color="#1a0e0a"/>
       <stop offset="100%" stop-color="#07090e"/>
-    </radialGradient>
-    <!-- Ambient glow behind head -->
-    <radialGradient id="ambi-cipher" cx="50%" cy="44%" r="38%">
-      <stop offset="0%" stop-color="#00d4d4" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#00d4d4" stop-opacity="0"/>
-    </radialGradient>
-    <!-- Skin gradient: key light upper-left, shadow lower-right -->
-    <linearGradient id="skin-cipher" x1="20%" y1="15%" x2="85%" y2="90%">
-      <stop offset="0%" stop-color="#9e6040"/>
-      <stop offset="45%" stop-color="#c8835a"/>
-      <stop offset="100%" stop-color="rgb(136,89,61)"/>
     </linearGradient>
-    <!-- Hair gradient -->
-    <linearGradient id="hair-cipher" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="rgb(67,80,93)"/>
-      <stop offset="100%" stop-color="rgb(21,34,46)"/>
-    </linearGradient>
-    <!-- Rim light -->
-    <radialGradient id="rim-cipher" cx="80%" cy="50%" r="40%">
-      <stop offset="0%" stop-color="#00d4d4" stop-opacity="0.70"/>
-      <stop offset="100%" stop-color="#00d4d4" stop-opacity="0"/>
+    <radialGradient id="glow-cipher" cx="50%" cy="42%" r="44%">
+      <stop offset="0%" stop-color="#ea580c" stop-opacity="0.32"/>
+      <stop offset="60%" stop-color="#ea580c" stop-opacity="0.112"/>
+      <stop offset="100%" stop-color="#ea580c" stop-opacity="0"/>
     </radialGradient>
-    <!-- Eye glow -->
-    <radialGradient id="eye-cipher" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="rgb(128,234,234)"/>
-      <stop offset="60%" stop-color="#00d4d4"/>
-      <stop offset="100%" stop-color="rgb(0,148,148)"/>
-    </radialGradient>
-    <!-- Glow filter -->
-    <filter id="glow-cipher" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="soft-cipher" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="3"/>
-    </filter>
-    <filter id="rim-blur-cipher" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="4"/>
-    </filter>
-    <!-- Subtle noise texture -->
-    <filter id="noise-cipher">
-      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
-      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
-      <feBlend in="SourceGraphic" in2="grayNoise" mode="overlay" result="blended"/>
-      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
-    </filter>
   </defs>
-
-  <!-- Layer 1: Background -->
+  <!-- Dark rich vertical gradient background -->
   <rect width="256" height="256" fill="url(#bg-cipher)"/>
-
-  <!-- Layer 2: Noise texture overlay -->
-  <rect width="256" height="256" fill="rgb(6,19,24)" filter="url(#noise-cipher)" opacity="0.12"/>
-
-  <!-- Layer 3: Ambient head glow -->
-  <ellipse cx="128" cy="112" rx="72" ry="68" fill="url(#ambi-cipher)"/>
-
-  <!-- Layer 4: Shoulders/torso -->
-  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(110,72,50)"/>
-  <path d="M68,256 C68,210 82,195 98,188 L128,182 L158,188 C174,195 188,210 188,256 Z" fill="rgb(6,22,26)" opacity="0.4"/>
-
-  <!-- Layer 5: Neck -->
-  <ellipse cx="128" cy="175" rx="18" ry="12" fill="url(#skin-cipher)"/>
-  <rect x="112" y="168" width="32" height="22" rx="8" fill="url(#skin-cipher)"/>
-
-  <!-- Layer 6: Hair back/sides -->
-  <ellipse cx="128" cy="102" rx="45" ry="48" fill="url(#hair-cipher)"/>
-
-  <!-- Layer 7: Face/head -->
-  <ellipse cx="128" cy="108" rx="35" ry="40" fill="url(#skin-cipher)"/>
-  <path d="M100,142 Q98,162 128,166 Q158,162 156,142" fill="url(#skin-cipher)"/>
-
-  <!-- Layer 8: Brow ridge -->
-  <ellipse cx="128" cy="94" rx="26" ry="5" fill="rgb(164,107,74)" opacity="0.5"/>
-
-  <!-- Layer 9: Eyes -->
-  <ellipse cx="112" cy="108" rx="7" ry="5" fill="#0a0c10"/>
-  <ellipse cx="144" cy="108" rx="7" ry="5" fill="#0a0c10"/>
-  <ellipse cx="112" cy="108" rx="4.5" ry="3.5" fill="url(#eye-cipher)" filter="url(#glow-cipher)"/>
-  <ellipse cx="144" cy="108" rx="4.5" ry="3.5" fill="url(#eye-cipher)" filter="url(#glow-cipher)"/>
-  <!-- Eye shine -->
-  <ellipse cx="114" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
-  <ellipse cx="146" cy="106" rx="1.5" ry="1" fill="white" opacity="0.7"/>
-
-  <!-- Layer 10: Nose (subtle) -->
-  <path d="M124,118 Q128,126 132,118" stroke="rgb(150,98,68)" stroke-width="1.2" fill="none" opacity="0.5"/>
-
-  <!-- Layer 11: Lips -->
-  <path d="M120,133 Q128,139 136,133" stroke="rgb(140,92,63)" stroke-width="1.5" fill="none" opacity="0.6"/>
-
-  <!-- Layer 12: Hair front/fringe -->
-  <path d="M91,102 Q99,64 128,62 Q157,64 165,102" fill="url(#hair-cipher)"/>
-
-  <!-- Layer 13: Rim light (right edge of head) -->
-  <ellipse cx="162" cy="108" rx="22" ry="38" fill="url(#rim-cipher)" opacity="0.65"/>
-
-  <!-- Layer 14: Key light (upper-left face) -->
-  <ellipse cx="104" cy="88" rx="24" ry="20" fill="#9e6040" opacity="0.18"/>
-
-  <!-- Layer 15: Accessory / motif -->
-  <g opacity="0.85">
-    <circle cx="112" cy="108" r="12" fill="none" stroke="#00d4d4" stroke-width="1.8"/>
-    <circle cx="144" cy="108" r="12" fill="none" stroke="#00d4d4" stroke-width="1.8"/>
-    <line x1="124" y1="108" x2="132" y2="108" stroke="#00d4d4" stroke-width="1.5"/>
-    <line x1="100" y1="106" x2="94" y2="104" stroke="#00d4d4" stroke-width="1.2"/>
-    <line x1="156" y1="106" x2="162" y2="104" stroke="#00d4d4" stroke-width="1.2"/>
-  </g>
-
-  <!-- Layer 16: Particles -->
-  <circle cx="58" cy="68" r="2" fill="#00d4d4" opacity="0.35"/>
-  <circle cx="192" cy="80" r="1.5" fill="#00d4d4" opacity="0.25"/>
-  <circle cx="42" cy="140" r="1.2" fill="#00d4d4" opacity="0.2"/>
-  <circle cx="208" cy="52" r="1.8" fill="#00d4d4" opacity="0.3"/>
-  <circle cx="76" cy="192" r="1.4" fill="#00d4d4" opacity="0.18"/>
-  <circle cx="184" cy="168" r="1.6" fill="#00d4d4" opacity="0.22"/>
+  <!-- Soft radial glow behind head -->
+  <circle cx="128" cy="112" r="92" fill="url(#glow-cipher)"/>
+  <!-- Lorelei character bounded safely in central 80% -->
+  <svg x="0" y="0" width="256" height="256" viewBox="0 0 980 980">
+    <metadata xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><rdf:RDF><rdf:Description><dc:title>Lorelei</dc:title><dc:creator>Lisa Wischofsky</dc:creator><dc:source xsi:type="dcterms:URI">https://www.figma.com/community/file/1198749693280469639</dc:source><dcterms:license xsi:type="dcterms:URI">https://creativecommons.org/publicdomain/zero/1.0/</dcterms:license><dc:rights>Remix of „Lorelei” (https://www.figma.com/community/file/1198749693280469639) by „Lisa Wischofsky”, licensed under „CC0 1.0” (https://creativecommons.org/publicdomain/zero/1.0/)</dc:rights></rdf:Description></rdf:RDF></metadata><mask id="viewboxMask"><rect width="980" height="980" rx="0" ry="0" x="0" y="0" fill="#fff" /></mask><g mask="url(#viewboxMask)"><g transform="translate(0 29.4)"><g transform="translate(98 98) scale(0.8)"><g transform="translate(10 -60)"><path d="M506 219c30 6 60 19 84 38 7 5 15 11 20 18 1 3 3 5 3 8-1 3-5 2-7 1l-18-13c-19-16-41-28-65-35 12 6 24 15 29 27 1 2 3 6 0 7l-11-4a280 280 0 0 0-76-19c8 3 15 6 22 11 2 1 4 2 4 4h-17c-20-1-41-1-61 2-15 2-29 6-43 12l-7 4-18 13c-7 5-12 12-16 19-4 9-7 18-5 28l4 22-1 4c-16 14-27 32-35 52-4 11-6 22-7 33 0 10 0 20 2 30l8 32 7 22 2 8-6 6-15 18c-2 2-3 5-6 5-3 1-7 1-8-2a266 266 0 0 1-40-107c-2-13-4-26-4-39a193 193 0 0 1 49-131c13-16 29-29 47-40a253 253 0 0 1 185-34Z" fill="#1c1917"/><path d="M486 236c57-2 115 18 159 56a209 209 0 0 1 73 190c-1 4-1 8-4 12l-1-3v-33a215 215 0 0 0-172-206 235 235 0 0 0-270 153c-12 37-14 78-6 116 6-2 12-2 17-2 2 1 5 1 6 3s0 3-1 4l-12 4c-14 3-27 8-37 18a63 63 0 0 0-22 45c0 12 3 24 8 35 8 13 19 24 33 31 18 10 41 13 62 7 2-1 4-2 6-1s3 4 4 6l15 30a215 215 0 0 0 72 63c28 15 59 21 90 26 3 1 8 1 10 4 1 2 0 3-2 4l-11 1a231 231 0 0 1-147-62c5 18 8 36 8 54 0 12-2 23-6 34-5 10-11 18-19 26a196 196 0 0 1-60 43c-1-1 1-2 2-3l17-14c13-12 25-23 35-38a93 93 0 0 0 17-65l-4-39-2-10-12-17c-5-10-11-20-13-31a93 93 0 0 1-96-31 81 81 0 0 1-19-51c0-12 3-23 8-34 9-16 23-29 40-36-8-31-8-62-3-93 8-40 26-77 51-108 45-54 115-87 186-88Z" fill="#000"/><path d="M541 252a214 214 0 0 1 172 206v33c-1 5-2 10-1 15-2 2-3 3-3 5-3 18-1 37 1 55 4 29 6 59 2 88-3 28-13 56-30 79-16 21-38 34-62 43-15 6-30 9-45 13-11 2-22 4-32 8 1 2 4 1 6 2 12 1 24-1 36-2-5 8-8 17-9 26-2 10 2 19 9 26 6 7 15 11 24 14 5 2 11 3 17 3 7 9 13 18 14 30 2 12-1 24-8 34-9 14-22 23-37 30-18 9-38 15-57 18a352 352 0 0 1-192-23c-18-10-38-23-48-42-4-7-8-16-6-24 18-10 33-23 47-38 8-8 14-16 19-26 4-11 6-22 6-34 0-18-3-36-8-54a235 235 0 0 0 147 62l11-1c2-1 3-2 2-4-2-3-7-3-10-4-31-5-62-11-90-26-18-10-36-22-50-37-8-8-16-17-22-26l-15-30c-1-2-2-5-4-6s-4 0-6 1a82 82 0 0 1-95-38c-5-11-8-23-8-35 1-17 9-34 22-45 10-10 23-15 37-18l12-4c1-1 2-2 1-4s-4-2-6-3c-5 0-11 0-17 2-8-38-6-79 6-116a236 236 0 0 1 270-153Z" fill="#ae6a45"/><path d="m712 506 3 3 1 13 3 45c3 20 5 40 5 60 0 16-1 32-5 47-6 28-20 56-40 76a174 174 0 0 1-88 46c-1 9-4 16-4 25-1 6 2 10 5 15 8 8 18 14 28 19l18 9c-3 3-8 1-12 2-6 0-12-1-17-3-9-3-18-7-24-14-7-7-11-16-9-26 1-9 4-18 9-26-12 1-24 3-36 2-2-1-5 0-6-2 10-4 21-6 32-8 15-4 30-7 45-13 24-9 46-22 62-43 17-23 27-51 30-79 4-29 2-59-2-88-2-18-4-37-1-55 0-2 1-3 3-5ZM262 566c6 0 12 1 15 6 2 3 2 7 1 10-3 8-9 14-11 22-1 4 0 7 3 9 7 5 16 7 24 10l-2 2h-11c-6-1-12-2-17-5-5-4-9-11-7-18 2-9 9-15 12-23-7-4-14-2-20-8 3-4 8-6 13-5Z" fill="#000"/><path d="M623 498c2-1 5 2 6 3 8 8 19 13 30 13 5 0 11-1 16-3 2-2 4-5 7-6s7 0 9 2c4 3 4 10 0 13-5 7-14 10-22 11-10 1-21-2-30-8-8-4-14-10-17-18-1-3-2-6 1-7ZM530 500l3-1c3 2 1 5 0 7a97 97 0 0 1-50 38c-24 8-52 4-72-12-2-3-4-6-3-10s4-7 8-7c3 0 6 2 8 4 8 5 16 9 25 10 12 2 23 0 34-3 13-4 25-12 36-20 4-2 7-5 11-6Z" fill="#000000"/><path d="M492 386c7 0 13 0 19 2 8 2 15 5 18 13 4 7 4 14 2 22-1 4-4 7-9 8-8 3-17 1-26-1-7-1-15-3-22-6-6-3-12-8-13-14-2-6 2-13 7-16 7-6 16-7 24-8ZM658 388c5 1 9 4 11 9 2 3 1 8 0 11-1 4-5 8-8 10-5 5-11 6-18 8-5 1-12 3-18 1-2-1-6-4-7-7-3-11 3-25 14-30 8-4 17-4 26-2Z" fill="#000000"/><path d="M216 569c5 0 10-1 14 2 3 2 5 5 4 9-2 4-6 7-11 7h-16c-5-1-9-3-11-7-1-4 2-7 5-9 5-2 10-1 15-2ZM229 592c3 1 7 3 7 7 0 3-1 6-4 7-5 4-11 4-17 6-5 1-10 2-14-1s-3-9 0-12c4-4 8-4 13-5s10-3 15-2ZM301 644h8c3 1 6 4 6 8 0 5-4 9-9 10-5 2-9-2-11-6-1-5 1-11 6-12Z" fill="#f59e0b"/><path d="m591 528 2 2 7 22c4 8 10 15 15 23 4 6 6 13 5 20-1 6-4 12-9 16-7 7-16 12-25 16-5 3-11 4-17 2l5-4c11-9 25-14 36-24 2-2 4-6 4-9-1-7-5-11-8-16-5-9-10-16-13-25-2-7-4-16-2-23Z" fill="#000000"/><path fill-rule="evenodd" clip-rule="evenodd" d="m634 683-9-3c-25-6-52-7-78-6l-13 1a774 774 0 0 1-85 0l-7-1c-2 2 1 4 2 5h1c2 2 4 3 7 3l4 2a147 147 0 0 0 69 28c15 2 31 3 47 2 7 0 15-1 22-4a68 68 0 0 0 24-19l3-3h3c4 0 8 1 12-1 0-2-1-2-2-3v-1Zm-31 3-14-2c-22-2-43 0-65 1h-4l-43 1 11 5 12 5c13 6 27 7 41 9h32c7 0 14-1 21-5l15-11 2-2-8-1Z" fill="#000000"/><path d="M463 214c36 1 71 9 103 27 14 7 27 16 38 27 3 4 7 7 8 12 1 2 1 4-1 5a319 319 0 0 0-56-24c1 4 3 8 0 12l-26-8-44-9c2 2 5 3 6 6-10 1-20 0-30-1-31-1-61 3-90 14l-4 3-12 7c-6 4-11 8-15 13-8 8-14 19-16 31-2 8 0 17 2 25l2 10-6 6a142 142 0 0 0-33 56c-4 13-4 28-4 42 1 17 6 33 11 49l8 26-1 1-11-4c-10-5-20-10-29-17-6-4-13-10-13-18l5 3c-24-34-34-76-28-117 5-34 20-66 42-93 22-26 49-46 80-60 35-17 75-24 114-24Z" fill="#1c1917"/></g><g transform="translate(10 -60)"></g></g></g></g>
+  </svg>
 </svg>

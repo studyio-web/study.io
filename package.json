@@ -39,6 +39,8 @@
   "devDependencies": {
     "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^8.6.0",
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@electric-sql/pglite": "^0.5.17",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
