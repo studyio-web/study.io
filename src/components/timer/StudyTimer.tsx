@@ -2312,41 +2312,76 @@ export function StudyTimer() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="w-full flex flex-col items-center shrink-0"
         >
-          {/* 1. Mode selector */}
-          <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
-            {(['stopwatch', 'countdown', 'pomodoro'] as TimerMode[]).map((mode) => {
-              const isActive = timerMode === mode;
-              const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? 'Countdown' : 'Pomodoro';
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={isStudying || isCountdownCompleted}
-                  onClick={() => {
-                    if (!isStudying && !isCountdownCompleted) {
-                      syncTimerMode(mode, false);
-                      if (mode === 'countdown') {
-                        setIsCountdownHalfwayNotified(false);
-                        try {
-                          localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                        } catch { }
+          {/* 1. Mode selector & Alarm button */}
+          <div className="relative w-full max-w-[340px] flex items-center justify-center min-h-[38px]">
+            <div className="relative inline-flex items-center p-1 bg-fg/[0.04] border border-fg/[0.08] rounded-full shadow-card">
+              {(['stopwatch', 'countdown', 'pomodoro'] as TimerMode[]).map((mode) => {
+                const isActive = timerMode === mode;
+                const label = mode === 'stopwatch' ? 'Stopwatch' : mode === 'countdown' ? 'Countdown' : 'Pomodoro';
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={isStudying || isCountdownCompleted}
+                    onClick={() => {
+                      if (!isStudying && !isCountdownCompleted) {
+                        syncTimerMode(mode, false);
+                        if (mode === 'countdown') {
+                          setIsCountdownHalfwayNotified(false);
+                          try {
+                            localStorage.removeItem('studyio_timer_countdown_halfway_notified');
+                          } catch { }
+                        }
                       }
+                    }}
+                    className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-colors z-10 ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                      } ${isStudying || isCountdownCompleted ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTimerMode"
+                        className="absolute inset-0 bg-fg/[0.12] [[data-theme='paper']_&]:bg-[var(--surface)] border border-fg/[0.1] [[data-theme='paper']_&]:border-[var(--border-strong)] rounded-full shadow-card"
+                        transition={shouldReduceMotion ? { duration: 0 } : { type: 'tween', duration: 0.2 }}
+                      />
+                    )}
+                    <span className="relative z-10">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Timer Alarm Toggle Button (Available in Countdown & Pomodoro) */}
+            {(timerMode === 'countdown' || timerMode === 'pomodoro') && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  const next = !isAlarmEnabled;
+                  setIsAlarmEnabled(next);
+                  saveTimerAlarmEnabled(next);
+                  if (!next) {
+                    soundFx.stopTimerAlarm();
+                    if (isNativeAndroid()) {
+                      TimerNotification.cancelAlarm().catch(() => { });
+                      TimerNotification.stopAlarm().catch(() => { });
                     }
-                  }}
-                  className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-colors z-10 ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-                    } ${isStudying || isCountdownCompleted ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTimerMode"
-                      className="absolute inset-0 bg-fg/[0.12] [[data-theme='paper']_&]:bg-[var(--surface)] border border-fg/[0.1] [[data-theme='paper']_&]:border-[var(--border-strong)] rounded-full shadow-card"
-                      transition={shouldReduceMotion ? { duration: 0 } : { type: 'tween', duration: 0.2 }}
-                    />
-                  )}
-                  <span className="relative z-10">{label}</span>
-                </button>
-              );
-            })}
+                  }
+                }}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer select-none ${
+                  isAlarmEnabled
+                    ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                    : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)]'
+                }`}
+                title={isAlarmEnabled ? 'Timer Alarm: ON (Click to turn off)' : 'Timer Alarm: OFF (Click to turn on)'}
+                aria-label={isAlarmEnabled ? 'Timer Alarm: ON' : 'Timer Alarm: OFF'}
+              >
+                {isAlarmEnabled ? (
+                  <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                ) : (
+                  <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* 2. Subject chip - quiet skeleton while study mode is loading; hidden in Focus mode; normal in Subject mode */}
@@ -2790,7 +2825,7 @@ export function StudyTimer() {
         </div>
 
         {/* 5. Sleek Row of Auxiliary Control Buttons */}
-        <div className="flex items-center justify-center gap-2 mt-2 relative z-20 max-w-full px-2">
+        <div className="flex items-center justify-center gap-2 mt-2 relative z-20 max-w-full px-2 flex-wrap">
           {/* Atmosphere Button */}
           <div className="relative">
             <button
@@ -2900,38 +2935,6 @@ export function StudyTimer() {
             <Maximize2 className="w-3.5 h-3.5 shrink-0" />
             <span>Focus</span>
           </button>
-
-          {/* Timer Alarm Toggle Pill (Available in Countdown & Pomodoro) */}
-          {(timerMode === 'countdown' || timerMode === 'pomodoro') && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('light');
-                const next = !isAlarmEnabled;
-                setIsAlarmEnabled(next);
-                saveTimerAlarmEnabled(next);
-                if (!next) {
-                  soundFx.stopTimerAlarm();
-                  if (isNativeAndroid()) {
-                    TimerNotification.cancelAlarm().catch(() => { });
-                    TimerNotification.stopAlarm().catch(() => { });
-                  }
-                }
-              }}
-              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${isAlarmEnabled
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 font-medium'
-                : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
-                }`}
-              title={isAlarmEnabled ? 'Timer Alarm: ON (Click to turn off)' : 'Timer Alarm: OFF (Click to turn on)'}
-            >
-              {isAlarmEnabled ? (
-                <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              ) : (
-                <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
-              )}
-              <span>{isAlarmEnabled ? 'Alarm: ON' : 'Alarm: OFF'}</span>
-            </button>
-          )}
 
           {/* Strict Mode Button (Strictly Native Android Only) */}
           {isAndroid && (
