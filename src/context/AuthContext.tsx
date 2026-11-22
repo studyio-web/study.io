@@ -193,10 +193,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       // Compute total accumulated study minutes across all rows in study_sessions for the current user
-      const { data: dbSessions } = await supabase
+      let { data: dbSessions, error: sessErr } = await supabase
         .from('study_sessions')
         .select('id, user_id, subject_id, credited_seconds, duration_seconds, started_at, ended_at, notes, mode')
         .eq('user_id', authUser.id);
+
+      if (sessErr && (sessErr.code === '42703' || sessErr.message?.toLowerCase().includes('credited_seconds'))) {
+        const fallback = await supabase
+          .from('study_sessions')
+          .select('id, user_id, subject_id, duration_seconds, started_at, ended_at, notes, mode')
+          .eq('user_id', authUser.id);
+        dbSessions = fallback.data ? fallback.data.map((r: any) => ({
+          ...r,
+          credited_seconds: r.duration_seconds,
+        })) : null;
+      }
 
       const currentMonthStudySeconds = getCurrentMonthFocusSeconds(dbSessions || []);
       const totalStudySeconds = dbSessions
@@ -510,10 +521,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data && !error) {
         const currentMonthStr = new Date().toISOString().substring(0, 7);
-        const { data: dbSessions } = await supabase
+        let { data: dbSessions, error: dbSessErr } = await supabase
           .from('study_sessions')
           .select('id, user_id, credited_seconds, duration_seconds, started_at')
           .eq('user_id', user.id);
+
+        if (dbSessErr && (dbSessErr.code === '42703' || dbSessErr.message?.toLowerCase().includes('credited_seconds'))) {
+          const fallback = await supabase
+            .from('study_sessions')
+            .select('id, user_id, duration_seconds, started_at')
+            .eq('user_id', user.id);
+          dbSessions = fallback.data ? fallback.data.map((r: any) => ({
+            ...r,
+            credited_seconds: r.duration_seconds,
+          })) : null;
+        }
 
         const liveStats = resolveLiveSeasonStats(data, dbSessions || []);
         const userReset = resolveUserSeasonReset(data, dbSessions || []);

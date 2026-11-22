@@ -167,7 +167,21 @@ export default async function RecapPage(props: {
         .lt('created_at', endIso),
     ]);
 
-    const sessions = sessionsRes.data || [];
+    let sessions = sessionsRes.data || [];
+    if (sessionsRes.error && (sessionsRes.error.code === '42703' || sessionsRes.error.message?.toLowerCase().includes('credited_seconds'))) {
+      const fb = await supabase
+        .from('study_sessions')
+        .select('duration_seconds, subject_id, started_at')
+        .eq('user_id', user.id)
+        .gte('started_at', startIso)
+        .lt('started_at', endIso);
+      if (fb.data) {
+        sessions = fb.data.map((r: any) => ({
+          ...r,
+          credited_seconds: r.duration_seconds,
+        }));
+      }
+    }
     const subjects = subjectsRes.data || [];
     completedTasks = todosRes.data?.length || 0;
 

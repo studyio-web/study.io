@@ -296,11 +296,24 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
               .from('profiles')
               .select('id, username, name, avatar_url, level, lifetime_xp, season_base_rp, season_rp, current_rank, rank_title, rank_badge');
 
-            const { data: monthSessions } = await supabase
+            let { data: monthSessions, error: sessErr } = await supabase
               .from('study_sessions')
               .select('user_id, credited_seconds, duration_seconds')
               .gte('started_at', monthStartISO)
               .lte('started_at', monthEndISO);
+
+            if (sessErr && (sessErr.code === '42703' || sessErr.message?.toLowerCase().includes('credited_seconds'))) {
+              const fallback = await supabase
+                .from('study_sessions')
+                .select('user_id, duration_seconds')
+                .gte('started_at', monthStartISO)
+                .lte('started_at', monthEndISO);
+              monthSessions = fallback.data ? fallback.data.map((r: any) => ({
+                ...r,
+                credited_seconds: r.duration_seconds,
+              })) : null;
+              sessErr = fallback.error;
+            }
 
             const monthSecsByUser: Record<string, number> = {};
             if (Array.isArray(monthSessions)) {

@@ -628,7 +628,7 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                   {isOffline && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-[11px]">
                       <WifiOff className="w-3 h-3 shrink-0" />
-                      <span>Offline · Last updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}</span>
+                      <span>Connect to internet · Last updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}</span>
                     </span>
                   )}
                 </div>
@@ -692,6 +692,22 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                 </div>
               </div>
             </div>
+
+            {/* Offline Connect to Internet Notice */}
+            {isOffline && (
+              <div className="w-full px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center gap-3 text-amber-200 shadow-sm">
+                <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="flex-1 text-xs">
+                  <span className="font-semibold text-amber-300">Connect to internet</span>
+                  <span className="text-amber-200/70 ml-1.5 hidden sm:inline">· Leaderboard requires an active connection to refresh live rankings.</span>
+                  {lastUpdated && (
+                    <span className="text-amber-200/60 ml-2 font-mono text-[11px]">
+                      (Showing cached snapshot from {new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Current User Rank Summary Card */}
             {currentUserEntry && (
@@ -788,6 +804,33 @@ export function MonthlyLeaderboard({ isEmbedded = false, isActiveTab = true }: M
                     );
                   })}
                 </motion.div>
+              </div>
+            )}
+
+            {/* Empty state or offline notice */}
+            {contenders.length === 0 && (
+              <div className="w-full py-16 px-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center text-center shadow-card">
+                {isOffline ? (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-3 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                      <WifiOff className="w-7 h-7" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[var(--text)] tracking-tight">Connect to internet</h3>
+                    <p className="text-xs text-[var(--text-dim)] max-w-sm mt-1.5 font-mono">
+                      Leaderboard and competitive rankings require an active internet connection.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-fg/[0.04] border border-[var(--border)] flex items-center justify-center mb-3 text-[var(--text-dim)]">
+                      <Trophy className="w-7 h-7 opacity-50" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[var(--text)] tracking-tight">No focus sessions yet</h3>
+                    <p className="text-xs text-[var(--text-dim)] max-w-sm mt-1.5">
+                      Be the first scholar to log a study session this period!
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </div>

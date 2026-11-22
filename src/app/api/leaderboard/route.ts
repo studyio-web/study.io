@@ -27,6 +27,19 @@ function getWeekStartUTC(d: Date): number {
  * Switching timeframe tabs changes ONLY the timeframe focus time column
  * and sorting order. The Tier and Season RP remain strictly invariant.
  */
+async function querySessionsSafely(
+  supabase: any,
+  builderFn: (cols: string) => any
+): Promise<{ data: any[] | null; error: any }> {
+  let { data, error } = await builderFn('user_id, credited_seconds, duration_seconds');
+  if (error && (error.code === '42703' || error.message?.toLowerCase().includes('credited_seconds'))) {
+    const fallback = await builderFn('user_id, duration_seconds');
+    data = fallback.data;
+    error = fallback.error;
+  }
+  return { data, error };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -102,12 +115,14 @@ export async function GET(req: NextRequest) {
     const thisMonthSecondsByUser: Record<string, number> = {};
     const timeframeSecondsByUser: Record<string, number> = {};
 
-    // 4. Query current month sessions for all users to compute current season RP (using credited_seconds)
-    const { data: monthSessions, error: monthErr } = await supabase
-      .from('study_sessions')
-      .select('user_id, credited_seconds, duration_seconds')
-      .gte('started_at', currentMonthStartISO)
-      .lte('started_at', currentMonthEndISO);
+    // 4. Query current month sessions for all users to compute current season RP (using credited_seconds with backward compatibility)
+    const { data: monthSessions, error: monthErr } = await querySessionsSafely(supabase, (cols) =>
+      supabase
+        .from('study_sessions')
+        .select(cols)
+        .gte('started_at', currentMonthStartISO)
+        .lte('started_at', currentMonthEndISO)
+    );
 
     if (!monthErr && Array.isArray(monthSessions)) {
       for (const s of monthSessions) {
@@ -122,9 +137,11 @@ export async function GET(req: NextRequest) {
       // Month sessions are identical to timeframe sessions
       Object.assign(timeframeSecondsByUser, thisMonthSecondsByUser);
     } else if (timeframe === 'all') {
-      const { data: allSessions, error: allErr } = await supabase
-        .from('study_sessions')
-        .select('user_id, credited_seconds, duration_seconds');
+      const { data: allSessions, error: allErr } = await querySessionsSafely(supabase, (cols) =>
+        supabase
+          .from('study_sessions')
+          .select(cols)
+      );
 
       if (!allErr && Array.isArray(allSessions)) {
         for (const s of allSessions) {
@@ -135,15 +152,14 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // 'today' or 'week'
-      let tfQuery = supabase
-        .from('study_sessions')
-        .select('user_id, credited_seconds, duration_seconds');
+      const { data: tfSessions, error: tfErr } = await querySessionsSafely(supabase, (cols) => {
+        let q = supabase.from('study_sessions').select(cols);
+        if (timeframeStartISO) {
+          q = q.gte('started_at', timeframeStartISO);
+        }
+        return q;
+      });
 
-      if (timeframeStartISO) {
-        tfQuery = tfQuery.gte('started_at', timeframeStartISO);
-      }
-
-      const { data: tfSessions, error: tfErr } = await tfQuery;
       if (!tfErr && Array.isArray(tfSessions)) {
         for (const s of tfSessions) {
           if (!s?.user_id) continue;

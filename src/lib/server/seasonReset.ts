@@ -95,11 +95,24 @@ export async function executeMonthlySeasonReset(
   }
 
   // 2. Fetch all study sessions from previous season month (UTC)
-  const { data: prevMonthSessions, error: sessErr } = await dbClient
+  let { data: prevMonthSessions, error: sessErr } = await dbClient
     .from('study_sessions')
     .select('user_id, credited_seconds, duration_seconds, started_at')
     .gte('started_at', new Date(prevMonthStartUTC).toISOString())
     .lte('started_at', new Date(prevMonthEndUTC).toISOString());
+
+  if (sessErr && (sessErr.code === '42703' || sessErr.message?.toLowerCase().includes('credited_seconds'))) {
+    const fb = await dbClient
+      .from('study_sessions')
+      .select('user_id, duration_seconds, started_at')
+      .gte('started_at', new Date(prevMonthStartUTC).toISOString())
+      .lte('started_at', new Date(prevMonthEndUTC).toISOString());
+    prevMonthSessions = fb.data ? fb.data.map((r: any) => ({
+      ...r,
+      credited_seconds: r.duration_seconds,
+    })) : null;
+    sessErr = fb.error;
+  }
 
   if (sessErr) {
     console.warn('[Season Reset] Warning querying previous month study sessions:', sessErr);

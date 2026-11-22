@@ -169,7 +169,19 @@ export function ScholarProfileModal({
 
         if (!active) return;
 
-        const sessions = sessRes.data || [];
+        let sessions = sessRes.data || [];
+        if (sessRes.error && (sessRes.error.code === '42703' || sessRes.error.message?.toLowerCase().includes('credited_seconds'))) {
+          const fallback = await supabase
+            .from('study_sessions')
+            .select('duration_seconds, started_at')
+            .eq('user_id', uid);
+          if (fallback.data) {
+            sessions = fallback.data.map((r: any) => ({
+              ...r,
+              credited_seconds: r.duration_seconds,
+            }));
+          }
+        }
         const mappedSessions = sessions.map((s: any) => ({
           startTime: s.started_at,
           durationSeconds: Number(s.credited_seconds ?? s.duration_seconds ?? 0),

@@ -1653,11 +1653,23 @@ CREATE POLICY "Hosts can update their own study rooms"
 
       (async () => {
         try {
-          const { data: todaySessionsData } = await supabase
+          let { data: todaySessionsData, error: todayErr } = await supabase
             .from('study_sessions')
             .select('user_id, credited_seconds, duration_seconds, started_at')
             .in('user_id', allUserIds)
             .gte('started_at', queryIso);
+
+          if (todayErr && (todayErr.code === '42703' || todayErr.message?.toLowerCase().includes('credited_seconds'))) {
+            const fallback = await supabase
+              .from('study_sessions')
+              .select('user_id, duration_seconds, started_at')
+              .in('user_id', allUserIds)
+              .gte('started_at', queryIso);
+            todaySessionsData = fallback.data ? fallback.data.map((r: any) => ({
+              ...r,
+              credited_seconds: r.duration_seconds,
+            })) : null;
+          }
 
           if (!todaySessionsData) return;
           const userTodayMap = new Map<string, number>();

@@ -32,6 +32,7 @@ import {
   BellOff,
   Bell,
   MoreVertical,
+  WifiOff,
 } from 'lucide-react';
 import { ProCrown } from '../common/ProCrown';
 import toast from 'react-hot-toast';
@@ -88,6 +89,20 @@ export default function StudyRoomsTab({
   useEffect(() => {
     onActiveRoomChange?.(Boolean(activeRoomId));
   }, [activeRoomId, onActiveRoomChange]);
+
+  const [isOffline, setIsOffline] = useState(() => (typeof navigator !== 'undefined' ? !navigator.onLine : false));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   // View mode: false = My Rooms (Joined & Hosted only), true = Explore Rooms Window
   const [isExploreView, setIsExploreView] = useState(false);
@@ -576,7 +591,7 @@ CREATE POLICY "Hosts can update their own study rooms"
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      toast.error('Needs internet');
+      toast.error('Connect to internet');
       return;
     }
     if (!user || !createRoomData.name.trim()) return;
@@ -798,7 +813,7 @@ CREATE POLICY "Hosts can update their own study rooms"
 
   const joinRoom = async (roomId: string, passwordAttempt: string | null) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      toast.error('Needs internet');
+      toast.error('Connect to internet');
       return;
     }
     if (!user) return;
@@ -1029,6 +1044,18 @@ CREATE POLICY "Hosts can update their own study rooms"
   return (
     <div className="w-full h-full flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 pb-28 md:pb-28 scrollbar-thin text-[var(--text)]">
       <div className="w-full max-w-[1100px] mx-auto flex flex-col gap-6 relative">
+        {/* Offline Banner */}
+        {isOffline && (
+          <div className="w-full p-3 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3 text-amber-300 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5">
+              <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="text-xs sm:text-sm font-medium">
+                Connect to internet <span className="text-amber-400/70 font-normal">· Study rooms require an active internet connection to join and sync live presence.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isExploreView ? (
           /* ══════════════════════════════════════════════════════════ */
           /* EXPLORE ROOMS WINDOW                                       */
@@ -1143,49 +1170,63 @@ CREATE POLICY "Hosts can update their own study rooms"
 
                 {/* Filtered Rooms List */}
                 {filteredExplorerRooms.length === 0 ? (
-                  <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
-                    <svg
-                      className="w-14 h-14 mx-auto text-neutral-600 opacity-60"
-                      viewBox="0 0 64 64"
-                      fill="none"
-                    >
-                      <path
-                        d="M32 8L52 19.5V42.5L32 54L12 42.5V19.5L32 8Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M32 8V31M52 19.5L32 31M12 19.5L32 31M32 31V54"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <div className="font-hud-mono text-xs font-bold text-neutral-400 tracking-widest uppercase">
-                      NO MATCHING ROOMS FOUND
+                  isOffline ? (
+                    <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                        <WifiOff className="w-6 h-6" />
+                      </div>
+                      <div className="font-hud-mono text-xs font-bold text-amber-300 tracking-widest uppercase">
+                        CONNECT TO INTERNET
+                      </div>
+                      <p className="text-xs text-[var(--text-dim)] max-w-sm font-mono">
+                        Live room discovery requires an active internet connection. Connect to internet to discover and join public focus halls.
+                      </p>
                     </div>
-                    <p className="text-xs text-neutral-500 max-w-sm font-mono">
-                      {searchQuery
-                        ? `No telemetry records match query "${searchQuery}".`
-                        : 'No active focus rooms logged for this sector.'}
-                    </p>
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsPrivateCreate(false);
-                          setCreateRoomData({ name: '', description: '', password: '', max_capacity: 4 });
-                          setIsCreateModalOpen(true);
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg hover:brightness-110 font-hud-mono text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
-                        style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                  ) : (
+                    <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
+                      <svg
+                        className="w-14 h-14 mx-auto text-neutral-600 opacity-60"
+                        viewBox="0 0 64 64"
+                        fill="none"
                       >
-                        <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                        CREATE ROOM
-                      </button>
+                        <path
+                          d="M32 8L52 19.5V42.5L32 54L12 42.5V19.5L32 8Z"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M32 8V31M52 19.5L32 31M12 19.5L32 31M32 31V54"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <div className="font-hud-mono text-xs font-bold text-neutral-400 tracking-widest uppercase">
+                        NO MATCHING ROOMS FOUND
+                      </div>
+                      <p className="text-xs text-neutral-500 max-w-sm font-mono">
+                        {searchQuery
+                          ? `No telemetry records match query "${searchQuery}".`
+                          : 'No active focus rooms logged for this sector.'}
+                      </p>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPrivateCreate(false);
+                            setCreateRoomData({ name: '', description: '', password: '', max_capacity: 4 });
+                            setIsCreateModalOpen(true);
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg hover:brightness-110 font-hud-mono text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)' }}
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          CREATE ROOM
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : (
                   <div className="w-full bg-[var(--surface)] border border-[var(--border)] shadow-card rounded-2xl overflow-hidden divide-y divide-[var(--border)]">
                     {/* Column Headers (Desktop Only) */}
@@ -1475,47 +1516,61 @@ CREATE POLICY "Hosts can update their own study rooms"
             {!isLoading && (
               <div className="space-y-4">
                 {myGroups.length === 0 ? (
-                  /* Telemetry Empty State */
-                  <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
-                    <svg
-                      className="w-14 h-14 mx-auto text-neutral-600 opacity-60"
-                      viewBox="0 0 64 64"
-                      fill="none"
-                    >
-                      <path
-                        d="M32 8L52 19.5V42.5L32 54L12 42.5V19.5L32 8Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M32 8V31M52 19.5L32 31M12 19.5L32 31M32 31V54"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <div className="font-hud-mono text-xs font-bold text-neutral-400 tracking-widest uppercase">
-                      NO JOINED ROOMS YET
+                  isOffline ? (
+                    <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                        <WifiOff className="w-6 h-6" />
+                      </div>
+                      <div className="font-hud-mono text-xs font-bold text-amber-300 tracking-widest uppercase">
+                        CONNECT TO INTERNET
+                      </div>
+                      <p className="text-xs text-[var(--text-dim)] max-w-sm font-mono">
+                        Study rooms require an active internet connection to load joined rooms and sync live presence.
+                      </p>
                     </div>
-                    <p className="text-xs text-neutral-500 max-w-sm font-mono">
-                      You haven't joined or hosted any focus rooms yet. Click Explore Rooms to discover active rooms or create one.
-                    </p>
-                    <div className="pt-2 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          fetchExplorerRooms();
-                          setIsExploreView(true);
-                        }}
-                        className="px-4 py-2 rounded-lg hover:brightness-110 font-hud-mono text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
-                        style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)', boxShadow: '0 4px 15px var(--glow)' }}
+                  ) : (
+                    /* Telemetry Empty State */
+                    <div className="py-16 sm:py-24 flex flex-col items-center justify-center text-center space-y-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-card">
+                      <svg
+                        className="w-14 h-14 mx-auto text-neutral-600 opacity-60"
+                        viewBox="0 0 64 64"
+                        fill="none"
                       >
-                        <Compass className="w-3.5 h-3.5" />
-                        EXPLORE ROOMS
-                      </button>
+                        <path
+                          d="M32 8L52 19.5V42.5L32 54L12 42.5V19.5L32 8Z"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M32 8V31M52 19.5L32 31M12 19.5L32 31M32 31V54"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <div className="font-hud-mono text-xs font-bold text-neutral-400 tracking-widest uppercase">
+                        NO JOINED ROOMS YET
+                      </div>
+                      <p className="text-xs text-neutral-500 max-w-sm font-mono">
+                        You haven't joined or hosted any focus rooms yet. Click Explore Rooms to discover active rooms or create one.
+                      </p>
+                      <div className="pt-2 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fetchExplorerRooms();
+                            setIsExploreView(true);
+                          }}
+                          className="px-4 py-2 rounded-lg hover:brightness-110 font-hud-mono text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-contrast)', boxShadow: '0 4px 15px var(--glow)' }}
+                        >
+                          <Compass className="w-3.5 h-3.5" />
+                          EXPLORE ROOMS
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : (
                   /* Table Layout */
                   <div className="w-full bg-[var(--surface)] border border-[var(--border)] shadow-card rounded-2xl overflow-hidden divide-y divide-[var(--border)]">

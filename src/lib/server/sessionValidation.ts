@@ -189,12 +189,26 @@ export async function validateAndSaveSession(
     const dayEnd = new Date(dayStart);
     dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
-    const { data: daySessions, error: dayQueryError } = await dbClient
+    let { data: daySessions, error: dayQueryError } = await dbClient
       .from('study_sessions')
       .select('credited_seconds, duration_seconds')
       .eq('user_id', user.id)
       .gte('started_at', dayStart.toISOString())
       .lt('started_at', dayEnd.toISOString());
+
+    if (dayQueryError && (dayQueryError.code === '42703' || dayQueryError.message?.toLowerCase().includes('credited_seconds'))) {
+      const fb = await dbClient
+        .from('study_sessions')
+        .select('duration_seconds')
+        .eq('user_id', user.id)
+        .gte('started_at', dayStart.toISOString())
+        .lt('started_at', dayEnd.toISOString());
+      daySessions = fb.data ? fb.data.map((r: any) => ({
+        ...r,
+        credited_seconds: r.duration_seconds,
+      })) : null;
+      dayQueryError = fb.error;
+    }
 
     if (dayQueryError) {
       console.warn('[Anti-Tamper] Warning querying daily sessions for cap check:', dayQueryError);
@@ -223,12 +237,26 @@ export async function validateAndSaveSession(
     // 8. Overlap Protection: Prevent double-counted time when devices run overlapping sessions
     const overlapMode = input.overlap_mode || OVERLAP_MODE;
 
-    const { data: overlappingSessions } = await dbClient
+    let { data: overlappingSessions, error: overlapErr } = await dbClient
       .from('study_sessions')
       .select('id, session_id, started_at, ended_at, duration_seconds, credited_seconds, raw_seconds')
       .eq('user_id', user.id)
       .lt('started_at', endTime.toISOString())
       .gt('ended_at', startTime.toISOString());
+
+    if (overlapErr && (overlapErr.code === '42703' || overlapErr.message?.toLowerCase().includes('credited_seconds') || overlapErr.message?.toLowerCase().includes('raw_seconds'))) {
+      const fb = await dbClient
+        .from('study_sessions')
+        .select('id, session_id, started_at, ended_at, duration_seconds')
+        .eq('user_id', user.id)
+        .lt('started_at', endTime.toISOString())
+        .gt('ended_at', startTime.toISOString());
+      overlappingSessions = fb.data ? fb.data.map((r: any) => ({
+        ...r,
+        credited_seconds: r.duration_seconds,
+        raw_seconds: r.duration_seconds,
+      })) : null;
+    }
 
     // Also check live active sessions on other devices
     let activeIntervals: Array<{ start: number; end: number }> = [];
