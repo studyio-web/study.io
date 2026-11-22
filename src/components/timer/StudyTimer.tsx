@@ -54,6 +54,7 @@ import { calculateNonOverlappingSeconds } from '../../lib/nonOverlappingTime';
 import { TimerAlarmModal } from './TimerAlarmModal';
 import { StillStudyingModal } from './StillStudyingModal';
 import { AlarmSetupModal } from './AlarmSetupModal';
+import { ResetConfirmModal } from './ResetConfirmModal';
 import { App } from '@capacitor/app';
 import {
   StrictMode,
@@ -214,6 +215,7 @@ export function StudyTimer() {
   const [isStrictConfigOpen, setIsStrictConfigOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [isStrictWarningModalOpen, setIsStrictWarningModalOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const pendingStartSubjectIdRef = useRef<string | null>(null);
   const [hasUsagePerm, setHasUsagePerm] = useState(false);
   const [hasOverlayPerm, setHasOverlayPerm] = useState(false);
@@ -319,6 +321,7 @@ export function StudyTimer() {
   // Hardware Android Back Button: dismiss any open timer modal before leaving tab or exiting app
   useEffect(() => {
     const hasAnyTimerModal = Boolean(
+      isResetConfirmOpen ||
       isAllowedAppsModalOpen ||
       isPermissionModalOpen ||
       isStrictWarningModalOpen ||
@@ -329,6 +332,10 @@ export function StudyTimer() {
     if (!hasAnyTimerModal) return;
 
     return registerBackButtonHandler(() => {
+      if (isResetConfirmOpen) {
+        setIsResetConfirmOpen(false);
+        return true;
+      }
       if (isAllowedAppsModalOpen) {
         setIsAllowedAppsModalOpen(false);
         return true;
@@ -356,6 +363,7 @@ export function StudyTimer() {
       return false;
     });
   }, [
+    isResetConfirmOpen,
     isAllowedAppsModalOpen,
     isPermissionModalOpen,
     isStrictWarningModalOpen,
@@ -1044,6 +1052,15 @@ export function StudyTimer() {
     clearPersistedTimer();
     setShowRecoveryBanner(false);
   }, [resetTimer, clearPersistedTimer]);
+
+  const handleRequestReset = useCallback(() => {
+    if (isStudying || elapsedSeconds > 0) {
+      triggerHaptic('warning');
+      setIsResetConfirmOpen(true);
+    } else {
+      handleReset();
+    }
+  }, [isStudying, elapsedSeconds, handleReset]);
 
   const handleStopAndSave = useCallback(async (durationOverride?: number | React.MouseEvent) => {
     toast.dismiss();
@@ -2496,15 +2513,7 @@ export function StudyTimer() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCountdownCompleted(false);
-                    setIsCountdownHalfwayNotified(false);
-                    try {
-                      localStorage.removeItem('studyio_timer_countdown_completed');
-                      localStorage.removeItem('studyio_timer_countdown_halfway_notified');
-                    } catch { }
-                    handleReset();
-                  }}
+                  onClick={handleRequestReset}
                   disabled={isSaving || isRemoteTransitioning}
                   className="w-12 h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)] active:scale-[0.98] transition-transform duration-120 flex items-center justify-center cursor-pointer shrink-0 disabled:opacity-50"
                   title="Reset without saving"
@@ -2720,7 +2729,7 @@ export function StudyTimer() {
               </button>
               <button
                 type="button"
-                onClick={handleReset}
+                onClick={handleRequestReset}
                 disabled={isSaving || isRemoteTransitioning}
                 className="w-12 h-[52px] rounded-full border border-fg/20 bg-fg/[0.04] hover:bg-fg/[0.08] text-[var(--text-dim)] hover:text-[var(--text)] active:scale-[0.98] transition-transform duration-120 flex items-center justify-center cursor-pointer shrink-0 disabled:opacity-50"
                 title="Reset timer"
@@ -3054,6 +3063,17 @@ export function StudyTimer() {
           closeStillStudyingPrompt();
           handleStopAndSave();
         }}
+      />
+
+      {/* Reset Timer Confirmation Modal */}
+      <ResetConfirmModal
+        isOpen={isResetConfirmOpen}
+        onConfirm={() => {
+          setIsResetConfirmOpen(false);
+          handleReset();
+        }}
+        onCancel={() => setIsResetConfirmOpen(false)}
+        elapsedSeconds={elapsedSeconds}
       />
     </div>
   );
