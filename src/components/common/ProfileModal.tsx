@@ -548,10 +548,6 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                 12 exclusive collectible portraits
                               </p>
                             </div>
-                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-500/20 text-amber-300 border border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] flex items-center gap-1.5">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-300" />
-                              {category.badge || 'PRO EXCLUSIVE'}
-                            </span>
                           </div>
 
                           {/* 12 Premium Collectibles Grid */}

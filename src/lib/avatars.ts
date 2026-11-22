@@ -254,7 +254,6 @@ export const VAULT_CATEGORIES: {
   {
     name: 'PREMIUM // ELITE SCHOLARS',
     isPremium: true,
-    badge: 'PRO EXCLUSIVE',
     avatars: PREMIUM_COLLECTIBLES.map((c) => c.id),
   },
   {
