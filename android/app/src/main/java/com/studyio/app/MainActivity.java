@@ -16,12 +16,15 @@ import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.WebView;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "StudyAlarm";
@@ -143,6 +146,60 @@ public class MainActivity extends BridgeActivity {
             webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
             webSettings.setDomStorageEnabled(true);
             webSettings.setDatabaseEnabled(true);
+            webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+            webSettings.setSupportMultipleWindows(true);
+
+            // Clean User-Agent by removing '; wv' so Razorpay checkout detects full mobile browser support for UPI Intent
+            String currentUa = webSettings.getUserAgentString();
+            if (currentUa != null) {
+                String cleanUserAgent = currentUa
+                    .replace("; wv", "")
+                    .replace("Version/4.0 ", "");
+                webSettings.setUserAgentString(cleanUserAgent);
+            }
+
+            // Set BridgeWebViewClient override to intercept and handle UPI intent links (upi://, intent://, tez://, phonepe://, paytmmp://)
+            getBridge().getWebView().setWebViewClient(new BridgeWebViewClient(getBridge()) {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    if (request != null && request.getUrl() != null) {
+                        if (handleUpiScheme(request.getUrl())) {
+                            return true;
+                        }
+                    }
+                    return super.shouldOverrideUrlLoading(view, request);
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                    if (url != null) {
+                        if (handleUpiScheme(Uri.parse(url))) {
+                            return true;
+                        }
+                    }
+                    return super.shouldOverrideUrlLoading(view, url);
+                }
+
+                private boolean handleUpiScheme(Uri uri) {
+                    String url = uri.toString();
+                    if (url.startsWith("upi://") || url.startsWith("tez://") || url.startsWith("phonepe://") || url.startsWith("paytmmp://") || url.startsWith("intent://")) {
+                        try {
+                            Intent intent;
+                            if (url.startsWith("intent://")) {
+                                intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
+                            } else {
+                                intent = new Intent(Intent.ACTION_VIEW, uri);
+                            }
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                            return true;
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to launch UPI intent: " + url, e);
+                        }
+                    }
+                    return false;
+                }
+            });
 
             // Add JavaScript bridge to hide/show Android status bar & gesture navigation bar on demand
             getBridge().getWebView().addJavascriptInterface(new Object() {

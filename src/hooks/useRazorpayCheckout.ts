@@ -67,10 +67,27 @@ interface RazorpayOptions {
     color?: string;
     backdrop_color?: string;
   };
+  config?: {
+    display?: {
+      blocks?: Record<string, any>;
+      sequence?: string[];
+      preferences?: {
+        show_default_blocks?: boolean;
+      };
+    };
+  };
+  method?: {
+    upi?: boolean;
+    card?: boolean;
+    netbanking?: boolean;
+    wallet?: boolean;
+    [key: string]: any;
+  };
   handler: (response: RazorpayResponse) => Promise<void>;
   modal?: {
     ondismiss?: () => void;
   };
+  [key: string]: any;
 }
 
 interface RazorpayInstance {
@@ -227,10 +244,37 @@ export function useRazorpayCheckout() {
           prefill: {
             email: user.email || '',
             name: user.displayName || user.name || user.email?.split('@')[0] || '',
+            contact: (user as any).phone || (user as any).user_metadata?.phone || '',
           },
           theme: {
             color: '#E6C15A', // Gold accent
             backdrop_color: 'rgba(0, 0, 0, 0.85)',
+          },
+          method: {
+            upi: true,
+            card: true,
+            netbanking: true,
+            wallet: true,
+          },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: 'Pay using UPI / Popular Apps',
+                  instruments: [
+                    {
+                      method: 'upi',
+                      flows: ['intent', 'qr', 'collect'],
+                      apps: ['google_pay', 'phonepe', 'paytm', 'bhim', 'cred'],
+                    },
+                  ],
+                },
+              },
+              sequence: ['block.upi'],
+              preferences: {
+                show_default_blocks: true,
+              },
+            },
           },
           handler: async function (response: RazorpayResponse) {
             toast.loading('Verifying payment...', { id: 'billing-verify' });

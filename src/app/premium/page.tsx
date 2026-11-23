@@ -647,18 +647,15 @@ function ScholarCrownDemo() {
                 <span className="font-hud text-xs font-bold text-white">
                   Scholar
                 </span>
-                {/* Gold Crown SVG drops in */}
+                {/* Verified Tick Mark drops in */}
                 <span
                   className="inline-flex transition-all duration-500 ease-out"
                   style={{
                     transform: hasDropped ? 'translateY(0)' : 'translateY(-8px)',
                     opacity: hasDropped ? 1 : 0,
-                    filter: hasDropped
-                      ? 'drop-shadow(0 0 6px rgba(255,255,255,0.8))'
-                      : 'none',
                   }}
                 >
-                  <ProCrown size={14} variant="gold" />
+                  <FlairCrown frame="gold" size={14} className="-ml-0.5" />
                 </span>
               </div>
               <span className="text-[9px] font-mono text-white/40">

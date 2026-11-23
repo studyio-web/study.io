@@ -698,7 +698,7 @@ export function AndroidPremiumView({
               <div className="relative w-14 h-14 rounded-full ring-2 ring-[#E6C15A] ring-offset-2 ring-offset-[#0A0A0B] overflow-hidden bg-black shadow-[0_0_18px_rgba(230,193,90,0.35)] flex items-center justify-center">
                 <UserAvatar src={user?.avatarUrl} name={user?.name || 'Scholar'} size={56} />
                 <div className="absolute bottom-0 right-0 p-1 bg-[#141005] border border-[#E6C15A]/60 rounded-full shadow-md flex items-center justify-center">
-                  <ProCrown size={12} variant="gold" />
+                  <FlairCrown frame="gold" size={12} className="-ml-0.5" />
                 </div>
               </div>
               <span className="text-[11px] font-mono text-[#E6C15A] font-semibold">
