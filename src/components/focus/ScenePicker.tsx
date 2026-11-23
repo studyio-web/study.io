@@ -55,15 +55,17 @@ export function ScenePicker({
     ambientVolume,
     selectAtmosphere,
     setVolume: setAtmosphereVolume,
+    preloadAll,
     options: atmosphereOptions,
   } = useAtmosphere();
 
-  // Reset tab when reopened
+  // Reset tab and warm up atmosphere sounds when reopened
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab);
+      preloadAll();
     }
-  }, [isOpen, initialTab]);
+  }, [isOpen, initialTab, preloadAll]);
 
   // Return focus to trigger button when picker closes
   const handleClose = useCallback(() => {

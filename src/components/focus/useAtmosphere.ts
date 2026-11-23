@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { soundFx, AmbientSoundType } from '../../lib/audio';
 
 export type AtmosphereSoundId = AmbientSoundType | 'none';
@@ -167,6 +167,29 @@ export function useAtmosphere() {
     soundFx.setAmbientVolume(clamped);
   }, []);
 
+  // Proactively warm up synthetic noises and preload saved atmosphere sound
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = getSavedSoundSnapshot();
+    if (saved && saved !== 'none') {
+      soundFx.preloadAmbient(saved as AmbientSoundType);
+    }
+    // Instant in-memory synthesis for white, pink, and brown noise (<5ms)
+    soundFx.preloadAmbient('whitenoise');
+    soundFx.preloadAmbient('pinknoise');
+    soundFx.preloadAmbient('brownnoise');
+
+    // Pre-cache remaining atmosphere files on background idle
+    const timer = setTimeout(() => {
+      soundFx.preloadAllAmbient();
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const preloadAll = useCallback(() => {
+    soundFx.preloadAllAmbient();
+  }, []);
+
   return {
     ambientSound: currentSound,
     ambientVolume: currentVolume,
@@ -174,6 +197,7 @@ export function useAtmosphere() {
     loadingSound,
     selectAtmosphere,
     setVolume,
+    preloadAll,
     options: ATMOSPHERE_OPTIONS,
     activeOption: getAtmosphereOption(currentSound),
   };

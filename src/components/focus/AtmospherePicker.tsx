@@ -35,8 +35,16 @@ export function AtmospherePicker({
     loadingSound: ambientLoadingSound,
     selectAtmosphere,
     setVolume,
+    preloadAll,
     options,
   } = useAtmosphere();
+
+  // Warm up and pre-cache soundscapes immediately upon opening picker
+  useEffect(() => {
+    if (isOpen) {
+      preloadAll();
+    }
+  }, [isOpen, preloadAll]);
 
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 

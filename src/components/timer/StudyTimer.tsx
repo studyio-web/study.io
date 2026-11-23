@@ -195,9 +195,16 @@ export function StudyTimer() {
     selectAtmosphere,
     setVolume: setAmbientVolume,
     activeOption: activeAtmosphereOption,
+    preloadAll: preloadAtmosphere,
     options: atmosphereOptions,
   } = useAtmosphere();
   const [isAmbientMenuOpen, setIsAmbientMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (isAmbientMenuOpen) {
+      preloadAtmosphere();
+    }
+  }, [isAmbientMenuOpen, preloadAtmosphere]);
   const [customCountdownInput, setCustomCountdownInput] = useState("");
   const [isEditingCountdown, setIsEditingCountdown] = useState(false);
 
