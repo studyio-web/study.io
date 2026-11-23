@@ -167,17 +167,17 @@ export function useAtmosphere() {
     soundFx.setAmbientVolume(clamped);
   }, []);
 
-  // Proactively warm up synthetic noises and preload saved atmosphere sound
+  // Proactively pre-cache studio atmosphere sounds and noise tracks
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = getSavedSoundSnapshot();
     if (saved && saved !== 'none') {
       soundFx.preloadAmbient(saved as AmbientSoundType);
     }
-    // Instant in-memory synthesis for white, pink, and brown noise (<5ms)
-    soundFx.preloadAmbient('whitenoise');
-    soundFx.preloadAmbient('pinknoise');
+    // Preload brown, pink, and white noise studio recordings into local cache
     soundFx.preloadAmbient('brownnoise');
+    soundFx.preloadAmbient('pinknoise');
+    soundFx.preloadAmbient('whitenoise');
 
     // Pre-cache remaining atmosphere files on background idle
     const timer = setTimeout(() => {

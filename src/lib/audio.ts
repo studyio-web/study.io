@@ -109,6 +109,7 @@ class AudioEngine {
   private loadingAmbientType: AmbientSoundType | null = null;
   private ambientLoadingListeners = new Set<(isLoading: boolean, type: AmbientSoundType | null) => void>();
   private ambientAbortController: AbortController | null = null;
+  private ambientStreamAudio: HTMLAudioElement | null = null;
 
   public onAmbientLoadingChange(fn: (isLoading: boolean, type: AmbientSoundType | null) => void): () => void {
     this.ambientLoadingListeners.add(fn);
@@ -137,67 +138,6 @@ class AudioEngine {
     });
   }
 
-  private isSyntheticNoise(type: AmbientSoundType): boolean {
-    return type === 'whitenoise' || type === 'pinknoise' || type === 'brownnoise';
-  }
-
-  // Instant Web Audio synthesis for white, pink, and brown noise (<5ms generation, 0 bytes network)
-  private generateSyntheticNoise(type: AmbientSoundType, ctx: AudioContext): AudioBuffer {
-    const cacheKey = `synthetic:${type}`;
-    if (this.audioBuffers.has(cacheKey)) {
-      return this.audioBuffers.get(cacheKey)!;
-    }
-
-    const duration = 8;
-    const sampleRate = ctx.sampleRate || 44100;
-    const length = Math.floor(sampleRate * duration);
-    const buffer = ctx.createBuffer(2, length, sampleRate);
-    const fadeSamples = Math.min(4096, Math.floor(sampleRate * 0.08));
-
-    for (let ch = 0; ch < 2; ch++) {
-      const data = buffer.getChannelData(ch);
-
-      if (type === 'whitenoise') {
-        for (let i = 0; i < length; i++) {
-          data[i] = (Math.random() * 2 - 1) * 0.22;
-        }
-      } else if (type === 'pinknoise') {
-        // Paul Kellet 6-pole filter for natural 1/f spectral slope
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-        for (let i = 0; i < length; i++) {
-          const white = Math.random() * 2 - 1;
-          b0 = 0.99886 * b0 + white * 0.0555179;
-          b1 = 0.99332 * b1 + white * 0.0750759;
-          b2 = 0.96900 * b2 + white * 0.1538520;
-          b3 = 0.86650 * b3 + white * 0.3104856;
-          b4 = 0.55000 * b4 + white * 0.5329522;
-          b5 = -0.7616 * b5 - white * 0.0168980;
-          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-          b6 = white * 0.115926;
-        }
-      } else if (type === 'brownnoise') {
-        // Brownian 1/f^2 integrated random walk, deep soothing rumble
-        let lastOut = 0.0;
-        for (let i = 0; i < length; i++) {
-          const white = Math.random() * 2 - 1;
-          lastOut = (lastOut + 0.02 * white) / 1.02;
-          data[i] = lastOut * 3.5;
-        }
-      }
-
-      // Smooth equal-power crossfade at boundary for seamless endless looping
-      for (let i = 0; i < fadeSamples; i++) {
-        const t = i / fadeSamples;
-        const endIdx = length - fadeSamples + i;
-        data[i] = data[i] * t + data[endIdx] * (1 - t);
-        data[endIdx] = data[i];
-      }
-    }
-
-    this.audioBuffers.set(cacheKey, buffer);
-    return buffer;
-  }
-
   private async getAmbientBuffer(ctx: AudioContext, url: string, signal?: AbortSignal): Promise<AudioBuffer> {
     if (this.audioBuffers.has(url)) {
       return this.audioBuffers.get(url)!;
@@ -206,7 +146,7 @@ class AudioEngine {
     // 1. Check persistent CacheStorage for sub-10ms instant disk cache hits
     if (typeof caches !== 'undefined') {
       try {
-        const cache = await caches.open('studyio-ambience-v1');
+        const cache = await caches.open('studyio-ambience-v2');
         const match = await cache.match(url);
         if (match) {
           const arrayBuffer = await match.arrayBuffer();
@@ -227,7 +167,7 @@ class AudioEngine {
       // Persist to CacheStorage asynchronously for instant subsequent loads
       if (typeof caches !== 'undefined') {
         try {
-          const cache = await caches.open('studyio-ambience-v1');
+          const cache = await caches.open('studyio-ambience-v2');
           cache.put(url, response.clone()).catch(() => {});
         } catch {}
       }
@@ -251,14 +191,12 @@ class AudioEngine {
       let effectiveType: AmbientSoundType = type;
       if (type === 'waves' || type === 'lofi') effectiveType = 'calmnoise';
 
-      if (this.isSyntheticNoise(effectiveType)) {
-        this.generateSyntheticNoise(effectiveType, ctx);
-        return;
-      }
-
       const urls: Record<string, string> = {
         'rain': '/audio/ambience/rain.mp3',
         'campfire': '/audio/ambience/fireplace.mp3',
+        'whitenoise': '/audio/ambience/white-noise.mp3',
+        'pinknoise': '/audio/ambience/pink-noise.mp3',
+        'brownnoise': '/audio/ambience/brown-noise.mp3',
         'calmnoise': '/audio/ambience/calm-noise.mp3',
         'starlitpiano': '/audio/ambience/starlit-piano.mp3',
         'zensanctuary': '/audio/ambience/zen-sanctuary.mp3',
@@ -275,18 +213,21 @@ class AudioEngine {
   public preloadAllAmbient(): void {
     if (typeof window === 'undefined') return;
     try {
-      const ctx = this.getContext();
-      // Generate synthetic noises immediately (synchronous ~5ms)
-      (['whitenoise', 'pinknoise', 'brownnoise'] as AmbientSoundType[]).forEach(t => {
-        this.generateSyntheticNoise(t, ctx);
-      });
-
-      // Stagger file preloads
-      const files: AmbientSoundType[] = ['rain', 'campfire', 'calmnoise', 'starlitpiano', 'zensanctuary'];
-      files.forEach((type, idx) => {
+      // Prioritize preloading the 3 noise types first, then nature & music
+      const allFiles: AmbientSoundType[] = [
+        'brownnoise',
+        'pinknoise',
+        'whitenoise',
+        'rain',
+        'campfire',
+        'calmnoise',
+        'starlitpiano',
+        'zensanctuary',
+      ];
+      allFiles.forEach((type, idx) => {
         setTimeout(() => {
           this.preloadAmbient(type);
-        }, 100 + idx * 300);
+        }, 50 + idx * 250);
       });
     } catch {
       // ignore
@@ -346,7 +287,7 @@ class AudioEngine {
       }
 
       // Guard: if already playing this exact type, do not restart to prevent stuttering
-      if (this.currentAmbientType === effectiveType && this.ambientGain && this.ambientSource && !this.isAmbientPaused) {
+      if (this.currentAmbientType === effectiveType && (this.ambientSource || this.ambientStreamAudio) && !this.isAmbientPaused) {
          this.setAmbientVolume(volume);
          return;
       }
@@ -357,17 +298,13 @@ class AudioEngine {
       this.pausedAmbientType = null;
       this.currentAmbientVolume = volume;
 
-      // Instant synthesis for white, pink, and brown noise (<5ms, zero network)
-      if (this.isSyntheticNoise(effectiveType)) {
-        const buffer = this.generateSyntheticNoise(effectiveType, ctx);
-        this.playAmbientBuffer(ctx, buffer, effectiveType, volume);
-        return;
-      }
-
-      // Studio-mastered seamless audio files
+      // Studio-mastered seamless audio files matching user's exact YouTube reference audio
       const urls: Record<string, string> = {
         'rain': '/audio/ambience/rain.mp3',
         'campfire': '/audio/ambience/fireplace.mp3',
+        'whitenoise': '/audio/ambience/white-noise.mp3',
+        'pinknoise': '/audio/ambience/pink-noise.mp3',
+        'brownnoise': '/audio/ambience/brown-noise.mp3',
         'calmnoise': '/audio/ambience/calm-noise.mp3',
         'starlitpiano': '/audio/ambience/starlit-piano.mp3',
         'zensanctuary': '/audio/ambience/zen-sanctuary.mp3',
@@ -384,10 +321,29 @@ class AudioEngine {
         this.ambientAbortController = controller;
 
         const isCached = this.audioBuffers.has(url);
-        if (!isCached) {
-          this.notifyAmbientLoading(true, effectiveType);
+        if (isCached) {
+          const buffer = this.audioBuffers.get(url)!;
+          this.playAmbientBuffer(ctx, buffer, effectiveType, volume);
+          return;
         }
 
+        // Fast streaming startup: start streaming the real studio MP3 on canplay (~100ms) so user never waits
+        this.notifyAmbientLoading(true, effectiveType);
+        const compFactor = this.volumeCompensation[effectiveType] || 1.0;
+        const streamAudio = new Audio(url);
+        streamAudio.loop = true;
+        streamAudio.volume = Math.max(0, Math.min(1, volume * compFactor));
+        this.ambientStreamAudio = streamAudio;
+
+        const onCanPlay = () => {
+          if (this.currentAmbientType === effectiveType && this.ambientStreamAudio === streamAudio && !this.isAmbientPaused) {
+            streamAudio.play().catch(() => {});
+            this.notifyAmbientLoading(false, null);
+          }
+        };
+        streamAudio.addEventListener('canplay', onCanPlay, { once: true });
+
+        // In parallel, load full AudioBuffer into CacheStorage and memory for seamless sample-accurate looping
         let buffer: AudioBuffer;
         try {
           buffer = await this.getAmbientBuffer(ctx, url, controller.signal);
@@ -402,7 +358,15 @@ class AudioEngine {
           }
         }
 
-        this.playAmbientBuffer(ctx, buffer, effectiveType, volume);
+        // If user is still listening to this track, seamlessly switch to pristine AudioBufferSourceNode
+        if (this.currentAmbientType === effectiveType && !this.isAmbientPaused) {
+          this.playAmbientBuffer(ctx, buffer, effectiveType, volume);
+          if (this.ambientStreamAudio === streamAudio) {
+            streamAudio.pause();
+            streamAudio.src = '';
+            this.ambientStreamAudio = null;
+          }
+        }
       }
     } catch (e) {
       this.notifyAmbientLoading(false, null);
@@ -415,9 +379,13 @@ class AudioEngine {
     if (this.isAmbientPaused) {
       this.pausedAmbientVolume = vol;
     }
+    const compFactor = (this.currentAmbientType && this.volumeCompensation[this.currentAmbientType]) || 1.0;
+    const target = Math.max(0, vol * compFactor);
+
+    if (this.ambientStreamAudio) {
+      this.ambientStreamAudio.volume = Math.max(0, Math.min(1, target));
+    }
     if (this.ambientGain && this.ctx && this.currentAmbientType) {
-      const compFactor = this.volumeCompensation[this.currentAmbientType] || 1.0;
-      const target = Math.max(0, vol * compFactor);
       this.ambientGain.gain.cancelScheduledValues(this.ctx.currentTime);
       this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, this.ctx.currentTime);
       this.ambientGain.gain.linearRampToValueAtTime(target, this.ctx.currentTime + 0.1);
@@ -430,7 +398,7 @@ class AudioEngine {
 
   public pauseAmbient() {
     // If not playing and not having a current ambient, check saved preference
-    if (!this.currentAmbientType && !this.ambientGain) {
+    if (!this.currentAmbientType && !this.ambientGain && !this.ambientStreamAudio) {
       if (typeof window !== 'undefined') {
         try {
           const saved = localStorage.getItem('studyio-atmosphere-sound');
@@ -454,6 +422,10 @@ class AudioEngine {
       this.ambientAbortController = null;
     }
     this.notifyAmbientLoading(false, null);
+
+    if (this.ambientStreamAudio) {
+      this.ambientStreamAudio.pause();
+    }
 
     if (this.ambientGain && this.ctx) {
       try {
@@ -990,6 +962,16 @@ class AudioEngine {
       this.ambientAbortController = null;
     }
     this.notifyAmbientLoading(false, null);
+
+    if (this.ambientStreamAudio) {
+      try {
+        this.ambientStreamAudio.pause();
+        this.ambientStreamAudio.src = '';
+      } catch {
+        // ignore
+      }
+      this.ambientStreamAudio = null;
+    }
 
     if (this.ambientGain && this.ctx) {
       try {
