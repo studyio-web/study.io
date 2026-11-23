@@ -1252,13 +1252,13 @@ CREATE POLICY "Hosts can update their own study rooms"
                       return (
                         <div
                           key={room.id}
-                          onClick={() => handleJoinClick(room)}
+                          onClick={isMember ? () => setActiveRoomId(room.id) : undefined}
                           onPointerDown={() => prefetchRoomsMembers([room])}
-                          className={`relative w-full overflow-hidden transition-colors duration-150 cursor-pointer border-l-2 ${isHost
-                              ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06]'
+                          className={`relative w-full overflow-hidden transition-colors duration-150 border-l-2 ${isHost
+                              ? 'border-l-[var(--accent)] bg-fg/[0.04] hover:bg-fg/[0.06] cursor-pointer'
                               : isMember
-                                ? 'border-l-emerald-400 bg-fg/[0.02] hover:bg-fg/[0.05]'
-                                : 'border-l-transparent hover:bg-fg/[0.02]'
+                                ? 'border-l-emerald-400 bg-fg/[0.02] hover:bg-fg/[0.05] cursor-pointer'
+                                : 'border-l-transparent hover:bg-fg/[0.01]'
                             }`}
                         >
                           {/* Mobile Card (< sm) */}
