@@ -60,6 +60,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -84,6 +85,7 @@ const websiteJsonLd = {
   "name": "study.io",
   "alternateName": ["study io", "StudyIO"],
   "url": "https://studyio-web.vercel.app/",
+  "image": "https://studyio-web.vercel.app/logo.png",
 };
 
 const inlineSwScript = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});});}`;
@@ -105,6 +107,7 @@ export default function RootLayout({
         <meta name="theme-color" id="theme-color-meta" content="#050507" />
         <meta name="color-scheme" id="color-scheme-meta" content={DEFAULT_THEME.scheme} />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />

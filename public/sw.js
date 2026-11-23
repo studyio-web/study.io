@@ -1,14 +1,14 @@
 /**
- * study.io Service Worker (v4)
+ * study.io Service Worker (v5)
  * - Offline App Shell & Static Asset Caching
  * - Android WebView Airplane Mode Support
  * - Background Timer Tracking & Persistent Notifications
  * - Versioned Cache Purging & Skip Waiting Update Cycle
  */
 
-const SHELL_CACHE_NAME  = 'studyio-shell-v4';
-const STATIC_CACHE_NAME = 'studyio-static-v4';
-const API_CACHE_NAME    = 'studyio-api-v4';
+const SHELL_CACHE_NAME  = 'studyio-shell-v5';
+const STATIC_CACHE_NAME = 'studyio-static-v5';
+const API_CACHE_NAME    = 'studyio-api-v5';
 
 const CURRENT_CACHES = [SHELL_CACHE_NAME, STATIC_CACHE_NAME, API_CACHE_NAME];
 
