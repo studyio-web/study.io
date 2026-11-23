@@ -59,14 +59,14 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico?v=3", sizes: "48x48", type: "image/x-icon" },
+      { url: "/favicon.svg?v=3", type: "image/svg+xml" },
+      { url: "/icon-192.png?v=3", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png?v=3", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/favicon.ico?v=3",
     apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-touch-icon.png?v=3", sizes: "180x180", type: "image/png" },
     ],
   },
   appleWebApp: {
@@ -82,10 +82,19 @@ export const metadata: Metadata = {
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": "https://studyio-web.vercel.app/#website",
   "name": "study.io",
-  "alternateName": ["study io", "StudyIO"],
+  "alternateName": ["study.io", "Study.io", "studyio", "StudyIO", "Study.io Web"],
   "url": "https://studyio-web.vercel.app/",
   "image": "https://studyio-web.vercel.app/logo.png",
+  "publisher": {
+    "@type": "Organization",
+    "name": "study.io",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://studyio-web.vercel.app/logo.png"
+    }
+  }
 };
 
 const inlineSwScript = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});});}`;
@@ -106,11 +115,14 @@ export default function RootLayout({
       <head>
         <meta name="theme-color" id="theme-color-meta" content="#050507" />
         <meta name="color-scheme" id="color-scheme-meta" content={DEFAULT_THEME.scheme} />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <meta name="application-name" content="study.io" />
+        <meta property="og:site_name" content="study.io" />
+        <meta name="site_name" content="study.io" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=3" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=3" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

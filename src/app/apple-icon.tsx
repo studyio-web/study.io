@@ -16,7 +16,7 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#0F172A',
+          backgroundColor: '#0D1117',
           borderRadius: 40,
           border: '4px solid #1E293B',
         }}
@@ -29,8 +29,8 @@ export default function AppleIcon() {
         >
           <path
             d="M32 20C27 16 19 16.5 16 18V44C19 42.5 27 42 32 46C37 42 45 42.5 48 44V18C45 16.5 37 16 32 20Z"
-            stroke="#94A3B8"
-            strokeWidth="3.5"
+            stroke="#FFFFFF"
+            strokeWidth="3.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -40,10 +40,10 @@ export default function AppleIcon() {
             x2="32"
             y2="46"
             stroke="#10B981"
-            strokeWidth="3.5"
+            strokeWidth="3.8"
             strokeLinecap="round"
           />
-          <circle cx="32" cy="14" r="3.75" fill="#10B981" />
+          <circle cx="32" cy="13.5" r="3.8" fill="#10B981" />
         </svg>
       </div>
     ),
