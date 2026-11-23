@@ -33,22 +33,11 @@ interface SparkParticle {
   color: string;
 }
 
-// Cubic bezier evaluator for cubic-bezier(0.22, 1, 0.36, 1) - fast start, graceful settle
-function cubicBezierEase(t: number): number {
+// Smooth cubic ease-out for natural, responsive progress fill
+function easeOutCubic(t: number): number {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
-  const x1 = 0.22, y1 = 1, x2 = 0.36, y2 = 1;
-  let low = 0, high = 1, u = t;
-  for (let i = 0; i < 8; i++) {
-    const oneMinusU = 1 - u;
-    const bx = 3 * oneMinusU * oneMinusU * u * x1 + 3 * oneMinusU * u * u * x2 + u * u * u;
-    if (Math.abs(bx - t) < 0.001) break;
-    if (bx < t) low = u;
-    else high = u;
-    u = (low + high) / 2;
-  }
-  const oneMinusU = 1 - u;
-  return 3 * oneMinusU * oneMinusU * u * y1 + 3 * oneMinusU * u * u * y2 + u * u * u;
+  return 1 - Math.pow(1 - t, 3);
 }
 
 
@@ -154,6 +143,7 @@ export function RankSettlementModal({
   const [animatingRP, setAnimatingRP] = useState(prevRP);
   const [displayedGain, setDisplayedGain] = useState(0);
   const [progressRatio, setProgressRatio] = useState(0);
+  const [isFilling, setIsFilling] = useState(false);
   const [activeBarColor, setActiveBarColor] = useState(
     isRankUp ? getRankTheme(prevRankDetails.tier).accent : getRankTheme(newRankDetails.tier).accent
   );
@@ -229,16 +219,14 @@ export function RankSettlementModal({
       setAnimatingRP(prevRP);
       setDisplayedGain(0);
       setProgressRatio(0);
+      setIsFilling(false);
       setIsBarFlashing(false);
       setPoppedSegment(null);
       setCounterPopped(false);
       setDisplayRank(isRankUp ? prevRankDetails : newRankDetails);
       setActiveBarColor(isRankUp ? getRankTheme(prevRankDetails.tier).accent : getRankTheme(newRankDetails.tier).accent);
       setPunchMode('idle');
-      
-      
       setShatterShards([]);
-      
       return;
     }
 
@@ -257,6 +245,7 @@ export function RankSettlementModal({
       const finalInTier = Math.max(0, newRP - tierMin);
       const needed = Math.max(1, tierMax - tierMin);
       setProgressRatio(Math.min(1, finalInTier / needed));
+      setIsFilling(false);
       setShowTitle(true);
       setShowProgress(true);
       setShowContinue(true);
@@ -278,6 +267,7 @@ export function RankSettlementModal({
     setProgressRatio(initialRatio);
     setAnimatingRP(prevRP);
     setDisplayedGain(0);
+    setIsFilling(false);
 
     // ==========================================
     // STAGE 1: IMPACT MOMENT at ~0.35s (340ms)
@@ -342,36 +332,61 @@ export function RankSettlementModal({
     );
 
     // ==========================================
-    // STAGE 2: TITLE APPEARS at 520ms
+    // STAGE 2: TITLE APPEARS at 500ms
     // ==========================================
     timers.push(
       setTimeout(() => {
         setShowTitle(true);
         setAnimPhase('title');
-      }, 520)
+      }, 500)
     );
 
     // ==========================================
-    // STAGE 3: TIER PROGRESS BAR ANIMATION at 750ms
+    // STAGE 3A: TIER PROGRESS BAR FADES IN at 650ms
+    // Shows user's baseline state before session points deposit
     // ==========================================
     timers.push(
       setTimeout(() => {
         setShowProgress(true);
+      }, 650)
+    );
+
+    // ==========================================
+    // STAGE 3B: TIER PROGRESS BAR ANIMATION at 950ms
+    // Bar is now fully visible and settled; fill begins
+    // ==========================================
+    timers.push(
+      setTimeout(() => {
         setAnimPhase('progress');
 
-        const lastPoppedRef = { current: -1 };
+        if (totalGained <= 0) {
+          // No RP gained this session, settle immediately
+          setDisplayedGain(0);
+          setProgressRatio(initialRatio);
+          setAnimatingRP(newRP);
+          timers.push(
+            setTimeout(() => {
+              setShowContinue(true);
+              setAnimPhase('ready');
+            }, 300)
+          );
+          return;
+        }
+
+        setIsFilling(true);
 
         if (!isRankUp) {
           // Standard single tier fill logic
           const startTime = performance.now();
-          const duration = 1200; // 1.2s smooth roll-up
+          const duration = 1100; // 1.1s smooth roll-up
           const targetInTier = Math.max(0, newRP - prevTierMin);
           const targetRatio = Math.min(1, targetInTier / prevNeeded);
+          const lastPoppedRef = { current: Math.floor(initialRatio / 0.2) };
 
           const runProgress = (now: number) => {
             const elapsed = now - startTime;
             const progress = Math.min(1, elapsed / duration);
-            const ease = cubicBezierEase(progress);
+            const ease = easeOutCubic(progress);
 
             const curRP = Math.round(prevRP + (newRP - prevRP) * ease);
             const curGain = Math.round(totalGained * ease);
@@ -393,6 +408,7 @@ export function RankSettlementModal({
             if (progress < 1) {
               animFrameRef.current = requestAnimationFrame(runProgress);
             } else {
+              setIsFilling(false);
               setAnimatingRP(newRP);
               setDisplayedGain(totalGained);
               setProgressRatio(targetRatio);
@@ -406,7 +422,7 @@ export function RankSettlementModal({
                 setTimeout(() => {
                   setShowContinue(true);
                   setAnimPhase('ready');
-                }, 400)
+                }, 350)
               );
             }
           };
@@ -418,16 +434,17 @@ export function RankSettlementModal({
           // Phase 1: Fill bar from prevRP to 100% of prevTier
           // ==========================================
           const startTime = performance.now();
-          const p1Duration = 800;
+          const p1Duration = 750;
           const targetRatioP1 = 1.0;
           const rpToCap = Math.max(0, prevTierMax - prevRP);
           const totalRPDelta = Math.max(1, newRP - prevRP);
           const p1GainTarget = Math.round(totalGained * (rpToCap / totalRPDelta));
+          const lastPoppedRef = { current: Math.floor(initialRatio / 0.2) };
 
           const runPhase1 = (now: number) => {
             const elapsed = now - startTime;
             const p = Math.min(1, elapsed / p1Duration);
-            const ease = cubicBezierEase(p);
+            const ease = easeOutCubic(p);
 
             const curRP = Math.round(prevRP + rpToCap * ease);
             const curGain = Math.round(p1GainTarget * ease);
@@ -448,6 +465,7 @@ export function RankSettlementModal({
             if (p < 1) {
               animFrameRef.current = requestAnimationFrame(runPhase1);
             } else {
+              setIsFilling(false);
               // 1. Fill bar to 100%
               setAnimatingRP(prevTierMax);
               setDisplayedGain(p1GainTarget);
@@ -496,6 +514,7 @@ export function RankSettlementModal({
                   setIsBarFlashing(false);
                   setPunchMode('idle');
                   setProgressRatio(0);
+                  setIsFilling(true);
 
                   const newTierMin = newRankDetails.minRp;
                   const newTierMax = getMaxRpForTier(newRankDetails.name);
@@ -504,13 +523,13 @@ export function RankSettlementModal({
                   const targetRatioP2 = Math.min(1, remainderRP / newNeeded);
 
                   const p2StartTime = performance.now();
-                  const p2Duration = 800;
+                  const p2Duration = 750;
                   const p2PoppedRef = { current: -1 };
 
                   const runPhase2 = (now2: number) => {
                     const elapsed2 = now2 - p2StartTime;
                     const p2 = Math.min(1, elapsed2 / p2Duration);
-                    const ease2 = cubicBezierEase(p2);
+                    const ease2 = easeOutCubic(p2);
 
                     const curRP2 = Math.round(newTierMin + remainderRP * ease2);
                     const curGain2 = Math.round(p1GainTarget + (totalGained - p1GainTarget) * ease2);
@@ -531,6 +550,7 @@ export function RankSettlementModal({
                     if (p2 < 1) {
                       animFrameRef.current = requestAnimationFrame(runPhase2);
                     } else {
+                      setIsFilling(false);
                       setAnimatingRP(newRP);
                       setDisplayedGain(totalGained);
                       setProgressRatio(targetRatioP2);
@@ -543,7 +563,7 @@ export function RankSettlementModal({
                         setTimeout(() => {
                           setShowContinue(true);
                           setAnimPhase('ready');
-                        }, 400)
+                        }, 350)
                       );
                     }
                   };
@@ -556,8 +576,20 @@ export function RankSettlementModal({
 
           animFrameRef.current = requestAnimationFrame(runPhase1);
         }
-      }, 750)
+      }, 950)
     );
+
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      if (shakeFrameRef.current) {
+        cancelAnimationFrame(shakeFrameRef.current);
+        shakeFrameRef.current = null;
+      }
+    };
   }, [isOpen, data, prevRP, newRP, totalGained, isRankUp, newRankDetails, prevRankDetails, prefersReducedMotion]);
 
   if (!isOpen || !data) return null;
@@ -572,6 +604,7 @@ export function RankSettlementModal({
     ? RANK_TIERS[currentRankIndex + 1]
     : null;
   const nextTierName = nextTier ? nextTier.name.toUpperCase() : 'MAX RANK';
+  const isSparkActive = isFilling && totalGained > 0 && progressRatio > 0.005 && progressRatio < 0.998;
 
 
 
@@ -840,7 +873,7 @@ export function RankSettlementModal({
             EARNED RP BAR: Segmented Pops, Leading Edge Glow & Rolling Counter
             ========================================== */}
         <div
-          className={`w-full max-w-xl transition-all duration-400 mt-5 sm:mt-6 ${
+          className={`w-full max-w-xl transition-all duration-300 mt-5 sm:mt-6 ${
             showProgress ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'
           }`}
         >
@@ -851,10 +884,10 @@ export function RankSettlementModal({
                 TIER PROGRESS
               </span>
               <div className={`inline-flex items-center px-2 py-0.5 rounded ${
-                totalGained > 0
+                displayedGain > 0
                   ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
                   : 'bg-slate-500/10 border border-slate-500/25 text-slate-400'
-              } font-mono font-semibold text-[11px]`}>
+              } font-mono font-semibold text-[11px] transition-colors duration-200`}>
                 +{displayedGain} RP
               </div>
             </div>
@@ -891,9 +924,9 @@ export function RankSettlementModal({
               ))}
             </div>
 
-            {/* Continuous Smooth Cubic Fill Bar */}
+            {/* Continuous Smooth Fill Bar */}
             <div
-              className="h-full rounded-full transition-all duration-75 relative z-0"
+              className="h-full rounded-full relative z-0"
               style={{
                 width: `${Math.min(100, Math.max(0, progressRatio * 100))}%`,
                 background: `linear-gradient(90deg, ${getRankTheme(displayRank.tier).accent}, ${activeBarColor})`,
@@ -901,17 +934,17 @@ export function RankSettlementModal({
                 willChange: 'width',
               }}
             >
-              {/* Bright Leading-Edge Glow Highlight traveling at the fill head */}
-              {progressRatio > 0.01 && progressRatio < 0.999 && (
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white pointer-events-none"
-                  style={{
-                    boxShadow: `0 0 10px #FFFFFF, 0 0 20px ${activeBarColor}, 0 0 30px ${activeBarColor}`,
-                    transform: 'translateX(50%)',
-                    willChange: 'transform',
-                  }}
-                />
-              )}
+              {/* Bright Leading-Edge Spark traveling at the fill head during active animation */}
+              <div
+                className={`absolute right-0 top-0 bottom-0 w-2 rounded-full bg-white pointer-events-none transition-opacity duration-300 ${
+                  isSparkActive ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{
+                  boxShadow: `0 0 8px #FFFFFF, 0 0 16px ${activeBarColor}, 0 0 24px ${activeBarColor}`,
+                  transform: 'translateX(50%)',
+                  willChange: 'transform, opacity',
+                }}
+              />
             </div>
 
             {/* White Flash Overlay (Fired when crossing tier boundary at 100%) */}
