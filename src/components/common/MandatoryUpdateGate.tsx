@@ -205,7 +205,7 @@ export function MandatoryUpdateGate() {
         {/* VirusTotal Verification Trust Indicator */}
         <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-mono text-emerald-400/90">
           <ShieldCheck className="w-3.5 h-3.5 stroke-[2] text-emerald-400" />
-          <span>Verified Safe &bull; 63/64 Clean on VirusTotal</span>
+          <span>Verified Safe &bull; Audited on VirusTotal</span>
         </div>
 
         {/* Installation Instructions */}

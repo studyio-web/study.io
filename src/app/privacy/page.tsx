@@ -75,12 +75,12 @@ export default function PrivacyPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-300 font-sans leading-relaxed">
-                The official Study.io Android APK release has been independently audited and scanned across 64 global antivirus engines on VirusTotal.
+                The official Study.io Android APK release has been independently audited and scanned across global antivirus engines on VirusTotal.
               </p>
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-[11px] font-mono text-slate-400">Scan Result:</span>
+                <span className="text-[11px] font-mono text-slate-400">Scan Status:</span>
                 <span className="text-[11px] font-mono font-bold text-emerald-400 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                  63 / 64 Security Engines Clean (Undetected)
+                  Verified Clean &bull; Undetected
                 </span>
               </div>
             </div>

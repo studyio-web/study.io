@@ -405,7 +405,7 @@ export default function MobileRestrictedPage() {
                 className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
               >
                 <ShieldCheck className="w-3.5 h-3.5 stroke-[2]" />
-                <span>63/64 Clean</span>
+                <span>Verified Clean</span>
               </a>
             </div>
           </div>
@@ -515,7 +515,7 @@ export default function MobileRestrictedPage() {
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span><strong>Independently Audited:</strong> Scanned clean across 63 global security engines on VirusTotal.</span>
+                    <span><strong>Independently Audited:</strong> Verified safe and clean across global antivirus engines on VirusTotal.</span>
                   </div>
                 </div>
               </div>
