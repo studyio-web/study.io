@@ -292,7 +292,7 @@ class AlarmService : Service() {
         val title = if (isBreak) "Break Finished" else "Time's up"
         val content = if (subject.isNotBlank()) "Focus block finished: $subject" else "Your focus session is complete."
 
-        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
+        val contentIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("openAlarm", true)
             putExtra("alarmMode", mode)
@@ -304,7 +304,7 @@ class AlarmService : Service() {
         val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
             (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
 
-        val fullScreenPendingIntent = PendingIntent.getActivity(this, 3001, fullScreenIntent, pendingFlags)
+        val contentPendingIntent = PendingIntent.getActivity(this, 3001, contentIntent, pendingFlags)
 
         // Action: Stop
         val stopIntent = Intent(this, AlarmActionReceiver::class.java).apply {
@@ -321,8 +321,7 @@ class AlarmService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
-            .setContentIntent(fullScreenPendingIntent)
+            .setContentIntent(contentPendingIntent)
             .addAction(0, "Stop", stopPendingIntent)
             .build()
     }

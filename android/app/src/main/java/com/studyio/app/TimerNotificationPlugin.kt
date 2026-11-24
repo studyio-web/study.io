@@ -300,6 +300,7 @@ class TimerNotificationPlugin : Plugin() {
             val id = call.getString("id")
             Log.d(TAG, "cancelAlarm called from plugin: id=$id")
             AlarmScheduler.cancelAlarm(context, id)
+            (activity as? MainActivity)?.clearAlarmWindowFlags()
             call.resolve()
         } catch (e: Exception) {
             Log.e(TAG, "Error in cancelAlarm", e)
@@ -312,6 +313,7 @@ class TimerNotificationPlugin : Plugin() {
         try {
             Log.d(TAG, "stopAlarm called from plugin: stopping AlarmService and clearing ringing state")
             AlarmService.stopAlarmService(context)
+            (activity as? MainActivity)?.clearAlarmWindowFlags()
             call.resolve()
         } catch (e: Exception) {
             Log.e(TAG, "Error in stopAlarm", e)

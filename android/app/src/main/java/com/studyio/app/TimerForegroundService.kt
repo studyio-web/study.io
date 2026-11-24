@@ -1282,7 +1282,6 @@ class TimerForegroundService : Service() {
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(createContentPendingIntent())
-            .setFullScreenIntent(createContentPendingIntent(), true)
 
         try {
             val largeIcon = android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)

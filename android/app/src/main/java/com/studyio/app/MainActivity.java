@@ -107,13 +107,12 @@ public class MainActivity extends BridgeActivity {
         // Lock default app orientation strictly to portrait on launch
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
-        // Enable showing over lock screen and turning screen on when alarm triggers
+        // Ensure MainActivity never bypasses keyguard or displays over device lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
+            setShowWhenLocked(false);
+            setTurnScreenOn(false);
         }
-        getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+        getWindow().clearFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         );
@@ -503,9 +502,10 @@ public class MainActivity extends BridgeActivity {
         isAppInForeground = true;
         lastForegroundTime = System.currentTimeMillis();
 
+        clearAlarmWindowFlags();
+
         if (AlarmService.Companion.isRinging()) {
-            Log.d(TAG, "onResume: AlarmService is actively ringing! Applying lockscreen & wake flags");
-            applyAlarmWindowFlags();
+            Log.d(TAG, "onResume: AlarmService is actively ringing! Dispatching alarm event to WebView");
             dispatchOpenAlarm(
                 AlarmService.Companion.getAlarmMode(),
                 AlarmService.Companion.getAlarmPhase(),
@@ -516,24 +516,24 @@ public class MainActivity extends BridgeActivity {
     }
 
     public void applyAlarmWindowFlags() {
+        clearAlarmWindowFlags();
+    }
+
+    public void clearAlarmWindowFlags() {
         runOnUiThread(() -> {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    setShowWhenLocked(true);
-                    setTurnScreenOn(true);
+                    setShowWhenLocked(false);
+                    setTurnScreenOn(false);
                 }
-                getWindow().addFlags(
+                getWindow().clearFlags(
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
                     WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                 );
-                KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-                if (km != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    km.requestDismissKeyguard(this, null);
-                }
-                Log.d(TAG, "Applied alarm lockscreen, turn-screen-on, and dismiss-keyguard flags");
+                Log.d(TAG, "Ensured MainActivity lockscreen flags are cleared");
             } catch (Exception e) {
-                Log.w(TAG, "Error applying alarm window flags", e);
+                Log.w(TAG, "Error clearing alarm window flags", e);
             }
         });
     }
