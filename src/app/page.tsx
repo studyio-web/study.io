@@ -11,7 +11,6 @@ import { Navbar } from '../components/common/Navbar';
 import { StudyTimer } from '../components/timer/StudyTimer';
 import { IdleCheckModal } from '../components/timer/IdleCheckModal';
 import { IntroductionAndLogin } from '../components/common/IntroductionAndLogin';
-import { LandingPage } from '../components/landing/LandingPage';
 import { XpFloatingNotification } from '../components/gamification/XpFloatingNotification';
 import { SeasonRecapBanner } from '../components/gamification/SeasonRecapBanner';
 import { SeasonResetAlertModal } from '../components/gamification/SeasonResetAlertModal';
@@ -403,22 +402,9 @@ export default function Home() {
     );
   }
 
-  // Not authenticated and no cached state:
-  // Native app (Capacitor) displays direct sign in/up screen
-  if (isNativeApp && !isAuthenticated && !hasCachedUser) {
-    return <IntroductionAndLogin />;
-  }
-
-  // Web visitors (desktop & mobile browser) see the full marketing landing showcase
+  // Not authenticated and no cached state: App cannot be used without logging in!
   if (!isAuthenticated && !hasCachedUser) {
-    return (
-      <>
-        <LandingPage onOpenAuth={() => setIsAuthOpen(true)} />
-        <ErrorBoundary fallbackTitle="Authentication">
-          <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-        </ErrorBoundary>
-      </>
-    );
+    return <IntroductionAndLogin />;
   }
 
   // Authenticated: Full StudyPulse focus dashboard

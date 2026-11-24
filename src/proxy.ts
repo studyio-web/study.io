@@ -67,9 +67,8 @@ export async function proxy(request: NextRequest) {
   }
 
   // 3. Mobile web restriction check:
-  // Standard mobile web browsers without 'StudyIoNativeApp' can view the landing page at / and /privacy,
-  // but direct navigation to app routes redirects to /mobile-restricted
-  if (isMobile && !isNativeApp && pathname !== '/' && pathname !== '/privacy') {
+  // Standard mobile web browsers without 'StudyIoNativeApp' are blocked and redirected to /mobile-restricted
+  if (isMobile && !isNativeApp) {
     return NextResponse.redirect(new URL('/mobile-restricted', request.url));
   }
 
