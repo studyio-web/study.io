@@ -47,6 +47,12 @@ const getInitials = (name: string) => {
   return name.substring(0, 2).toUpperCase();
 };
 
+const normalizeAvatar = (val?: string | null): string => {
+  if (!val) return '';
+  const resolved = resolveAvatarImage(val);
+  return resolved.split('?')[0];
+};
+
 export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: ProfileModalProps) {
   const { user: contextUser, updateProfile } = useAuth();
   const { isPremium, openPremiumModal } = usePremium();
@@ -61,7 +67,11 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
   });
   const [username, setUsername] = useState(() => resolveScholarHandle(user));
   const [dailyGoalHours, setDailyGoalHours] = useState(user.dailyGoalHours);
-  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    const currentResolvedName = resolveScholarName(user);
+    const currentResolvedHandle = resolveScholarHandle(user);
+    return resolveAppAvatar(user.avatarUrl, currentResolvedHandle || currentResolvedName || user.id);
+  });
   
   const [isSaving, setIsSaving] = useState(false);
   const [isVaultOpen, setIsVaultOpen] = useState(false);
@@ -95,7 +105,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
       setDisplayName(newName);
       const uniqueHandle = await generateUniqueHandle(baseHandle);
       setUsername(uniqueHandle);
-      setAvatarUrl(prev => prev || PRESET_AVATARS[0]);
+      setAvatarUrl(prev => prev || resolveAvatarImage(PRESET_AVATARS[0]));
     } finally {
       setIsGeneratingIdentity(false);
     }
@@ -189,11 +199,13 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
         }
       }
 
+      const finalAvatarUrl = resolveAvatarImage(avatarUrl) || avatarUrl || '';
+
       // Call the Server Action instead of direct client-side Supabase updates
       const res = await updateScholarProfile({
         name: displayName.trim(),
         username: cleanedHandle,
-        avatar_url: avatarUrl || '',
+        avatar_url: finalAvatarUrl,
         daily_goal_minutes: Number(dailyGoalHours) // the server action expects daily_goal_minutes, but wait, the local context expects daily_goal_hours. I'll pass dailyGoalHours for now.
       });
 
@@ -207,7 +219,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
         displayName: displayName.trim(),
         username: cleanedHandle,
         dailyGoalHours: Number(dailyGoalHours),
-        avatarUrl: avatarUrl || undefined,
+        avatarUrl: finalAvatarUrl || undefined,
         is_onboarded: true,
         ...(usernameChanged ? { username_updated_at: new Date().toISOString() } : {})
       });
@@ -292,7 +304,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
               >
                 {avatarUrl && isAppAvatar(avatarUrl) ? (
                   <img
-                    src={avatarUrl}
+                    src={resolveAvatarImage(avatarUrl)}
                     alt="Selected Avatar"
                     className="w-full h-full object-cover rounded-full"
                     referrerPolicy="no-referrer"
@@ -322,19 +334,20 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
             <div className="pt-2 mt-2 border-t border-white/5 pb-1 w-full overflow-hidden" data-no-swipe="true">
               <div className="flex items-center justify-between w-full p-1.5 sm:p-2 bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
                 {PRESET_AVATARS.map((url, i) => {
-                  const isActive = avatarUrl === url;
+                  const resolvedPreset = resolveAvatarImage(url);
+                  const isActive = normalizeAvatar(avatarUrl) === normalizeAvatar(url);
                   return (
                     <button
                       type="button"
                       key={i}
-                      onClick={() => setAvatarUrl(url)}
+                      onClick={() => setAvatarUrl(resolvedPreset)}
                       className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center overflow-hidden transition-all shrink-0 cursor-pointer ${
                         isActive
                           ? 'ring-2 ring-amber-500 scale-105 z-10 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
                           : 'border border-white/10 opacity-70 hover:opacity-100 hover:scale-105 hover:border-amber-500/50 hover:bg-amber-500/10'
                       }`}
                     >
-                      <img src={resolveAvatarImage(url)} alt={`Preset ${i}`} loading="lazy" className="w-full h-full object-cover" />
+                      <img src={resolvedPreset} alt={`Preset ${i}`} loading="lazy" className="w-full h-full object-cover" />
                     </button>
                   );
                 })}
@@ -562,7 +575,8 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                 borderColor: i < 6 ? '#C084FC' : '#FDE68A',
                               };
                               const isEpic = meta.rarity === 'Epic';
-                              const isActive = avatarUrl === url || avatarUrl === meta.image;
+                              const resolvedTarget = meta.image || resolveAvatarImage(url);
+                              const isActive = normalizeAvatar(avatarUrl) === normalizeAvatar(resolvedTarget);
                               const isLocked = !isPremium;
 
                               return (
@@ -576,7 +590,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                       openPremiumModal();
                                       return;
                                     }
-                                    setAvatarUrl(url);
+                                    setAvatarUrl(resolvedTarget);
                                     setIsVaultOpen(false);
                                   }}
                                   className={`group aspect-square rounded-xl flex items-center justify-center overflow-hidden cursor-pointer relative transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 hover:-translate-y-[2px] ${
@@ -667,13 +681,14 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
 
                           <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                             {category.avatars.map((url, i) => {
-                              const isActive = avatarUrl === url;
+                              const resolvedUrl = resolveAvatarImage(url);
+                              const isActive = normalizeAvatar(avatarUrl) === normalizeAvatar(resolvedUrl);
                               return (
                                 <button
                                   type="button"
                                   key={i}
                                   onClick={() => {
-                                    setAvatarUrl(url);
+                                    setAvatarUrl(resolvedUrl);
                                     setIsVaultOpen(false);
                                   }}
                                   className={`aspect-square rounded-xl flex items-center justify-center overflow-hidden transition-all cursor-pointer relative border ${
@@ -682,7 +697,7 @@ export function ProfileModal({ isOpen, onClose, user: parentUser, profile }: Pro
                                       : 'border-white/10 bg-white/[0.03] hover:scale-105 hover:border-amber-500/50 hover:bg-amber-500/10'
                                   }`}
                                 >
-                                  <img src={resolveAvatarImage(url)} alt={`Vault ${idx}-${i}`} loading="lazy" className="w-full h-full object-cover" />
+                                  <img src={resolvedUrl} alt={`Vault ${idx}-${i}`} loading="lazy" className="w-full h-full object-cover" />
                                 </button>
                               );
                             })}

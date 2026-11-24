@@ -72,26 +72,52 @@ export const FREE_AVATAR_IMAGE_MAP: Record<string, string> = {
  * Returns the local artwork path for any avatar ID (DiceBear URL or local path).
  * Falls back to the original URL if no local artwork is registered.
  */
-export function resolveAvatarImage(id: string): string {
+export function resolveAvatarImage(id?: string | null): string {
+  if (!id || typeof id !== 'string') return '';
+  const trimmed = id.trim();
+  if (!trimmed) return '';
+
   // Premium collectibles first
-  const premium = PREMIUM_AVATAR_MAP[id];
+  const premium = PREMIUM_AVATAR_MAP[trimmed];
   if (premium) return premium.image;
+
   // Free avatar local artwork map
-  const local = FREE_AVATAR_IMAGE_MAP[id];
+  const local = FREE_AVATAR_IMAGE_MAP[trimmed];
   if (local) return local;
+
+  // Check seed parameter in URL
+  const seedMatch = trimmed.match(/[?&]seed=([^&]+)/);
+  if (seedMatch) {
+    const seed = seedMatch[1];
+    // Check premium by seed
+    for (const c of PREMIUM_COLLECTIBLES) {
+      if (c.id.includes(`seed=${seed}`)) {
+        return c.image;
+      }
+    }
+    // Check free map by seed
+    for (const [key, val] of Object.entries(FREE_AVATAR_IMAGE_MAP)) {
+      if (key.includes(`seed=${seed}`)) {
+        return val;
+      }
+    }
+  }
+
   // Legacy .svg path lookups mapping to .webp?v=3
-  if (id.startsWith('/images/avatars/scholars/') && id.endsWith('.svg')) {
-    const base = id.replace('/images/avatars/scholars/', '').replace('.svg', '');
+  if (trimmed.startsWith('/images/avatars/scholars/') && trimmed.endsWith('.svg')) {
+    const base = trimmed.replace('/images/avatars/scholars/', '').replace('.svg', '');
     return `/images/avatars/scholars/${base}.webp?v=3`;
   }
-  if (id.startsWith('/images/avatars/adventurers/') && id.endsWith('.svg')) {
-    const base = id.replace('/images/avatars/adventurers/', '').replace('.svg', '');
+  if (trimmed.startsWith('/images/avatars/adventurers/') && trimmed.endsWith('.svg')) {
+    const base = trimmed.replace('/images/avatars/adventurers/', '').replace('.svg', '');
     return `/images/avatars/adventurers/${base}.webp?v=3`;
   }
+
   // Passthrough for already-local paths
-  if (id.startsWith('/')) return id;
+  if (trimmed.startsWith('/')) return trimmed;
+
   // Fallback: original DiceBear URL (graceful degradation while artwork is deploying)
-  return id;
+  return trimmed;
 }
 
 export const PRESET_AVATARS = [
@@ -380,29 +406,15 @@ export function getDeterministicDefaultAvatar(identifier?: string): string {
 export function resolveAppAvatar(url?: string | null, seed?: string): string {
   if (url && typeof url === 'string') {
     const trimmed = url.trim();
-    // Clean URL without query params for dictionary lookup
-    const cleanUrl = trimmed.split('?')[0];
-
-    // Premium collectible?
-    if (PREMIUM_AVATAR_MAP[cleanUrl] || PREMIUM_AVATAR_MAP[trimmed]) {
-      return (PREMIUM_AVATAR_MAP[cleanUrl] || PREMIUM_AVATAR_MAP[trimmed]).image;
-    }
-    // Free avatar with local artwork override?
-    if (FREE_AVATAR_IMAGE_MAP[trimmed]) {
-      return FREE_AVATAR_IMAGE_MAP[trimmed];
-    }
-    if (FREE_AVATAR_IMAGE_MAP[cleanUrl]) {
-      return FREE_AVATAR_IMAGE_MAP[cleanUrl];
-    }
-    // Legacy SVG path lookup mapped to webp?v=3
-    if (trimmed.startsWith('/images/avatars/scholars/') || trimmed.startsWith('/images/avatars/adventurers/')) {
-      return resolveAvatarImage(cleanUrl);
-    }
-    // Any other valid in-app avatar (already-local path or unregistered DiceBear)
-    if (isAppAvatar(trimmed)) {
+    if (trimmed.length > 0 && isAppAvatar(trimmed)) {
+      const resolved = resolveAvatarImage(trimmed);
+      if (resolved && resolved.startsWith('/')) {
+        return resolved;
+      }
       return trimmed;
     }
   }
-  return getDeterministicDefaultAvatar(seed);
+  const defaultId = getDeterministicDefaultAvatar(seed);
+  return resolveAvatarImage(defaultId);
 }
 
