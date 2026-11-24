@@ -29,8 +29,8 @@ const chakraPetch = Chakra_Petch({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
   themeColor: "#050507",
 };
@@ -41,20 +41,29 @@ export const metadata: Metadata = {
   title: "study.io - Collaborative Study & Focus Tracker",
   description: "study.io is a modern full-stack collaborative study application with live virtual study rooms, subject tracking, stopwatch/pomodoro timers, daily planner, and in-depth analytics.",
   openGraph: {
-    title: "study.io - Collaborative Study & Focus Tracker",
-    description: "study.io is a modern full-stack collaborative study application with live virtual study rooms, subject tracking, stopwatch/pomodoro timers, daily planner, and in-depth analytics.",
+    title: "study.io - Forge Deeper Focus. Climb the Ranks.",
+    description: "Distraction-free timer engine, monthly 23-tier competitive rank ladder, collaborative virtual study rooms, and on-device app lockdown.",
     url: "https://studyio-web.vercel.app",
     siteName: "study.io",
     locale: "en_US",
     type: "website",
     images: [
       {
-        url: "/logo.png",
+        url: "/images/ranks/bronze-1.png",
         width: 512,
         height: 512,
-        alt: "study.io brand logo",
+        alt: "study.io Forge Crest Badge",
       },
     ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "study.io - Forge Deeper Focus. Climb the Ranks.",
+    description: "Distraction-free timer engine, monthly 23-tier competitive rank ladder, collaborative virtual study rooms, and on-device app lockdown.",
+    images: ["/images/ranks/bronze-1.png"],
+  },
+  alternates: {
+    canonical: "https://studyio-web.vercel.app/",
   },
   manifest: "/manifest.webmanifest",
   icons: {
@@ -95,6 +104,31 @@ const websiteJsonLd = {
       "url": "https://studyio-web.vercel.app/logo.png"
     }
   }
+};
+
+const softwareAppJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "study.io",
+  "applicationCategory": "EducationalApplication, ProductivityApplication",
+  "operatingSystem": "Android, Web, Desktop",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "INR"
+  },
+  "description": "Distraction-free timer engine with Stopwatch, Countdown, and Pomodoro modes, 23 monthly rank tiers, 8 ambient soundscapes, 18 themes, live virtual study rooms, and 100% on-device strict mode lockdown.",
+  "featureList": [
+    "Three Timer Modes: Stopwatch, 24-hour Countdown, and Pomodoro with audible alarms",
+    "23-Tier Competitive Monthly Ranked Ladder with soft-reset carryover and Season Recap cards",
+    "100% On-Device Strict Mode and Reels & Shorts Blocker",
+    "Live Virtual Collaborative Study Rooms with Presence and Synchronous Cycles",
+    "8 Multi-channel Ambient Soundscapes with per-sound mixing",
+    "18 Themes and 30 App-Native Avatars",
+    "Offline Outbox sync for recording sessions without active internet"
+  ],
+  "screenshot": "https://studyio-web.vercel.app/images/ranks/bronze-1.png",
+  "url": "https://studyio-web.vercel.app/"
 };
 
 const inlineSwScript = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});});}`;
@@ -143,6 +177,12 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteJsonLd),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(softwareAppJsonLd),
           }}
         />
       </head>
