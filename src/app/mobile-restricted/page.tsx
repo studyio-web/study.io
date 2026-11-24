@@ -135,8 +135,6 @@ export default function MobileRestrictedPage() {
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const touchStartYRef = useRef<number | null>(null);
 
-  const versionString = 'Android, v2.5 (Latest)';
-
   // Ensure page loads scrolled to top
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -231,19 +229,11 @@ export default function MobileRestrictedPage() {
               study.io
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/privacy"
-              className="text-xs font-mono px-2.5 py-1 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white transition-colors"
-            >
-              Privacy Policy
-            </Link>
-            {!isNativeApp && (
-              <span className="text-xs font-sans px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/10 text-slate-400">
-                Android
-              </span>
-            )}
-          </div>
+          {!isNativeApp && (
+            <span className="text-xs font-sans px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/10 text-slate-300">
+              Android app
+            </span>
+          )}
         </header>
 
         {/* Hero Visual: CSS Phone frame (approx 38svh tall, 6 deg tilt, 8px float) */}
@@ -368,10 +358,10 @@ export default function MobileRestrictedPage() {
           </button>
 
           <Link
-            href="/privacy"
+            href="/"
             className="text-xs text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1 py-1 font-sans"
           >
-            <span>Privacy Policy</span>
+            <span>Use on desktop</span>
             <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
           </Link>
         </div>
@@ -399,18 +389,6 @@ export default function MobileRestrictedPage() {
               <Download className="w-5 h-5 stroke-[2.5]" />
               <span>Download for Android</span>
             </a>
-
-            {/* Under button version string & verified status */}
-            <div className="flex items-center gap-2.5">
-              <span className="text-[11px] font-mono text-slate-400 tracking-tight">
-                {versionString}
-              </span>
-              <span className="text-white/20 text-[10px]">•</span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400">
-                <ShieldCheck className="w-3.5 h-3.5 stroke-[2]" />
-                <span>Verified Safe</span>
-              </span>
-            </div>
           </div>
         </footer>
       )}
