@@ -18,6 +18,7 @@ import { NativeFeelBridge } from './NativeFeelBridge';
 import { PushNotificationBridge } from './PushNotificationBridge';
 import { SingleTabGuard } from './SingleTabGuard';
 import { UpdatePrompt } from './UpdatePrompt';
+import { MandatoryUpdateGate } from './MandatoryUpdateGate';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -43,6 +44,8 @@ export function Providers({ children }: { children: ReactNode }) {
                         <SingleTabGuard />
                         {/* Service Worker Update Prompt */}
                         <UpdatePrompt />
+                        {/* Mandatory Android App Version Gate */}
+                        <MandatoryUpdateGate />
                         {children}
                       </RankProvider>
                     </TimetableProvider>

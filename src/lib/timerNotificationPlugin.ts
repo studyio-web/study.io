@@ -162,5 +162,8 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
 export const TimerNotification = NativeTimerNotification;
 
 export function isNativeAndroid(): boolean {
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+  if (typeof window === 'undefined') return false;
+  const isCapacitorNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+  const isUserAgentNative = Boolean(typeof navigator !== 'undefined' && navigator?.userAgent && /StudyIoNativeApp/i.test(navigator.userAgent));
+  return isCapacitorNative || isUserAgentNative;
 }
