@@ -2528,9 +2528,9 @@ export function StudyTimer() {
           )}
         </div>
 
-        {/* Timer Alarm Toggle Button (Countdown & Pomodoro) - positioned between Dial and Primary Button Stack */}
-        {(timerMode === 'countdown' || timerMode === 'pomodoro') && !isCountdownCompleted && !pomodoroCompletedPhase && (
-          <div className="flex items-center justify-center mb-1.5 z-10">
+        {/* Timer Alarm Toggle Button (Countdown & Pomodoro) - positioned between Dial and Primary Button Stack with static height reservation */}
+        <div className="flex items-center justify-center h-9 mb-1.5 z-10">
+          {(timerMode === 'countdown' || timerMode === 'pomodoro') && !isCountdownCompleted && !pomodoroCompletedPhase ? (
             <button
               type="button"
               onClick={() => {
@@ -2560,8 +2560,10 @@ export function StudyTimer() {
                 <BellOff className="w-4 h-4 text-[var(--text-dim)] shrink-0" />
               )}
             </button>
-          </div>
-        )}
+          ) : (
+            <div className="w-9 h-9 invisible pointer-events-none" aria-hidden="true" />
+          )}
+        </div>
 
         {/* 4. Primary Button Stack */}
         <div className="w-full flex items-center justify-center mt-1.5 mb-2.5">

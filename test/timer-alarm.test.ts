@@ -373,5 +373,6 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     assert.ok(betweenDialAndButtonCode.includes('isAlarmEnabled'), 'Alarm toggle button must be located between dial and start session button');
     assert.ok(betweenDialAndButtonCode.includes('timerMode === \'countdown\' || timerMode === \'pomodoro\''), 'Alarm button must appear for countdown and pomodoro modes');
     assert.ok(betweenDialAndButtonCode.includes('Bell') && betweenDialAndButtonCode.includes('BellOff'), 'Alarm button must switch between Bell and BellOff icons based on state');
+    assert.ok(betweenDialAndButtonCode.includes('h-9 mb-1.5'), 'Alarm button container must have static height reservation to prevent dial vertical layout shift');
   });
 });
