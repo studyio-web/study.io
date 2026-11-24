@@ -163,7 +163,7 @@ export function MandatoryUpdateGate() {
         <div className="relative mb-5 flex items-center justify-center">
           <div className="absolute -inset-2 rounded-3xl bg-amber-500/20 blur-md animate-pulse" />
           <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1A1813] to-[#0D0C0A] border border-amber-500/40 flex items-center justify-center shadow-2xl">
-            <Logo size="md" showText={false} />
+            <Logo className="w-8 h-8" />
           </div>
         </div>
 
