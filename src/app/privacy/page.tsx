@@ -128,7 +128,7 @@ export default function PrivacyPage() {
             4. Data Stored with Your Account
           </h2>
           <p className="text-sm leading-relaxed text-slate-300">
-            When you create an account to synchronize your progress across devices, only your core study metrics are saved to our secure database (Supabase PostgreSQL):
+            When you create an account to synchronize your progress across devices, only your core study metrics are saved to our secure, encrypted cloud database:
           </p>
           <ul className="list-disc pl-5 space-y-1.5 text-sm text-slate-300">
             <li>Your account identifier (email address and account UUID).</li>
