@@ -342,7 +342,7 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     assert.equal(alarmRung, true, 'Enabled alarm rings on completion');
   });
 
-  it('guarantees alarm button is located in the top mode selector header and auxiliary controls row fits mobile screens without clipping', () => {
+  it('guarantees alarm button is located between dial and start session button and auxiliary controls row fits mobile screens without clipping', () => {
     // Read StudyTimer component source to assert layout architecture contracts
     const fs = require('fs');
     const path = require('path');
@@ -359,13 +359,19 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     // 2. Auxiliary controls row must allow flex-wrap so mobile screens never clip Atmosphere, Focus, or Strict buttons
     assert.ok(auxiliaryRowCode.includes('flex-wrap'), 'Auxiliary controls row must include flex-wrap for mobile responsiveness');
 
-    // 3. Alarm toggle button must be present in the top mode selector header (section 1)
-    const topModeHeaderMatch = studyTimerSource.match(/\{\/\* 1\. Mode selector & Alarm button \*\/\}[\s\S]*?\{\/\* 2\. Subject chip/);
-    assert.ok(topModeHeaderMatch, 'Top mode selector & Alarm header must exist');
+    // 3. Alarm toggle button must NOT be in the top mode selector header (section 1) to avoid crowding on mobile
+    const topModeHeaderMatch = studyTimerSource.match(/\{\/\* 1\. Mode selector[\s\S]*?\{\/\* 2\. Subject chip/);
+    assert.ok(topModeHeaderMatch, 'Top mode selector header must exist');
     const topModeHeaderCode = topModeHeaderMatch[0];
+    assert.ok(!topModeHeaderCode.includes('isAlarmEnabled'), 'Alarm toggle button must NOT be located in the top mode header');
 
-    assert.ok(topModeHeaderCode.includes('isAlarmEnabled'), 'Alarm toggle button must be located in the top mode header');
-    assert.ok(topModeHeaderCode.includes('timerMode === \'countdown\' || timerMode === \'pomodoro\''), 'Alarm button must appear for countdown and pomodoro modes');
-    assert.ok(topModeHeaderCode.includes('Bell') && topModeHeaderCode.includes('BellOff'), 'Alarm button must switch between Bell and BellOff icons based on state');
+    // 4. Alarm toggle button must be located between the dial and primary button stack
+    const betweenDialAndButtonMatch = studyTimerSource.match(/\{\/\* 3\. The Dial[\s\S]*?\{\/\* 4\. Primary Button Stack/);
+    assert.ok(betweenDialAndButtonMatch, 'Section between dial and primary button stack must exist');
+    const betweenDialAndButtonCode = betweenDialAndButtonMatch[0];
+
+    assert.ok(betweenDialAndButtonCode.includes('isAlarmEnabled'), 'Alarm toggle button must be located between dial and start session button');
+    assert.ok(betweenDialAndButtonCode.includes('timerMode === \'countdown\' || timerMode === \'pomodoro\''), 'Alarm button must appear for countdown and pomodoro modes');
+    assert.ok(betweenDialAndButtonCode.includes('Bell') && betweenDialAndButtonCode.includes('BellOff'), 'Alarm button must switch between Bell and BellOff icons based on state');
   });
 });
