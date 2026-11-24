@@ -389,6 +389,18 @@ export default function MobileRestrictedPage() {
               <Download className="w-5 h-5 stroke-[2.5]" />
               <span>Download for Android</span>
             </a>
+
+            {/* Terms and Privacy Policy Note */}
+            <p className="text-[11px] text-slate-500 text-center leading-normal pt-0.5">
+              By continuing, you agree to our Terms and{' '}
+              <Link
+                href="/privacy"
+                className="text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
         </footer>
       )}
@@ -526,7 +538,7 @@ export default function MobileRestrictedPage() {
 
             {/* Sheet Footer: Repeats Solid White Download Button */}
             {!isNativeApp && (
-              <div className="p-4 border-t border-white/[0.08] bg-[#0B0D13] shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+              <div className="p-4 border-t border-white/[0.08] bg-[#0B0D13] shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] flex flex-col items-center gap-2">
                 <a
                   href={LATEST_APK_CDN_URL}
                   target="_blank"
@@ -541,6 +553,18 @@ export default function MobileRestrictedPage() {
                   <Download className="w-4 h-4 stroke-[2.5]" />
                   <span>Download for Android</span>
                 </a>
+
+                {/* Terms and Privacy Policy Note */}
+                <p className="text-[11px] text-slate-500 text-center leading-normal">
+                  By continuing, you agree to our Terms and{' '}
+                  <Link
+                    href="/privacy"
+                    className="text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors cursor-pointer"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
               </div>
             )}
           </div>
