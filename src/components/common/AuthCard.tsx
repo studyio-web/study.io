@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '../../lib/supabase';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -155,7 +156,14 @@ export function AuthCard({ onSuccess, isModal = false, className = '' }: AuthCar
 
       {/* Compact Muted Terms & Privacy Note */}
       <p className="mt-3.5 text-[11px] text-slate-500 text-center leading-normal relative z-10">
-        By continuing, you agree to our Terms and Privacy Policy.
+        By continuing, you agree to our Terms and{' '}
+        <Link
+          href="/privacy"
+          className="text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors cursor-pointer"
+        >
+          Privacy Policy
+        </Link>
+        .
       </p>
     </div>
   );

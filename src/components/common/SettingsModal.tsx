@@ -20,6 +20,7 @@ import {
   Compass,
   HelpCircle,
   Vibrate,
+  ArrowUpRight,
 } from 'lucide-react';
 import { ProCrown } from './ProCrown';
 import { isHapticsEnabled, setHapticsEnabled, hapticMedium } from '@/lib/haptics';
@@ -547,6 +548,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </form>
             </div>
           )}
+
+          {/* Section: Privacy & Security Charter */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-md flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <div>
+                <div className="text-xs font-hud font-bold tracking-wider text-white uppercase">Privacy &amp; Security Charter</div>
+                <div className="text-[11px] text-[var(--text-dim)] font-mono">100% on-device blocking &bull; Zero telemetry tracking</div>
+              </div>
+            </div>
+
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-200 text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <span>View Policy</span>
+              <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
+            </a>
+          </div>
 
           {/* Section 4: High-Security Danger Zone (Delete Account) */}
           <div className="p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/20 backdrop-blur-md space-y-3">

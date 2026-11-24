@@ -231,11 +231,19 @@ export default function MobileRestrictedPage() {
               study.io
             </span>
           </div>
-          {!isNativeApp && (
-            <span className="text-xs font-sans px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/10 text-slate-300">
-              Android app
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/privacy"
+              className="text-xs font-mono px-2.5 py-1 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white transition-colors"
+            >
+              Privacy Policy
+            </Link>
+            {!isNativeApp && (
+              <span className="text-xs font-sans px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/10 text-slate-400">
+                Android
+              </span>
+            )}
+          </div>
         </header>
 
         {/* Hero Visual: CSS Phone frame (approx 38svh tall, 6 deg tilt, 8px float) */}
@@ -360,10 +368,10 @@ export default function MobileRestrictedPage() {
           </button>
 
           <Link
-            href="/"
+            href="/privacy"
             className="text-xs text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1 py-1 font-sans"
           >
-            <span>Use on desktop</span>
+            <span>Privacy Policy</span>
             <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
           </Link>
         </div>

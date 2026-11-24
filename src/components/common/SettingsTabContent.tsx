@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Trophy,
   Vibrate,
+  ArrowUpRight,
 } from 'lucide-react';
 import { ProCrown } from './ProCrown';
 import { isHapticsEnabled, setHapticsEnabled, hapticMedium } from '@/lib/haptics';
@@ -281,6 +282,27 @@ export function SettingsTabContent() {
             }`}
           />
         </button>
+      </div>
+
+      {/* Section: Privacy & Security Charter */}
+      <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <div>
+            <div className="text-xs font-hud font-bold tracking-wider text-white uppercase">Privacy &amp; Security Charter</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">100% on-device blocking &bull; Zero telemetry tracking</div>
+          </div>
+        </div>
+
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-200 text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+        >
+          <span>View Policy</span>
+          <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
+        </a>
       </div>
 
       {/* Security & Danger Zone */}
