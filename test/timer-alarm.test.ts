@@ -342,37 +342,37 @@ describe('Timer Alarm Specification (Countdown, Ultra Strict & Pomodoro)', () =>
     assert.equal(alarmRung, true, 'Enabled alarm rings on completion');
   });
 
-  it('guarantees alarm button is located between dial and start session button and auxiliary controls row fits mobile screens without clipping', () => {
+  it('guarantees alarm button is located in the auxiliary controls row on PC and between dial and start session on mobile', () => {
     // Read StudyTimer component source to assert layout architecture contracts
     const fs = require('fs');
     const path = require('path');
     const studyTimerSource = fs.readFileSync(path.resolve(__dirname, '../src/components/timer/StudyTimer.tsx'), 'utf-8');
 
-    // 1. Alarm toggle button must NOT be inside the auxiliary controls row (section 5)
+    // 1. Auxiliary controls row (section 5) must contain the PC-only alarm button
     const auxiliaryRowMatch = studyTimerSource.match(/\{\/\* 5\. Sleek Row of Auxiliary Control Buttons \*\/\}[\s\S]*?\{\/\* 6\. Today total/);
     assert.ok(auxiliaryRowMatch, 'Auxiliary control buttons row must exist');
     const auxiliaryRowCode = auxiliaryRowMatch[0];
 
-    assert.ok(!auxiliaryRowCode.includes('isAlarmEnabled'), 'Alarm toggle must NOT be placed in the auxiliary controls row');
-    assert.ok(!auxiliaryRowCode.includes('saveTimerAlarmEnabled'), 'Alarm save action must NOT be in the auxiliary controls row');
+    assert.ok(auxiliaryRowCode.includes('hidden sm:inline-flex'), 'Auxiliary controls row must contain the PC-only alarm button (hidden on mobile, visible on PC)');
+    assert.ok(auxiliaryRowCode.includes('isAlarmEnabled'), 'PC alarm button must read isAlarmEnabled state');
+    assert.ok(auxiliaryRowCode.includes('Alarm: ON') && auxiliaryRowCode.includes('Alarm: OFF'), 'PC alarm button must display readable Alarm: ON / Alarm: OFF state');
+    assert.ok(auxiliaryRowCode.includes('flex-wrap'), 'Auxiliary controls row must include flex-wrap for responsiveness');
 
-    // 2. Auxiliary controls row must allow flex-wrap so mobile screens never clip Atmosphere, Focus, or Strict buttons
-    assert.ok(auxiliaryRowCode.includes('flex-wrap'), 'Auxiliary controls row must include flex-wrap for mobile responsiveness');
-
-    // 3. Alarm toggle button must NOT be in the top mode selector header (section 1) to avoid crowding on mobile
+    // 2. Alarm toggle button must NOT be in the top mode selector header (section 1) to avoid crowding
     const topModeHeaderMatch = studyTimerSource.match(/\{\/\* 1\. Mode selector[\s\S]*?\{\/\* 2\. Subject chip/);
     assert.ok(topModeHeaderMatch, 'Top mode selector header must exist');
     const topModeHeaderCode = topModeHeaderMatch[0];
     assert.ok(!topModeHeaderCode.includes('isAlarmEnabled'), 'Alarm toggle button must NOT be located in the top mode header');
 
-    // 4. Alarm toggle button must be located between the dial and primary button stack
+    // 3. Mobile alarm toggle button must be located between the dial and primary button stack (hidden on PC)
     const betweenDialAndButtonMatch = studyTimerSource.match(/\{\/\* 3\. The Dial[\s\S]*?\{\/\* 4\. Primary Button Stack/);
     assert.ok(betweenDialAndButtonMatch, 'Section between dial and primary button stack must exist');
     const betweenDialAndButtonCode = betweenDialAndButtonMatch[0];
 
-    assert.ok(betweenDialAndButtonCode.includes('isAlarmEnabled'), 'Alarm toggle button must be located between dial and start session button');
+    assert.ok(betweenDialAndButtonCode.includes('flex sm:hidden'), 'Middle alarm button must be hidden on PC and visible on mobile');
+    assert.ok(betweenDialAndButtonCode.includes('isAlarmEnabled'), 'Mobile alarm toggle button must read isAlarmEnabled');
     assert.ok(betweenDialAndButtonCode.includes('timerMode === \'countdown\' || timerMode === \'pomodoro\''), 'Alarm button must appear for countdown and pomodoro modes');
     assert.ok(betweenDialAndButtonCode.includes('Bell') && betweenDialAndButtonCode.includes('BellOff'), 'Alarm button must switch between Bell and BellOff icons based on state');
-    assert.ok(betweenDialAndButtonCode.includes('h-9 mb-1.5'), 'Alarm button container must have static height reservation to prevent dial vertical layout shift');
+    assert.ok(betweenDialAndButtonCode.includes('h-9 mb-1.5'), 'Mobile alarm button container must have static height reservation to prevent dial vertical layout shift');
   });
 });

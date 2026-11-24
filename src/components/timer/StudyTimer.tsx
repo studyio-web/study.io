@@ -2059,6 +2059,21 @@ export function StudyTimer() {
     };
   }, [handleSnoozeAlarm, handleSaveAndContinueFromAlarm, selectedSubject?.name, countdownTarget]);
 
+  // Unified Alarm toggle handler
+  const handleToggleAlarm = useCallback(() => {
+    triggerHaptic('light');
+    const next = !isAlarmEnabled;
+    setIsAlarmEnabled(next);
+    saveTimerAlarmEnabled(next);
+    if (!next) {
+      soundFx.stopTimerAlarm();
+      if (isNativeAndroid()) {
+        TimerNotification.cancelAlarm().catch(() => { });
+        TimerNotification.stopAlarm().catch(() => { });
+      }
+    }
+  }, [isAlarmEnabled, triggerHaptic, soundFx]);
+
   // Filtered sessions for Today (browser-local timezone)
   const todaySessions = useMemo(() => {
     return sessions.filter(s => {
@@ -2528,24 +2543,12 @@ export function StudyTimer() {
           )}
         </div>
 
-        {/* Timer Alarm Toggle Button (Countdown & Pomodoro) - positioned between Dial and Primary Button Stack with static height reservation */}
-        <div className="flex items-center justify-center h-9 mb-1.5 z-10">
+        {/* Timer Alarm Toggle Button (Mobile: positioned between Dial and Primary Button Stack with static height reservation) */}
+        <div className="flex sm:hidden items-center justify-center h-9 mb-1.5 z-10">
           {(timerMode === 'countdown' || timerMode === 'pomodoro') && !isCountdownCompleted && !pomodoroCompletedPhase ? (
             <button
               type="button"
-              onClick={() => {
-                triggerHaptic('light');
-                const next = !isAlarmEnabled;
-                setIsAlarmEnabled(next);
-                saveTimerAlarmEnabled(next);
-                if (!next) {
-                  soundFx.stopTimerAlarm();
-                  if (isNativeAndroid()) {
-                    TimerNotification.cancelAlarm().catch(() => { });
-                    TimerNotification.stopAlarm().catch(() => { });
-                  }
-                }
-              }}
+              onClick={handleToggleAlarm}
               className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
                 isAlarmEnabled
                   ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
@@ -2946,6 +2949,28 @@ export function StudyTimer() {
             <Maximize2 className="w-3.5 h-3.5 shrink-0" />
             <span>Focus</span>
           </button>
+
+          {/* Timer Alarm Toggle Button (PC / Desktop only - positioned alongside Atmosphere and Focus) */}
+          {(timerMode === 'countdown' || timerMode === 'pomodoro') && !isCountdownCompleted && !pomodoroCompletedPhase && (
+            <button
+              type="button"
+              onClick={handleToggleAlarm}
+              className={`hidden sm:inline-flex h-8 items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-all cursor-pointer select-none whitespace-nowrap shrink-0 active:scale-95 ${
+                isAlarmEnabled
+                  ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 font-medium shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                  : 'border-fg/[0.08] bg-fg/[0.03] hover:bg-fg/[0.06] text-[var(--text-dim)] hover:text-[var(--text)]'
+              }`}
+              title={isAlarmEnabled ? 'Timer Alarm: ON (Click to turn off)' : 'Timer Alarm: OFF (Click to turn on)'}
+              aria-label={isAlarmEnabled ? 'Timer Alarm: ON' : 'Timer Alarm: OFF'}
+            >
+              {isAlarmEnabled ? (
+                <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5 text-[var(--text-dim)] shrink-0" />
+              )}
+              <span>{isAlarmEnabled ? 'Alarm: ON' : 'Alarm: OFF'}</span>
+            </button>
+          )}
 
           {/* Strict Mode Button (Strictly Native Android Only) */}
           {isAndroid && (
