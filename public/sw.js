@@ -6,9 +6,9 @@
  * - Versioned Cache Purging & Skip Waiting Update Cycle
  */
 
-const SHELL_CACHE_NAME  = 'studyio-shell-v5';
-const STATIC_CACHE_NAME = 'studyio-static-v5';
-const API_CACHE_NAME    = 'studyio-api-v5';
+const SHELL_CACHE_NAME  = 'studyio-shell-v6';
+const STATIC_CACHE_NAME = 'studyio-static-v6';
+const API_CACHE_NAME    = 'studyio-api-v6';
 
 const CURRENT_CACHES = [SHELL_CACHE_NAME, STATIC_CACHE_NAME, API_CACHE_NAME];
 
@@ -18,6 +18,7 @@ const BADGE     = '/icon-192.png';
 
 const PRECACHE_SHELL = [
   '/',
+  '/offline.html',
   '/manifest.webmanifest',
   '/manifest.json',
   '/favicon.ico',
@@ -367,11 +368,14 @@ self.addEventListener('fetch', function(event) {
           return networkResponse;
         })
         .catch(function() {
-          // Network failed (offline / airplane mode): return cached app shell
+          // Network failed (offline / airplane mode): return cached app shell, or fallback to offline.html
           return caches.open(SHELL_CACHE_NAME).then(function(cache) {
-            return cache.match('/').then(function(cachedShell) {
+            return cache.match('/', { ignoreSearch: true }).then(function(cachedShell) {
               if (cachedShell) return cachedShell;
-              return cache.match(event.request);
+              return cache.match(event.request, { ignoreSearch: true }).then(function(reqMatch) {
+                if (reqMatch) return reqMatch;
+                return cache.match('/offline.html');
+              });
             });
           });
         })

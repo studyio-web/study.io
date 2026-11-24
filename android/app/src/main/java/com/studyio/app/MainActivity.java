@@ -7,6 +7,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,6 +20,9 @@ import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ServiceWorkerController;
+import android.webkit.ServiceWorkerWebSettings;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -25,6 +32,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "StudyAlarm";
@@ -35,8 +45,49 @@ public class MainActivity extends BridgeActivity {
     private boolean hasManuallyExitedFullscreen = false;
     private OrientationEventListener orientationEventListener;
     private volatile boolean isWebLoaded = false;
+    private volatile boolean isShowingOfflineFallback = false;
     private String pendingAlarmScript = null;
     private long appLaunchTime = 0;
+
+    private boolean isNetworkAvailable() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network network = cm.getActiveNetwork();
+                if (network == null) return false;
+                NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+                return caps != null && (
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                );
+            } else {
+                NetworkInfo netInfo = cm.getActiveNetworkInfo();
+                return netInfo != null && netInfo.isConnected();
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String getOfflineHtml() {
+        try {
+            InputStream is = getAssets().open("public/offline.html");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            reader.close();
+            return sb.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load offline.html from assets", e);
+            return "<!DOCTYPE html><html class='dark'><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{background:#050507;color:#fff;font-family:sans-serif;text-align:center;padding:50px 20px;}</style></head><body><h2>study.io - Offline Mode</h2><p>Working offline. Connect to internet to sync live rooms.</p><button onclick='window.location.reload()' style='background:#10B981;color:#000;border:none;padding:12px 24px;border-radius:12px;font-weight:bold;margin-top:20px;cursor:pointer;'>Retry</button></body></html>";
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -140,14 +191,68 @@ public class MainActivity extends BridgeActivity {
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
 
-        // Enable aggressive Android WebView caching for instant sub-second cold starts
+        // Enable aggressive Android WebView caching & offline resilience
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebSettings webSettings = getBridge().getWebView().getSettings();
-            webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+            boolean isOnline = isNetworkAvailable();
+            webSettings.setCacheMode(isOnline ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
             webSettings.setDomStorageEnabled(true);
             webSettings.setDatabaseEnabled(true);
             webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
             webSettings.setSupportMultipleWindows(true);
+
+            // Configure ServiceWorker caching for offline resilience (API 24+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    ServiceWorkerController swController = ServiceWorkerController.getInstance();
+                    if (swController != null) {
+                        ServiceWorkerWebSettings swSettings = swController.getServiceWorkerWebSettings();
+                        if (swSettings != null) {
+                            swSettings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                            swSettings.setAllowContentAccess(true);
+                            swSettings.setAllowFileAccess(true);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "ServiceWorkerController config skipped", e);
+                }
+            }
+
+            // Automatic reconnection monitor: when device connects back to WiFi/Cellular, restore live app
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                    if (cm != null) {
+                        cm.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                            @Override
+                            public void onAvailable(Network network) {
+                                runOnUiThread(() -> {
+                                    if (getBridge() != null && getBridge().getWebView() != null) {
+                                        WebView wv = getBridge().getWebView();
+                                        wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
+                                        if (isShowingOfflineFallback) {
+                                            isShowingOfflineFallback = false;
+                                            Log.i(TAG, "Internet connection restored; reloading live app");
+                                            wv.loadUrl("https://studyio-web.vercel.app");
+                                        }
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onLost(Network network) {
+                                runOnUiThread(() -> {
+                                    if (getBridge() != null && getBridge().getWebView() != null) {
+                                        getBridge().getWebView().getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "DefaultNetworkCallback registration skipped", e);
+                }
+            }
 
             // Clean User-Agent by removing '; wv' so Razorpay checkout detects full mobile browser support for UPI Intent
             String currentUa = webSettings.getUserAgentString();
@@ -158,8 +263,48 @@ public class MainActivity extends BridgeActivity {
                 webSettings.setUserAgentString(cleanUserAgent);
             }
 
-            // Set BridgeWebViewClient override to intercept and handle UPI intent links (upi://, intent://, tez://, phonepe://, paytmmp://)
+            // Set BridgeWebViewClient override to intercept and handle UPI intent links and offline navigation
             getBridge().getWebView().setWebViewClient(new BridgeWebViewClient(getBridge()) {
+                private boolean hasRetriedFromCache = false;
+
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    if (request != null && request.isForMainFrame()) {
+                        String url = request.getUrl() != null ? request.getUrl().toString() : "";
+                        handleOfflineFallback(view, url);
+                        return;
+                    }
+                    super.onReceivedError(view, request, error);
+                }
+
+                @Override
+                public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                    handleOfflineFallback(view, failingUrl);
+                }
+
+                private void handleOfflineFallback(WebView view, String url) {
+                    Log.w(TAG, "WebView main frame failed to load: " + url + " | isNetworkAvailable: " + isNetworkAvailable());
+                    if (!hasRetriedFromCache) {
+                        hasRetriedFromCache = true;
+                        view.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                        view.loadUrl(url != null && !url.isEmpty() ? url : "https://studyio-web.vercel.app");
+                        return;
+                    }
+
+                    // Neither network nor cache could satisfy the main frame; render Study.io offline app shell
+                    isShowingOfflineFallback = true;
+                    view.loadDataWithBaseURL("https://studyio-web.vercel.app/", getOfflineHtml(), "text/html", "UTF-8", null);
+                }
+
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    if (url != null && !url.startsWith("data:text/html") && isNetworkAvailable()) {
+                        hasRetriedFromCache = false;
+                        isShowingOfflineFallback = false;
+                    }
+                }
+
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                     if (request != null && request.getUrl() != null) {

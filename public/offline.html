@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>study.io - Offline Mode</title>
+  <meta name="theme-color" content="#050507" />
+  <style>
+    :root {
+      --bg: #050507;
+      --surface: #0e1017;
+      --surface-2: #161922;
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #10B981;
+      --amber: #F59E0B;
+      --text: #F1F5F9;
+      --text-dim: #94A3B8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 24px));
+      overflow-x: hidden;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 480px;
+      padding-top: env(safe-area-inset-top, 12px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand svg {
+      width: 32px;
+      height: 32px;
+    }
+    .brand-name {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+    .offline-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--amber);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .main-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+      margin: auto 0;
+    }
+    .mode-toggle {
+      display: flex;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 3px;
+      margin-bottom: 24px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .mode-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+    .timer-display {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 64px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      color: #FFFFFF;
+      margin: 16px 0 24px;
+      text-shadow: 0 0 30px rgba(16, 185, 129, 0.15);
+      line-height: 1;
+    }
+    .subject-input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 16px;
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 24px;
+      outline: none;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .subject-input:focus {
+      border-color: var(--accent);
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    .btn {
+      padding: 14px 28px;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: #FFFFFF;
+      color: #050507;
+      flex: 1;
+    }
+    .btn-primary:active {
+      transform: scale(0.97);
+      background: #E2E8F0;
+    }
+    .btn-primary.running {
+      background: #EF4444;
+      color: #FFFFFF;
+    }
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:active {
+      transform: scale(0.97);
+    }
+    .footer-status {
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      padding-top: 16px;
+    }
+    .sync-note {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .retry-btn:active {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .toast {
+      position: fixed;
+      bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+      background: #10B981;
+      color: #050507;
+      padding: 10px 18px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 13px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="31" fill="#0D1117" stroke="#1E293B" stroke-width="2"/>
+        <path d="M32 20C27 16 19 16.5 16 18V44C19 42.5 27 42 32 46C37 42 45 42.5 48 44V18C45 16.5 37 16 32 20Z" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="32" y1="20" x2="32" y2="46" stroke="#10B981" stroke-width="3.6" stroke-linecap="round"/>
+        <circle cx="32" cy="13.5" r="3.8" fill="#10B981"/>
+      </svg>
+      <span class="brand-name">study.io</span>
+    </div>
+    <div class="offline-pill">
+      <span class="pulse-dot"></span>
+      <span>Offline Mode</span>
+    </div>
+  </div>
+
+  <div class="main-card">
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" id="btnModeStopwatch" onclick="setMode('stopwatch')">Stopwatch</button>
+      <button type="button" class="mode-btn" id="btnModePomodoro" onclick="setMode('pomodoro')">Pomodoro 25m</button>
+    </div>
+
+    <input type="text" id="subjectInput" class="subject-input" placeholder="Subject / Focus Goal..." maxlength="40" />
+
+    <div class="timer-display" id="timeDisplay">00:00</div>
+
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary" id="btnToggle" onclick="toggleTimer()">START</button>
+      <button type="button" class="btn btn-secondary" id="btnSave" onclick="saveAndReset()" style="display: none;">SAVE</button>
+      <button type="button" class="btn btn-secondary" id="btnReset" onclick="resetTimer()">RESET</button>
+    </div>
+  </div>
+
+  <div class="footer-status">
+    <p class="sync-note" id="statusNote">
+      Working offline. Any sessions recorded will automatically sync to your profile as soon as internet is restored.
+    </p>
+    <button type="button" class="retry-btn" onclick="checkConnectionAndReload()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+      </svg>
+      <span>Retry Live Connection</span>
+    </button>
+  </div>
+
+  <div class="toast" id="toast">Session saved locally!</div>
+
+  <script>
+    var currentMode = 'stopwatch';
+    var isRunning = false;
+    var timerInterval = null;
+    var elapsedSeconds = 0;
+    var pomodoroSeconds = 25 * 60;
+    var sessionStartTime = null;
+
+    // Load saved subject
+    var savedSubject = localStorage.getItem('studyio_offline_subject') || '';
+    if (savedSubject) {
+      document.getElementById('subjectInput').value = savedSubject;
+    }
+
+    document.getElementById('subjectInput').addEventListener('input', function(e) {
+      localStorage.setItem('studyio_offline_subject', e.target.value);
+    });
+
+    function setMode(mode) {
+      if (isRunning) return;
+      currentMode = mode;
+      document.getElementById('btnModeStopwatch').className = mode === 'stopwatch' ? 'mode-btn active' : 'mode-btn';
+      document.getElementById('btnModePomodoro').className = mode === 'pomodoro' ? 'mode-btn active' : 'mode-btn';
+      elapsedSeconds = 0;
+      updateDisplay();
+    }
+
+    function formatTime(s) {
+      var m = Math.floor(s / 60);
+      var sec = s % 60;
+      var str = (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+      if (s >= 3600) {
+        var h = Math.floor(s / 3600);
+        m = Math.floor((s % 3600) / 60);
+        return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+      return str;
+    }
+
+    function updateDisplay() {
+      var display = document.getElementById('timeDisplay');
+      if (currentMode === 'stopwatch') {
+        display.innerText = formatTime(elapsedSeconds);
+      } else {
+        var remaining = Math.max(0, pomodoroSeconds - elapsedSeconds);
+        display.innerText = formatTime(remaining);
+      }
+    }
+
+    function toggleTimer() {
+      var btn = document.getElementById('btnToggle');
+      var saveBtn = document.getElementById('btnSave');
+
+      if (!isRunning) {
+        isRunning = true;
+        if (!sessionStartTime) sessionStartTime = Date.now() - (elapsedSeconds * 1000);
+        btn.innerText = 'PAUSE';
+        btn.className = 'btn btn-primary running';
+        saveBtn.style.display = 'inline-flex';
+
+        timerInterval = setInterval(function() {
+          elapsedSeconds++;
+          updateDisplay();
+
+          if (currentMode === 'pomodoro' && elapsedSeconds >= pomodoroSeconds) {
+            clearInterval(timerInterval);
+            isRunning = false;
+            btn.innerText = 'START';
+            btn.className = 'btn btn-primary';
+            showToast('Pomodoro completed! 🎉');
+            saveAndReset();
+          }
+        }, 1000);
+      } else {
+        isRunning = false;
+        clearInterval(timerInterval);
+        btn.innerText = 'RESUME';
+        btn.className = 'btn btn-primary';
+      }
+    }
+
+    function saveAndReset() {
+      if (elapsedSeconds > 0) {
+        var subject = document.getElementById('subjectInput').value.trim() || 'General Focus';
+        var session = {
+          id: 'offline_' + Date.now(),
+          subject: subject,
+          duration_seconds: elapsedSeconds,
+          mode: currentMode,
+          started_at: new Date(sessionStartTime || (Date.now() - elapsedSeconds * 1000)).toISOString(),
+          ended_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          offline_synced: false
+        };
+
+        // Save into studyio outbox queue for auto-sync when online
+        try {
+          var outbox = JSON.parse(localStorage.getItem('studyio-outbox-v1') || '[]');
+          outbox.push({
+            event_id: 'outbox_' + Date.now(),
+            type: 'SESSION_SAVE',
+            payload: session,
+            created_at: Date.now()
+          });
+          localStorage.setItem('studyio-outbox-v1', JSON.stringify(outbox));
+
+          var history = JSON.parse(localStorage.getItem('studyio_offline_sessions_v1') || '[]');
+          history.push(session);
+          localStorage.setItem('studyio_offline_sessions_v1', JSON.stringify(history));
+
+          showToast('Session saved! (' + formatTime(elapsedSeconds) + ')');
+        } catch(e) {
+          console.error(e);
+        }
+      }
+      resetTimer();
+    }
+
+    function resetTimer() {
+      isRunning = false;
+      if (timerInterval) clearInterval(timerInterval);
+      elapsedSeconds = 0;
+      sessionStartTime = null;
+      document.getElementById('btnToggle').innerText = 'START';
+      document.getElementById('btnToggle').className = 'btn btn-primary';
+      document.getElementById('btnSave').style.display = 'none';
+      updateDisplay();
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = 'toast show';
+      setTimeout(function() {
+        t.className = 'toast';
+      }, 3000);
+    }
+
+    function checkConnectionAndReload() {
+      document.getElementById('statusNote').innerText = 'Checking connection...';
+      fetch('/favicon.ico?v=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+        .then(function(res) {
+          if (res.ok || res.type === 'opaque') {
+            document.getElementById('statusNote').innerText = 'Connected! Reloading app...';
+            window.location.href = 'https://studyio-web.vercel.app/';
+          } else {
+            document.getElementById('statusNote').innerText = 'Still offline. You can continue studying locally.';
+          }
+        })
+        .catch(function() {
+          document.getElementById('statusNote').innerText = 'Still offline. You can continue studying locally.';
+        });
+    }
+
+    // Auto-reconnect when network returns
+    window.addEventListener('online', function() {
+      document.getElementById('statusNote').innerText = 'Network restored! Returning to live app...';
+      setTimeout(function() {
+        window.location.href = 'https://studyio-web.vercel.app/';
+      }, 600);
+    });
+
+    // Periodic ping every 3.5s
+    setInterval(function() {
+      if (navigator.onLine) {
+        fetch('/favicon.ico?v=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+          .then(function() {
+            window.location.href = 'https://studyio-web.vercel.app/';
+          })
+          .catch(function() {});
+      }
+    }, 3500);
+
+    updateDisplay();
+  </script>
+</body>
+</html>
