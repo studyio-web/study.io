@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api') ||
+    pathname.startsWith('/privacy') ||
     pathname.startsWith('/.well-known') ||
     pathname.startsWith('/google') ||
     pathname.endsWith('.html') ||

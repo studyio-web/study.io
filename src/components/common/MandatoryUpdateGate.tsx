@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Download, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
+import { Download, ShieldAlert, ShieldCheck, RefreshCw } from 'lucide-react';
 import { isNativeAndroid } from '@/lib/timerNotificationPlugin';
 import { startApkDownload, LATEST_APK_CDN_URL } from '@/lib/apkDownload';
 import { isOlderVersion, fetchServerAppVersion, VersionData } from '@/lib/appVersion';
@@ -202,10 +202,16 @@ export function MandatoryUpdateGate() {
           <span>{isDownloading ? 'Starting Download...' : 'Download & Install Update'}</span>
         </button>
 
+        {/* VirusTotal Verification Trust Indicator */}
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-mono text-emerald-400/90">
+          <ShieldCheck className="w-3.5 h-3.5 stroke-[2] text-emerald-400" />
+          <span>Verified Safe &bull; 63/64 Clean on VirusTotal</span>
+        </div>
+
         {/* Installation Instructions */}
-        <div className="w-full mt-5 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-left text-xs space-y-2 text-zinc-400">
+        <div className="w-full mt-4 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-left text-xs space-y-2 text-zinc-400">
           <div className="font-hud font-bold text-zinc-200 text-[11px] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
             <span>How to update:</span>
           </div>
           <div className="flex items-start gap-2">

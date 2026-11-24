@@ -360,8 +360,9 @@ export function StrictModePermissionModal({
           Strict Mode blocks distracting apps during your focus sessions. To detect which app is active on your screen, Android requires you to grant <strong>Usage Access</strong> permission.
         </p>
 
-        <div className="mt-4 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] text-[11px] text-white/50 text-left">
-          🔒 <strong>Privacy First:</strong> App usage is checked strictly on your phone to keep you focused. No app data is ever uploaded or shared.
+        <div className="mt-4 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] text-[11px] text-white/60 text-left flex items-start gap-2.5">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <span><strong className="text-white/90">On-Device Privacy:</strong> App usage is checked strictly on your phone to keep you focused. Zero personal or screen data is ever uploaded or shared.</span>
         </div>
 
         <div className="mt-6 flex flex-col gap-2.5">
@@ -678,7 +679,7 @@ export function StrictModeConfigModal({
                       ? 'text-red-400 bg-red-500/20 border-red-500/40'
                       : 'text-white/80 bg-white/10 border-white/15'
                   }`}>
-                    ⚡ Ultra Strict Mode
+                    Ultra Strict Mode
                   </span>
                   {isFocusing && <Lock className="w-3.5 h-3.5 text-white/40" />}
                 </div>
@@ -716,7 +717,7 @@ export function StrictModeConfigModal({
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-red-400 shrink-0" />
                   <div>
-                    <p className="text-[11px] font-semibold text-white/90">🛡️ Uninstall Protection</p>
+                    <p className="text-[11px] font-semibold text-white/90">Uninstall Protection</p>
                     <p className="text-[10px] text-white/50">
                       {isDeviceAdminActive
                         ? 'Device Admin active. App deletion & force-stop locked.'
@@ -891,6 +892,11 @@ export function StrictModeConfigModal({
                   Grant
                 </button>
               )}
+            </div>
+
+            <div className="pt-2.5 border-t border-white/[0.06] flex items-center gap-1.5 text-[10px] font-mono text-white/40">
+              <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>Permissions operate 100% on-device. Zero data leaves your device.</span>
             </div>
           </div>
         </div>
