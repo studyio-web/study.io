@@ -17,7 +17,6 @@ import { RankBadgePreloader } from './RankBadgePreloader';
 import { NativeFeelBridge } from './NativeFeelBridge';
 import { PushNotificationBridge } from './PushNotificationBridge';
 import { SingleTabGuard } from './SingleTabGuard';
-import { UpdatePrompt } from './UpdatePrompt';
 import { MandatoryUpdateGate } from './MandatoryUpdateGate';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -42,8 +41,6 @@ export function Providers({ children }: { children: ReactNode }) {
                         <PushNotificationBridge />
                         {/* Desktop Web: Enforce single active tab per account */}
                         <SingleTabGuard />
-                        {/* Service Worker Update Prompt */}
-                        <UpdatePrompt />
                         {/* Mandatory Android App Version Gate */}
                         <MandatoryUpdateGate />
                         {children}

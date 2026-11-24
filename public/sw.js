@@ -146,6 +146,7 @@ function stopLoop() {
 // ─── Lifecycle: Install & Activate ──────────────────────────────────────────
 
 self.addEventListener('install', function(event) {
+  self.skipWaiting();
   event.waitUntil(
     (async function() {
       // 1. Precache App Shell
