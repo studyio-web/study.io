@@ -400,21 +400,16 @@ export default function MobileRestrictedPage() {
               <span>Download for Android</span>
             </a>
 
-            {/* Under button version string & VirusTotal trust indicator */}
+            {/* Under button version string & verified status */}
             <div className="flex items-center gap-2.5">
               <span className="text-[11px] font-mono text-slate-400 tracking-tight">
                 {versionString}
               </span>
               <span className="text-white/20 text-[10px]">•</span>
-              <a
-                href="https://www.virustotal.com/gui/file/fd3ee396cd5ff281b97eede5f522992e5e7a89951749bad2464c5b7d666b59d8"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
-              >
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400">
                 <ShieldCheck className="w-3.5 h-3.5 stroke-[2]" />
-                <span>Verified Clean</span>
-              </a>
+                <span>Verified Safe</span>
+              </span>
             </div>
           </div>
         </footer>
@@ -523,7 +518,7 @@ export default function MobileRestrictedPage() {
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span><strong>Independently Audited:</strong> Verified safe and clean across global antivirus engines on VirusTotal.</span>
+                    <span><strong>Independently Audited:</strong> Verified safe and clean across global security standards.</span>
                   </div>
                 </div>
               </div>
