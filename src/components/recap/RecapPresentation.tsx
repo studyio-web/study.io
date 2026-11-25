@@ -65,7 +65,7 @@ function getTierAccent(tier: RankTierName): string {
     case 'Bronze': return '#f59e0b';
     case 'Silver': return '#cbd5e1';
     case 'Gold': return '#fbbf24';
-    case 'Platinum': return '#22d3ee';
+    case 'Platinum': return '#E2E8F0';
     case 'Diamond': return '#c084fc';
     case 'Champion': return '#f472b6';
     case 'Master': return '#818cf8';

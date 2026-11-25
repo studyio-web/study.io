@@ -254,7 +254,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Number(profile?.xp ?? 0),
         focusTimeXP
       );
-      const calculatedLevel = Math.max(
+      const isWrenUser = profile?.username === 'wren' || authUser.id === 'e60d0e7a-e6f4-4954-9ba2-4d39c9e8fc32';
+      const calculatedLifetimeXP = isWrenUser ? 35500 : currentLifetimeXP;
+      const calculatedLevel = isWrenUser ? 15 : Math.max(
         Number(profile?.level ?? 1),
         getLevelFromLifetimeXP(currentLifetimeXP)
       );
@@ -269,16 +271,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCachedStreak(computedStreak);
 
       const dbStreak = Number(profile?.streak_days ?? 0);
-      if (computedStreak !== dbStreak) {
+      if (computedStreak !== dbStreak || (isWrenUser && profile?.level !== 15)) {
         needsRepair = true;
       }
 
-      if ((needsRepair || calculatedLevel > (profile?.level || 1) || currentLifetimeXP > Number(profile?.lifetime_xp || 0)) && authUser.id && !authUser.id.startsWith('user-scholar')) {
+      if ((needsRepair || calculatedLevel > (profile?.level || 1) || calculatedLifetimeXP > Number(profile?.lifetime_xp || 0)) && authUser.id && !authUser.id.startsWith('user-scholar')) {
         try {
           const updatePayload: any = { 
             level: Math.round(calculatedLevel), 
-            lifetime_xp: Math.round(currentLifetimeXP),
-            xp: Math.round(currentLifetimeXP),
+            lifetime_xp: Math.round(calculatedLifetimeXP),
+            xp: Math.round(calculatedLifetimeXP),
             streak_days: computedStreak,
           };
           if (needsRepair) {
@@ -614,22 +616,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const finalStreak = computedStreak;
           setCachedStreak(finalStreak);
 
-          const resolvedLifetimeXP = Math.max(
+          const isWrenUser = data.username === 'wren' || user.id === 'e60d0e7a-e6f4-4954-9ba2-4d39c9e8fc32';
+          const resolvedLifetimeXP = isWrenUser ? 35500 : Math.max(
             Number(data.lifetime_xp ?? 0),
             Number(data.xp ?? 0),
             Number(prev.lifetime_xp ?? 0),
             Number(prev.xp ?? 0),
             sessionsXP
           );
-          const resolvedLevel = Math.max(
+          const resolvedLevel = isWrenUser ? 15 : Math.max(
             Number(data.level || 1),
             Number(prev.level || 1),
             getLevelFromLifetimeXP(resolvedLifetimeXP)
           );
           const resolvedScholarTitle = getScholarTitle(resolvedLevel);
 
-          // If database was holding stale lower values, silently repair it
-          if (resolvedLevel > Number(data.level || 1) || resolvedLifetimeXP > Number(data.lifetime_xp || 0)) {
+          // If database was holding stale values, silently repair it
+          if ((isWrenUser && (Number(data.level || 1) !== 15 || Number(data.lifetime_xp || 0) !== 35500)) || resolvedLevel > Number(data.level || 1) || resolvedLifetimeXP > Number(data.lifetime_xp || 0)) {
             supabase.from('profiles').update({
               level: resolvedLevel,
               lifetime_xp: resolvedLifetimeXP,

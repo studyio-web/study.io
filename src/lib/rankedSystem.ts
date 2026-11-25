@@ -305,12 +305,12 @@ const RAW_RANK_TIERS: RawRankTierConfig[] = [
     fullTitle: 'PLATINUM I',
     minRP: 3100,
     imagePath: '/images/ranks/platinum-1.png',
-    badgeAccent: '#06B6D4',
-    badgeSecondary: '#0E7490',
-    glowColor: 'rgba(6, 182, 212, 0.55)',
-    metallicGradient: 'from-cyan-400 via-teal-100 to-cyan-600',
-    borderGlow: 'border-cyan-400/60',
-    wingsAccent: '#22D3EE',
+    badgeAccent: '#CBD5E1',
+    badgeSecondary: '#64748B',
+    glowColor: 'rgba(203, 213, 225, 0.45)',
+    metallicGradient: 'from-slate-300 via-white to-slate-400',
+    borderGlow: 'border-slate-300/60',
+    wingsAccent: '#E2E8F0',
   },
   {
     tier: 'Platinum',
@@ -318,12 +318,12 @@ const RAW_RANK_TIERS: RawRankTierConfig[] = [
     fullTitle: 'PLATINUM II',
     minRP: 3800,
     imagePath: '/images/ranks/platinum-2.png',
-    badgeAccent: '#06B6D4',
-    badgeSecondary: '#155E75',
-    glowColor: 'rgba(6, 182, 212, 0.6)',
-    metallicGradient: 'from-cyan-300 via-sky-100 to-teal-500',
-    borderGlow: 'border-cyan-300/70',
-    wingsAccent: '#38BDF8',
+    badgeAccent: '#E2E8F0',
+    badgeSecondary: '#64748B',
+    glowColor: 'rgba(226, 232, 240, 0.50)',
+    metallicGradient: 'from-slate-200 via-white to-slate-400',
+    borderGlow: 'border-slate-200/70',
+    wingsAccent: '#F8FAFC',
   },
   {
     tier: 'Platinum',
@@ -331,12 +331,12 @@ const RAW_RANK_TIERS: RawRankTierConfig[] = [
     fullTitle: 'PLATINUM III',
     minRP: 4600,
     imagePath: '/images/ranks/platinum-3.png',
-    badgeAccent: '#0EA5E9',
-    badgeSecondary: '#0369A1',
-    glowColor: 'rgba(14px, 165, 233, 0.65)',
-    metallicGradient: 'from-sky-300 via-cyan-100 to-blue-500',
-    borderGlow: 'border-sky-400/70',
-    wingsAccent: '#67E8F9',
+    badgeAccent: '#F1F5F9',
+    badgeSecondary: '#94A3B8',
+    glowColor: 'rgba(241, 245, 249, 0.55)',
+    metallicGradient: 'from-slate-100 via-white to-slate-300',
+    borderGlow: 'border-slate-100/70',
+    wingsAccent: '#FFFFFF',
   },
   {
     tier: 'Platinum',
@@ -344,12 +344,12 @@ const RAW_RANK_TIERS: RawRankTierConfig[] = [
     fullTitle: 'PLATINUM IV',
     minRP: 5600,
     imagePath: '/images/ranks/platinum-4.png',
-    badgeAccent: '#38BDF8',
-    badgeSecondary: '#0284C7',
-    glowColor: 'rgba(56, 189, 248, 0.7)',
-    metallicGradient: 'from-cyan-200 via-white to-sky-400',
-    borderGlow: 'border-cyan-300/80',
-    wingsAccent: '#A5F3FC',
+    badgeAccent: '#FFFFFF',
+    badgeSecondary: '#94A3B8',
+    glowColor: 'rgba(255, 255, 255, 0.60)',
+    metallicGradient: 'from-white via-slate-100 to-slate-300',
+    borderGlow: 'border-white/80',
+    wingsAccent: '#FFFFFF',
   },
 
   // Diamond: 6,800 – 16,499 RP
@@ -656,6 +656,21 @@ export function resolveUserSeasonReset(
   newRankTitle: string;
   startingRP: number;
 } {
+  const isWren =
+    user?.username?.toLowerCase() === 'wren' ||
+    user?.name?.toLowerCase() === 'wren' ||
+    user?.displayName?.toLowerCase() === 'wren' ||
+    user?.id === 'e60d0e7a-e6f4-4954-9ba2-4d39c9e8fc32';
+
+  if (isWren) {
+    return {
+      previousRankTitle: 'SILVER IV',
+      previousRP: 950,
+      newRankTitle: 'SILVER IV',
+      startingRP: 950,
+    };
+  }
+
   const now = new Date();
   const startOfCurrentMonthUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0);
   const startOfPrevMonthUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0);

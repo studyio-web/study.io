@@ -184,7 +184,7 @@ export function ThemePicker() {
                 className="w-full h-1.5 rounded-full"
                 style={{
                   background:
-                    'linear-gradient(90deg, #C98A4B 0%, #A8B4C2 16%, #D4A017 32%, #38BFC4 48%, #6FA8DC 64%, #B24FE8 80%, #E11D48 100%)',
+                    'linear-gradient(90deg, #C98A4B 0%, #A8B4C2 16%, #D4A017 32%, #CBD5E1 48%, #6FA8DC 64%, #B24FE8 80%, #E11D48 100%)',
                 }}
               />
             ) : (
@@ -207,7 +207,7 @@ export function ThemePicker() {
             style={{
               width: isRank ? '75%' : '45%',
               background: isRank
-                ? 'linear-gradient(90deg, #C98A4B, #D4A017, #38BFC4, #B24FE8)'
+                ? 'linear-gradient(90deg, #C98A4B, #D4A017, #CBD5E1, #B24FE8)'
                 : accentCol,
             }}
           />

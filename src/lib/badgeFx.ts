@@ -158,15 +158,15 @@ export const BASE_TIER_FX: Record<string, TierFxConfig> = {
   },
   // Defaults for Phase 2 tiers (cool teal, violet, prismatic, etc.)
   platinum: {
-    glowColor: 'rgba(34, 211, 238, 0.65)',
+    glowColor: 'rgba(226, 232, 240, 0.55)',
     glowMinOpacity: 0.32,
     glowMaxOpacity: 0.55,
     glowPeriod: 3.5,
-    sheenColor: 'rgba(165, 243, 252, 0.75)',
+    sheenColor: 'rgba(255, 255, 255, 0.90)',
     sheenWidth: 26,
     sheenPeriod: 4.5,
     particleType: 'crystal',
-    particleColor: '#22D3EE',
+    particleColor: '#E2E8F0',
     particleCount: 5,
     particleSpeed: 3.2,
     particleOrigin: 'bottom',

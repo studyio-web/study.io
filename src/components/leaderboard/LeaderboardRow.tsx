@@ -15,7 +15,7 @@ export const TIER_COLORS: Record<string, string> = {
   Bronze: '#C98A4B',
   Silver: '#A8B4C2',
   Gold: '#D4A017',
-  Platinum: '#38BFC4',
+  Platinum: '#CBD5E1',
   Diamond: '#6FA8DC',
   Champion: '#B24FE8',
   Master: '#5B4FE8',

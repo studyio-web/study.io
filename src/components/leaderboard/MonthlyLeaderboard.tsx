@@ -147,7 +147,7 @@ function getTierAvatarGradient(tier: string): string {
     case 'gold':
       return 'from-yellow-400 via-amber-500 to-stone-900';
     case 'platinum':
-      return 'from-cyan-400 via-teal-600 to-zinc-900';
+      return 'from-slate-300 via-slate-400 to-zinc-900';
     case 'diamond':
       return 'from-purple-400 via-fuchsia-600 to-zinc-900';
     case 'champion':
