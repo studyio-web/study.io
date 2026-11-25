@@ -105,11 +105,17 @@ export function RankBadge({
 
   // 2. Numeric sizing
   const isSm = size === 'sm' || compact === true;
+  const isMd = size === 'md';
+  const isLg = size === 'lg';
   const numericSize = isSm
     ? 32
+    : isMd
+    ? 64
+    : isLg
+    ? 96
     : typeof size === 'number'
     ? size
-    : parseInt(String(size), 10) || 160;
+    : parseInt(String(size), 10) || 72;
   const pixelSize = `${numericSize}px`;
 
   // 3. Accessibility & hardware capability check

@@ -299,21 +299,21 @@ export function WelcomeIntro({
 
               {/* Visual 3: Ranks & RP */}
               {slide.id === 'ranks' && (
-                <div className="flex items-center justify-center gap-3 sm:gap-4 overflow-x-auto py-2">
-                  <div className="opacity-40 scale-75">
-                    <RankCrestBadge tier="Bronze" division="I" size="sm" />
+                <div className="flex items-center justify-center gap-2 sm:gap-4 w-full overflow-hidden py-1 select-none pointer-events-none no-scrollbar">
+                  <div className="opacity-40 scale-75 shrink-0">
+                    <RankCrestBadge tier="Gold" division="IV" size={42} interactive={false} />
                   </div>
-                  <div className="opacity-60 scale-90">
-                    <RankCrestBadge tier="Silver" division="I" size="sm" />
+                  <div className="opacity-65 scale-90 shrink-0">
+                    <RankCrestBadge tier="Diamond" division="I" size={56} interactive={false} />
                   </div>
-                  <div className="scale-110 drop-shadow-[0_0_15px_rgba(230,193,90,0.4)]">
-                    <RankCrestBadge tier="Gold" division="I" size="md" />
+                  <div className="scale-110 drop-shadow-[0_0_24px_rgba(168,85,247,0.5)] shrink-0 z-10">
+                    <RankCrestBadge tier="Grandmaster" division="" size={96} interactive={false} />
                   </div>
-                  <div className="opacity-60 scale-90">
-                    <RankCrestBadge tier="Platinum" division="I" size="sm" />
+                  <div className="opacity-65 scale-90 shrink-0">
+                    <RankCrestBadge tier="Master" division="" size={56} interactive={false} />
                   </div>
-                  <div className="opacity-40 scale-75">
-                    <RankCrestBadge tier="Diamond" division="I" size="sm" />
+                  <div className="opacity-40 scale-75 shrink-0">
+                    <RankCrestBadge tier="Champion" division="" size={42} interactive={false} />
                   </div>
                 </div>
               )}
