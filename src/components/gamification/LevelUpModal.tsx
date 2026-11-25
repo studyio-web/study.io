@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { soundFx } from '../../lib/audio';
-import { Sparkles, ArrowRight, X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { useRankTheme } from '../../hooks/useRankTheme';
 
 interface LevelUpModalProps {
@@ -95,8 +95,7 @@ export function LevelUpModal({
 
             {/* Celebration Header */}
             <div className="relative z-10 flex flex-col items-center mt-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black tracking-widest uppercase mb-4" style={{ color: theme.accent }}>
-                <Sparkles className="w-3.5 h-3.5" />
+              <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black tracking-widest uppercase mb-4" style={{ color: theme.accent }}>
                 <span>LEVEL UP</span>
               </div>
 
