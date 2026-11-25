@@ -482,14 +482,14 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
               </div>
             </div>
             {/* Screenshot of Real Desktop UI */}
-            <div className="relative w-full aspect-[16/10] bg-[#07090E]">
+            <div className="relative w-full aspect-[16/9] bg-black">
               <Image
                 src="/landing-shots/desktop-sync.webp"
                 alt="study.io desktop web dashboard with full timer dial and dark hud theme"
                 fill
                 unoptimized
                 loading="lazy"
-                className="object-cover object-top select-none pointer-events-none"
+                className="object-contain object-center select-none pointer-events-none"
               />
             </div>
           </div>
