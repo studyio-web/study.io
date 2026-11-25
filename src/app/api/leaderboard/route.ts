@@ -169,59 +169,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 5b. Include live active running sessions from active_sessions, clipped at confirmed_until and 24h absolute (stopwatch only)
-    const { data: activeSessionsData } = await supabase
-      .from('active_sessions')
-      .select('user_id, mode, status, started_at, accumulated_seconds, confirmed_until, planned_end_at, pomodoro_duration_seconds')
-      .in('status', ['running', 'paused']);
-
-    if (Array.isArray(activeSessionsData)) {
-      const nowMs = Date.now();
-      for (const act of activeSessionsData) {
-        if (!act?.user_id || !act.started_at) continue;
-        const startMs = new Date(act.started_at).getTime();
-        if (isNaN(startMs)) continue;
-
-        let dur = Number(act.accumulated_seconds || 0);
-        if (act.status === 'running') {
-          dur += Math.max(0, Math.floor((nowMs - startMs) / 1000));
-        }
-
-        if (act.mode === 'stopwatch' && !act.planned_end_at) {
-          if (act.confirmed_until) {
-            const confMs = new Date(act.confirmed_until).getTime();
-            if (!isNaN(confMs)) {
-              const maxConfSec = Math.max(0, Math.floor((confMs - startMs) / 1000));
-              dur = Math.min(dur, maxConfSec, 86400);
-            } else {
-              dur = Math.min(dur, 43200);
-            }
-          } else {
-            dur = Math.min(dur, 43200);
-          }
-          dur = Math.min(dur, 86400); // 24h absolute cap
-        } else if (act.planned_end_at || act.mode === 'countdown' || act.mode === 'pomodoro') {
-          // Countdown / Ultra / Pomodoro: never clipped by 12h rule
-          let plannedSec = Number(act.pomodoro_duration_seconds || 0);
-          if (!plannedSec && act.planned_end_at) {
-            plannedSec = Math.max(0, Math.floor((new Date(act.planned_end_at).getTime() - startMs) / 1000));
-          }
-          if (plannedSec > 0) {
-            dur = Math.min(dur, Math.min(plannedSec, 90000));
-          }
-        }
-
-        if (startMs >= currentMonthStartMs && startMs <= currentMonthEndMs) {
-          thisMonthSecondsByUser[act.user_id] = (thisMonthSecondsByUser[act.user_id] || 0) + dur;
-        }
-        if (timeframe === 'month') {
-          timeframeSecondsByUser[act.user_id] = (timeframeSecondsByUser[act.user_id] || 0) + dur;
-        } else if (timeframe === 'all' || (timeframeStartMs > 0 && startMs >= timeframeStartMs)) {
-          timeframeSecondsByUser[act.user_id] = (timeframeSecondsByUser[act.user_id] || 0) + dur;
-        }
-      }
-    }
-
     // 6. Map each profile to LeaderboardEntry with unified rank logic
     const entries: LeaderboardEntry[] = userList.map((p) => {
       const isCurrentUser = Boolean(currentUserId && p.id === currentUserId);

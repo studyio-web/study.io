@@ -402,16 +402,6 @@ export function RankProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchRankData]);
 
-  // Live periodic updates: every 45s while studying is active
-  useEffect(() => {
-    if (!isStudying) return;
-
-    const interval = setInterval(() => {
-      fetchRankData();
-    }, 45000);
-
-    return () => clearInterval(interval);
-  }, [isStudying, fetchRankData]);
 
   // Calculate live userRank strictly from currentUserEntry or single source of truth getRankTier
   const userRank: UserRankState = useMemo(() => {

@@ -442,7 +442,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const accessTokenRef = useRef<string | null>(null);
-  const migratingKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -3124,17 +3123,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           } else if (dbSessions) {
             const subjectList = latestSubjects;
             const mappedSessions = normalizeStudySessions(dbSessions, subjectList, user);
-            const localStored = getStoredSessions(activeUserId, subjectList, user);
-            const merged = mergeAndDeduplicateSessions(localStored, mappedSessions);
 
-            setSessions(merged);
-            persistSessionsToLocalStorage(merged, activeUserId);
+            setSessions(mappedSessions);
+            persistSessionsToLocalStorage(mappedSessions, activeUserId);
 
             // Update real streak, total study seconds, and evaluate official monthly Season RP
-            const realStreak = calculateStreak(merged);
+            const realStreak = calculateStreak(mappedSessions);
             setCachedStreak(realStreak, undefined, activeUserId);
-            const realTotalSeconds = calculateNonOverlappingSeconds(merged);
-            const liveStats = resolveLiveSeasonStats(userRef.current, merged);
+            const realTotalSeconds = calculateNonOverlappingSeconds(mappedSessions);
+            const liveStats = resolveLiveSeasonStats(userRef.current, mappedSessions);
             const currentSeasonRp = liveStats.seasonRp;
             const carryoverRp = liveStats.startingRp;
             const rankDetails = liveStats.rankTier;
@@ -3339,94 +3336,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       if (!error && dbSessions) {
         const mappedSessions = normalizeStudySessions(dbSessions, subjects, currentUser);
 
-        let finalMergedSessions: StudySession[] = [];
-        setSessions(prev => {
-          const localFromStorage = getStoredSessions(activeUserId, subjects, currentUser);
-          const allLocal = mergeAndDeduplicateSessions(localFromStorage, prev);
-          const merged = mergeAndDeduplicateSessions(allLocal, mappedSessions);
-          finalMergedSessions = merged;
-          
-          const missingInDb = allLocal.filter(localSess => {
-            if (localSess.id && mappedSessions.some(m => m.id === localSess.id)) return false;
-            const locTime = new Date(localSess.startTime || (localSess as any).started_at).getTime();
-            if (isNaN(locTime)) return false;
-            const dur = Number(localSess.durationSeconds || 0);
-            if (dur < 5) return false;
-            const locEnd = localSess.endTime ? new Date(localSess.endTime).getTime() : locTime + dur * 1000;
-            const sessKey = `${locTime}_${dur}`;
-            if (migratingKeysRef.current.has(sessKey)) return false;
+        setSessions(mappedSessions);
+        persistSessionsToLocalStorage(mappedSessions, activeUserId);
 
-            return !mappedSessions.some(dbSess => {
-              if (dbSess.id && localSess.id && dbSess.id === localSess.id) return true;
-              const dbTime = new Date(dbSess.startTime || (dbSess as any).started_at).getTime();
-              if (isNaN(dbTime)) return false;
-              const dbDur = Number(dbSess.durationSeconds || 0);
-              const dbEnd = dbSess.endTime ? new Date(dbSess.endTime).getTime() : dbTime + dbDur * 1000;
-
-              // Proximity match: within 30 seconds
-              if (Math.abs(dbTime - locTime) < 30000 && Math.abs(dbDur - dur) < 15) return true;
-
-              // Overlap match: any temporal intersection
-              if (locTime < dbEnd && locEnd > dbTime) return true;
-
-              return false;
-            });
-          });
-
-          if (missingInDb.length > 0) {
-            // Anti-Replay: Discard duplicate/overlapping offline bursts before migration
-            const deduplicatedMissing: typeof missingInDb = [];
-            for (const sess of missingInDb) {
-              const sessStart = new Date(sess.startTime || (sess as any).started_at).getTime();
-              const sessEnd = new Date(sess.endTime || (sess as any).ended_at).getTime();
-              const sessKey = `${sessStart}_${sess.durationSeconds}`;
-              if (migratingKeysRef.current.has(sessKey)) continue;
-
-              const isOverlap = deduplicatedMissing.some(existing => {
-                const exStart = new Date(existing.startTime || (existing as any).started_at).getTime();
-                const exEnd = new Date(existing.endTime || (existing as any).ended_at).getTime();
-                return sessStart < exEnd && sessEnd > exStart;
-              });
-              if (!isOverlap) {
-                migratingKeysRef.current.add(sessKey);
-                deduplicatedMissing.push(sess);
-              }
-            }
-
-            if (deduplicatedMissing.length > 0) {
-              console.log('Migrating validated local sessions to Supabase:', deduplicatedMissing.length);
-              const inserts = deduplicatedMissing.map(item => ({
-                user_id: activeUserId,
-                subject_id: item.subjectId && item.subjectId.length === 36 ? item.subjectId : null,
-                duration_seconds: item.durationSeconds,
-                started_at: item.startTime,
-                ended_at: item.endTime,
-                notes: item.notes || null,
-                mode: item.mode || 'stopwatch',
-                client_session_id: item.client_session_id || item.id || crypto.randomUUID(),
-              }));
-              
-              // Migrate via server validation to enforce 12h/24h caps
-              inserts.forEach(insert => {
-                 saveValidatedSession({
-                   started_at: insert.started_at,
-                   ended_at: insert.ended_at,
-                   subject_id: insert.subject_id,
-                   notes: insert.notes,
-                   mode: insert.mode,
-                   client_session_id: insert.client_session_id,
-                 }).catch(err => {
-                   console.warn('Error migrating local session via server validation:', err);
-                 });
-              });
-            }
-          }
-
-          persistSessionsToLocalStorage(merged, activeUserId);
-          return merged;
-        });
-
-        const sessionsToUse = finalMergedSessions.length > 0 ? finalMergedSessions : mappedSessions;
+        const sessionsToUse = mappedSessions;
         const realStreak = calculateStreak(sessionsToUse);
         setCachedStreak(realStreak);
         const realTotalSeconds = calculateNonOverlappingSeconds(sessionsToUse);
