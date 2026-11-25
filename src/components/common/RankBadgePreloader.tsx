@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useRankTheme } from '../../hooks/useRankTheme';
 import {
   preloadRankBadgesForUser,
@@ -17,10 +18,14 @@ import {
  * 3. Injects <link rel="preload"> for the current user rank badge.
  */
 export function RankBadgePreloader() {
+  const { isAuthenticated } = useAuth();
   const { userRank } = useRankTheme();
 
   useEffect(() => {
-    // 1. Immediately trigger background preload of all 23 rank badge assets into browser memory cache
+    // Only preload all badges for authenticated users with active ranked progression
+    if (!isAuthenticated || !userRank) return;
+
+    // 1. Trigger background preload of rank badge assets into browser memory cache
     if (process.env.NODE_ENV !== 'production') {
       preloadAllRankBadgesImmediately();
     } else {
@@ -28,12 +33,10 @@ export function RankBadgePreloader() {
     }
 
     // 2. High priority preload of active rank and surrounding tier divisions
-    if (userRank) {
-      preloadRankBadgesForUser(userRank.tier, userRank.division);
-    }
-  }, [userRank]);
+    preloadRankBadgesForUser(userRank.tier, userRank.division);
+  }, [isAuthenticated, userRank]);
 
-  if (!userRank) return null;
+  if (!isAuthenticated || !userRank) return null;
 
   const currentSources = getRankBadgeSources(userRank.tier, userRank.division);
 

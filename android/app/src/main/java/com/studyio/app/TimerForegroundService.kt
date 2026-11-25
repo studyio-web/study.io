@@ -121,6 +121,76 @@ class TimerForegroundService : Service() {
         @Volatile
         private var instance: TimerForegroundService? = null
 
+        data class LiveTimerState(
+            val isActive: Boolean,
+            val isRunning: Boolean,
+            val isPaused: Boolean,
+            val isCompleted: Boolean,
+            val mode: String,
+            val phase: String,
+            val startTime: Long,
+            val elapsedSeconds: Int,
+            val baseElapsedSeconds: Int,
+            val targetSeconds: Int,
+            val subject: String
+        )
+
+        fun getLiveState(context: Context): LiveTimerState {
+            val inst = instance
+            if (inst != null && isServiceRunning) {
+                val running = inst.isRunning && !inst.isPaused
+                val liveElapsed = inst.getCurrentElapsedSeconds()
+                val isCompleted = (inst.mode == "countdown" && inst.targetSeconds > 0 && liveElapsed >= inst.targetSeconds)
+                return LiveTimerState(
+                    isActive = inst.isRunning || inst.isPaused || isCompleted,
+                    isRunning = running && !isCompleted,
+                    isPaused = inst.isPaused,
+                    isCompleted = isCompleted,
+                    mode = inst.mode,
+                    phase = inst.phase,
+                    startTime = inst.startedAtMs,
+                    elapsedSeconds = liveElapsed,
+                    baseElapsedSeconds = inst.baseElapsedSeconds,
+                    targetSeconds = inst.targetSeconds,
+                    subject = inst.subject
+                )
+            }
+
+            val prefs = context.getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
+            val wasRunning = prefs.getBoolean("is_running", false)
+            val isPaused = prefs.getBoolean("is_paused", false)
+            val isCompleted = prefs.getBoolean("is_completed", false)
+            val mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
+            val phase = prefs.getString("phase", "work") ?: "work"
+            val startTime = prefs.getLong("start_time", 0L)
+            val baseElapsed = prefs.getInt("elapsed_seconds", 0)
+            val targetSeconds = prefs.getInt("target_seconds", 0)
+            val subject = prefs.getString("subject", "") ?: ""
+
+            val liveElapsed = if (wasRunning && !isPaused && !isCompleted && startTime > 0L) {
+                val delta = ((System.currentTimeMillis() - startTime) / 1000L).coerceAtLeast(0L).toInt()
+                baseElapsed + delta
+            } else {
+                baseElapsed
+            }
+            val completed = isCompleted || (mode == "countdown" && targetSeconds > 0 && liveElapsed >= targetSeconds)
+            val active = (isServiceRunning || wasRunning || completed) && (wasRunning || isPaused || completed)
+
+            return LiveTimerState(
+                isActive = active,
+                isRunning = wasRunning && !isPaused && !completed,
+                isPaused = isPaused,
+                isCompleted = completed,
+                mode = mode,
+                phase = phase,
+                startTime = startTime,
+                elapsedSeconds = liveElapsed,
+                baseElapsedSeconds = baseElapsed,
+                targetSeconds = targetSeconds,
+                subject = subject
+            )
+        }
+
         fun onTargetReachedDirect(context: Context) {
             val inst = instance
             if (inst != null) {
@@ -236,6 +306,20 @@ class TimerForegroundService : Service() {
     private var baseElapsedSeconds: Int = 0
     private var targetSeconds: Int = 0
     private var subject: String = ""
+
+    fun getCurrentElapsedSeconds(): Int {
+        if (isPaused) {
+            return baseElapsedSeconds
+        }
+        val runDeltaSeconds = if (startedElapsedRealtime > 0L) {
+            ((SystemClock.elapsedRealtime() - startedElapsedRealtime) / 1000L).coerceAtLeast(0L).toInt()
+        } else if (startedAtMs > 0L) {
+            ((System.currentTimeMillis() - startedAtMs) / 1000L).coerceAtLeast(0L).toInt()
+        } else {
+            0
+        }
+        return baseElapsedSeconds + runDeltaSeconds
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var finishRunnable: Runnable? = null

@@ -47,6 +47,7 @@ export interface ServiceTimerState {
   phase: string;
   startTime: number;
   elapsedSeconds: number;
+  baseElapsedSeconds?: number;
   targetSeconds: number;
   subject: string;
 }
@@ -119,6 +120,7 @@ const NativeTimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNo
       phase: 'work',
       startTime: 0,
       elapsedSeconds: 0,
+      baseElapsedSeconds: 0,
       targetSeconds: 0,
       subject: '',
     }),

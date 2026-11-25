@@ -173,7 +173,7 @@ export async function executeMonthlySeasonReset(
       last_season_rp: previousFinalSeasonRp,
       rank_title: newTierObj.name,
       current_rank: newTierObj.name,
-      rank_badge: `/images/ranks/${newTierObj.badge}`,
+      rank_badge: newTierObj.badge,
     };
 
     const { error: updateErr } = await dbClient

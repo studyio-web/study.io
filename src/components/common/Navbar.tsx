@@ -500,7 +500,7 @@ export function Navbar({
                     onClick={() => handleTabClick('leaderboard')}
                     className={`relative flex items-center h-8 sm:h-9 pl-1 pr-3 bg-[var(--surface)] border text-[var(--text)] shadow-card cursor-pointer select-none rounded-xl transition-all hover:scale-105 active:scale-95 ${
                       activeTab === 'leaderboard'
-                        ? 'border-[var(--tier-accent)] ring-1 ring-[var(--tier-accent)] bg-fg/[0.08]'
+                        ? 'border-white/25 ring-1 ring-white/15 bg-fg/[0.08]'
                         : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-fg/[0.04]'
                     }`}
                     title={`View Leaderboard • Rank: ${liveRank.name.toUpperCase()} (${liveSeasonRp.toLocaleString()} Season RP)`}
@@ -514,8 +514,7 @@ export function Navbar({
                         className="-ml-3"
                       />
                       <span
-                        className="text-xs font-bold tracking-wider font-hud uppercase truncate"
-                        style={{ color: 'var(--tier-accent-text)' }}
+                        className="text-xs font-bold tracking-wider font-hud uppercase truncate text-[var(--text)]"
                       >
                         {liveRank.name.toUpperCase()}
                       </span>
@@ -567,7 +566,7 @@ export function Navbar({
                   cy="19"
                   r={radius}
                   className="fill-none transition-all duration-500 ease-out"
-                  stroke="var(--tier-accent)"
+                  stroke="rgb(var(--fg) / 0.65)"
                   strokeWidth="2.5"
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
@@ -619,7 +618,7 @@ export function Navbar({
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[10px] font-extrabold font-mono leading-none" style={{ color: 'var(--tier-accent-text)' }}>
+                <span className="text-[10px] font-extrabold font-mono leading-none text-[var(--text)]">
                   Lv. {effectiveLevel}
                 </span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] text-[var(--text-dim)] font-medium leading-tight border border-[var(--border)]">

@@ -58,7 +58,7 @@ import { db } from '../lib/db';
 import { enqueueSyncEvent, subscribeSyncOutbox, flushSyncOutbox, registerAutoSync } from '../lib/syncOutbox';
 import { calculateNonOverlappingSeconds } from '../lib/nonOverlappingTime';
 import { notify, initNotificationChannels, requestNotificationPermission as requestNotifyPermission } from '../lib/notifications';
-import { isNativeAndroid } from '../lib/timerNotificationPlugin';
+import { isNativeAndroid, TimerNotification } from '../lib/timerNotificationPlugin';
 
 export const showPushNotification = async (title: string, options?: NotificationOptions) => {
   return notify('custom', {
@@ -427,6 +427,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const accessTokenRef = useRef<string | null>(null);
+  const migratingKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -783,6 +784,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const pauseTimerRef = useRef<(() => void) | null>(null);
   const resumeTimerRef = useRef<(() => void) | null>(null);
   const stopTimerRef = useRef<((durationOverride?: number, notesOverride?: string) => Promise<void>) | null>(null);
+  const syncActiveSessionToDbRef = useRef<any>(null);
 
   const [sessions, setSessions] = useState<StudySession[]>(() => {
     let uid = user?.id;
@@ -1441,128 +1443,149 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   }, [isRunning, timerMode]);
 
-  // Real-Time Delta Tracking: Synchronized interval engine running at 500ms tick to eliminate background throttling drift
-  useEffect(() => {
+  const timerModeRef = useRef(timerMode);
+  timerModeRef.current = timerMode;
+  const pomodoroPhaseRef = useRef(pomodoroPhase);
+  pomodoroPhaseRef.current = pomodoroPhase;
+  const pomodoroWorkDurationRef = useRef(pomodoroWorkDuration);
+  pomodoroWorkDurationRef.current = pomodoroWorkDuration;
+  const pomodoroBreakDurationRef = useRef(pomodoroBreakDuration);
+  pomodoroBreakDurationRef.current = pomodoroBreakDuration;
+
+  const rearmTimerInterval = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
 
-    if (isStudying && !isPaused) {
-      // Ensure anchor timestamp exists
-      if (startTimeRef.current === null) {
-        startTimeRef.current = Date.now() - (accumulatedSecondsRef.current * 1000);
+    if (!isStudyingRef.current || isPausedRef.current) return;
+
+    if (startTimeRef.current === null) {
+      startTimeRef.current = Date.now() - (accumulatedSecondsRef.current * 1000);
+    }
+    lastTickTimeRef.current = Date.now();
+
+    const initialElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    accumulatedSecondsRef.current = initialElapsed;
+    setElapsedSeconds(initialElapsed);
+
+    timerIntervalRef.current = setInterval(() => {
+      if (startTimeRef.current === null) return;
+      
+      const now = Date.now();
+      lastTickTimeRef.current = now;
+
+      const actualElapsed = Math.floor((now - startTimeRef.current) / 1000);
+      
+      const prevWaterCount = Math.floor(accumulatedSecondsRef.current / 1800);
+      const newWaterCount = Math.floor(actualElapsed / 1800);
+      if (newWaterCount > prevWaterCount && newWaterCount > 0) {
+        toast('Time to drink water! 💧', { icon: '🚰', duration: 5000 });
+        notify('hydration_reminder');
       }
-      lastTickTimeRef.current = Date.now();
 
-      timerIntervalRef.current = setInterval(() => {
-        if (startTimeRef.current === null) return;
-        
-        const now = Date.now();
-        if (lastTickTimeRef.current) {
-          const delta = now - lastTickTimeRef.current;
-        }
-        lastTickTimeRef.current = now;
+      accumulatedSecondsRef.current = actualElapsed;
 
-        const actualElapsed = Math.floor((now - startTimeRef.current) / 1000);
-        
-        const prevWaterCount = Math.floor(accumulatedSecondsRef.current / 1800);
-        const newWaterCount = Math.floor(actualElapsed / 1800);
-        if (newWaterCount > prevWaterCount && newWaterCount > 0) {
-          toast('Time to drink water! 💧', { icon: '🚰', duration: 5000 });
-          notify('hydration_reminder');
+      // 12-hour "Still studying?" check and 24-hour absolute hard cap for Stopwatch mode
+      const twelveHoursSeconds = STILL_STUDYING_AFTER_HOURS * 3600;
+      const confirmWindowSeconds = CONFIRM_WINDOW_MINUTES * 60;
+      const maxSessionSeconds = ABSOLUTE_MAX_SESSION_HOURS * 3600;
+
+      const activeMode = timerModeRef.current;
+      if (activeMode === 'stopwatch') {
+        // At 12 hours: non-blocking "Still studying?" prompt with 30-minute countdown (does NOT pause)
+        if (actualElapsed >= twelveHoursSeconds && !stillStudyingPromptTriggeredRef.current) {
+          stillStudyingPromptTriggeredRef.current = true;
+          setIsStillStudyingPromptOpen(true);
+          setStillStudyingPromptTime(Date.now());
+          notify('idle_check');
         }
 
-        accumulatedSecondsRef.current = actualElapsed;
-
-        // 12-hour "Still studying?" check and 24-hour absolute hard cap for Stopwatch mode
-        const twelveHoursSeconds = STILL_STUDYING_AFTER_HOURS * 3600;
-        const confirmWindowSeconds = CONFIRM_WINDOW_MINUTES * 60;
-        const maxSessionSeconds = ABSOLUTE_MAX_SESSION_HOURS * 3600;
-
-        if (timerMode === 'stopwatch') {
-          // At 12 hours: non-blocking "Still studying?" prompt with 30-minute countdown (does NOT pause)
-          if (actualElapsed >= twelveHoursSeconds && !stillStudyingPromptTriggeredRef.current) {
-            stillStudyingPromptTriggeredRef.current = true;
-            setIsStillStudyingPromptOpen(true);
-            setStillStudyingPromptTime(Date.now());
-            notify('idle_check');
+        // If unconfirmed after 30 minutes (12h 30m total): auto-close clipped to 12 hours
+        if (
+          stillStudyingPromptTriggeredRef.current &&
+          actualElapsed >= twelveHoursSeconds + confirmWindowSeconds
+        ) {
+          console.warn('[Timer Auto-Close]: 12h unconfirmed window expired. Auto-closing clipped to 12 hours.');
+          setIsStillStudyingPromptOpen(false);
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
           }
+          setAutoCloseNotice("Your session ended at 12 hours because it wasn't confirmed.");
+          stopTimerRef.current?.(twelveHoursSeconds, "Auto-closed after 12h unconfirmed");
+          return;
+        }
 
-          // If unconfirmed after 30 minutes (12h 30m total): auto-close clipped to 12 hours
-          if (
-            stillStudyingPromptTriggeredRef.current &&
-            actualElapsed >= twelveHoursSeconds + confirmWindowSeconds
-          ) {
-            console.warn('[Timer Auto-Close]: 12h unconfirmed window expired. Auto-closing clipped to 12 hours.');
-            setIsStillStudyingPromptOpen(false);
+        // Absolute 24-hour hard cap: Auto-close even if confirmed repeatedly
+        if (actualElapsed >= maxSessionSeconds) {
+          console.warn('[Timer Auto-Close]: Absolute 24-hour limit reached. Auto-closing at 24 hours.');
+          setIsStillStudyingPromptOpen(false);
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+          setAutoCloseNotice("Your session reached the absolute 24-hour maximum limit and was saved.");
+          stopTimerRef.current?.(maxSessionSeconds, "Auto-closed at 24h absolute limit");
+          return;
+        }
+      }
+
+      if (activeMode === 'pomodoro') {
+        const activePhase = pomodoroPhaseRef.current;
+        const target = activePhase === 'work' ? pomodoroWorkDurationRef.current : pomodoroBreakDurationRef.current;
+        if (actualElapsed >= target) {
+          if (activePhase === 'work') {
+            // 1. Freeze at 00:00, chime, and wait for manual phase transition
             if (timerIntervalRef.current) {
               clearInterval(timerIntervalRef.current);
               timerIntervalRef.current = null;
             }
-            setAutoCloseNotice("Your session ended at 12 hours because it wasn't confirmed.");
-            stopTimer(twelveHoursSeconds, "Auto-closed after 12h unconfirmed");
+            accumulatedSecondsRef.current = target;
+            setElapsedSeconds(target);
+            startTimeRef.current = null;
+            setIsPaused(true);
+            setPomodoroCompletedPhase('work');
+            hapticSuccess();
+            toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
+            notify('pomodoro_work_completed');
+            confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
             return;
-          }
-
-          // Absolute 24-hour hard cap: Auto-close even if confirmed repeatedly
-          if (actualElapsed >= maxSessionSeconds) {
-            console.warn('[Timer Auto-Close]: Absolute 24-hour limit reached. Auto-closing at 24 hours.');
-            setIsStillStudyingPromptOpen(false);
+          } else {
+            // 2. Break reached 00:00: freeze, and switch to work in PAUSED state
             if (timerIntervalRef.current) {
               clearInterval(timerIntervalRef.current);
               timerIntervalRef.current = null;
             }
-            setAutoCloseNotice("Your session reached the absolute 24-hour maximum limit and was saved.");
-            stopTimer(maxSessionSeconds, "Auto-closed at 24h absolute limit");
+            startTimeRef.current = null;
+            clientSessionIdRef.current = null;
+            accumulatedSecondsRef.current = 0;
+            setElapsedSeconds(0);
+            setPomodoroPhase('work');
+            setIsStudying(false);
+            setIsPaused(false);
+            toast.success('Break time is over! Ready to focus? 🚀', { duration: 5000 });
+            notify('pomodoro_break_over');
+            confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+            syncActiveSessionToDbRef.current?.('stopped');
             return;
           }
         }
+      }
 
+      setElapsedSeconds(actualElapsed);
+    }, 100);
+  }, []);
 
-        if (timerMode === 'pomodoro') {
-          const target = pomodoroPhase === 'work' ? pomodoroWorkDuration : pomodoroBreakDuration;
-          if (actualElapsed >= target) {
-            if (pomodoroPhase === 'work') {
-              // 1. Freeze at 00:00, chime, and wait for manual phase transition
-              if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-              }
-              accumulatedSecondsRef.current = target;
-              setElapsedSeconds(target);
-              startTimeRef.current = null;
-              setIsPaused(true);
-              setPomodoroCompletedPhase('work');
-              hapticSuccess();
-              toast.success('Pomodoro session completed! Great focus! 🍅', { duration: 5000 });
-              notify('pomodoro_work_completed');
-              confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
-              return;
-            } else {
-              // 2. Break reached 00:00: freeze, and switch to work in PAUSED state
-              if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-              }
-              startTimeRef.current = null;
-    clientSessionIdRef.current = null;
-              accumulatedSecondsRef.current = 0;
-              setElapsedSeconds(0);
-              setPomodoroPhase('work');
-              setIsStudying(false);
-              setIsPaused(false);
-              toast.success('Break time is over! Ready to focus? 🚀', { duration: 5000 });
-              notify('pomodoro_break_over');
-              confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-              syncActiveSessionToDb('stopped');
-              return;
-            }
-          }
-        }
-
-        setElapsedSeconds(actualElapsed);
-      }, 100);
+  // Real-Time Delta Tracking: Synchronized interval engine running at 100ms tick to eliminate background throttling drift
+  useEffect(() => {
+    if (isStudying && !isPaused) {
+      rearmTimerInterval();
+    } else {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
     }
 
     return () => {
@@ -1571,7 +1594,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         timerIntervalRef.current = null;
       }
     };
-  }, [isStudying, isPaused, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
+  }, [isStudying, isPaused, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration, rearmTimerInterval]);
 
   // On page hide / backgrounding, ensure current elapsed seconds are persisted to localStorage without pausing
   useEffect(() => {
@@ -2021,6 +2044,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, selectedSubjectId, subjects, timerMode, pomodoroPhase, pomodoroWorkDuration, pomodoroBreakDuration]);
 
+  useEffect(() => {
+    syncActiveSessionToDbRef.current = syncActiveSessionToDb;
+  }, [syncActiveSessionToDb]);
+
 
   // Authoritative Server Time Synchronization Engine
   // Fetches current server time from Supabase / server endpoint to reconcile elapsed time,
@@ -2191,30 +2218,89 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     syncActiveSessionToDb,
   ]);
 
-  // Window Focus / Tab Visibility Resync:
-  // When document.visibilityState === 'visible' and timer is running, immediately fetch server time and resync
+  // Window Focus, App State & Native Foreground Service Re-sync
+  const restoreTimerSessionRef = useRef<any>(null);
+
   useEffect(() => {
-    const handleVisibilityOrFocus = async () => {
-      if (document.visibilityState === 'visible' && isStudying && !isPaused) {
+    let appStateHandle: any = null;
+
+    const handleForegroundResume = async () => {
+      if (isNativeAndroid()) {
         try {
-          const serverNow = await fetchAuthoritativeServerTime();
-          await syncTimerWithServerTime(serverNow);
-        } catch (err) {
-          console.warn('[StudyContext]: Error syncing timer on visibility change:', err);
+          const serviceState = await TimerNotification.getServiceTimerState().catch(() => null);
+          if (serviceState && serviceState.isServiceActive) {
+            const {
+              isRunning: sRunning,
+              isPaused: sPaused,
+              isCompleted: sCompleted,
+              mode: sMode,
+              elapsedSeconds: sElapsed,
+              targetSeconds: sTarget,
+              subject: sSubject,
+            } = serviceState;
+
+            const validatedMode = (sMode === 'pomodoro' || sMode === 'stopwatch' || sMode === 'countdown' ? sMode : 'stopwatch') as TimerMode;
+
+            if (sCompleted || (validatedMode === 'countdown' && sTarget > 0 && sElapsed >= sTarget)) {
+              restoreTimerSessionRef.current?.(sTarget > 0 ? sTarget : sElapsed, validatedMode, sSubject, false);
+              return;
+            }
+
+            if (sRunning) {
+              const now = Date.now();
+              const newAnchor = now - (sElapsed * 1000);
+              restoreTimerSessionRef.current?.(sElapsed, validatedMode, sSubject, true, newAnchor);
+              return;
+            } else if (sPaused) {
+              restoreTimerSessionRef.current?.(sElapsed, validatedMode, sSubject, false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('[StudyContext] Native resume sync failed:', e);
         }
+      }
+
+      // Web or fallback: immediately re-anchor and re-arm interval
+      if (isStudyingRef.current && !isPausedRef.current && startTimeRef.current !== null) {
+        const now = Date.now();
+        const actual = Math.floor((now - startTimeRef.current) / 1000);
+        accumulatedSecondsRef.current = actual;
+        setElapsedSeconds(actual);
+        rearmTimerInterval();
+
+        fetchAuthoritativeServerTime().then(serverNow => {
+          syncTimerWithServerTime(serverNow);
+        }).catch(() => {});
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
-    window.addEventListener('resume', handleVisibilityOrFocus);
+    if (typeof window !== 'undefined') {
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            handleForegroundResume();
+          }
+        }).then(h => { appStateHandle = h; }).catch(() => {});
+      }).catch(() => {});
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-      window.removeEventListener('resume', handleVisibilityOrFocus);
-    };
-  }, [isStudying, isPaused, syncTimerWithServerTime]);
+      const handleVisChange = () => {
+        if (document.visibilityState === 'visible') {
+          handleForegroundResume();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisChange);
+      window.addEventListener('focus', handleForegroundResume);
+      window.addEventListener('resume' as any, handleForegroundResume);
+
+      return () => {
+        appStateHandle?.remove?.().catch(() => {});
+        document.removeEventListener('visibilitychange', handleVisChange);
+        window.removeEventListener('focus', handleForegroundResume);
+        window.removeEventListener('resume' as any, handleForegroundResume);
+      };
+    }
+  }, [rearmTimerInterval, syncTimerWithServerTime]);
 
   // Multi-Device Realtime Sync: Server-Authoritative synchronized payload handler
   const handleRemoteSync = useCallback((remoteSession: any) => {
@@ -3246,9 +3332,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
           
           const missingInDb = allLocal.filter(localSess => {
             if (localSess.id && mappedSessions.some(m => m.id === localSess.id)) return false;
+            const locTime = new Date(localSess.startTime || (localSess as any).started_at).getTime();
+            const sessKey = `${locTime}_${localSess.durationSeconds}`;
+            if (migratingKeysRef.current.has(sessKey)) return false;
             return !mappedSessions.some(dbSess => {
                const dbTime = new Date(dbSess.startTime || (dbSess as any).started_at).getTime();
-               const locTime = new Date(localSess.startTime || (localSess as any).started_at).getTime();
                return Math.abs(dbTime - locTime) < 5000 && dbSess.durationSeconds === localSess.durationSeconds;
             });
           });
@@ -3259,41 +3347,47 @@ export function StudyProvider({ children }: { children: ReactNode }) {
             for (const sess of missingInDb) {
               const sessStart = new Date(sess.startTime || (sess as any).started_at).getTime();
               const sessEnd = new Date(sess.endTime || (sess as any).ended_at).getTime();
+              const sessKey = `${sessStart}_${sess.durationSeconds}`;
+              if (migratingKeysRef.current.has(sessKey)) continue;
+
               const isOverlap = deduplicatedMissing.some(existing => {
                 const exStart = new Date(existing.startTime || (existing as any).started_at).getTime();
                 const exEnd = new Date(existing.endTime || (existing as any).ended_at).getTime();
                 return sessStart < exEnd && sessEnd > exStart;
               });
               if (!isOverlap) {
+                migratingKeysRef.current.add(sessKey);
                 deduplicatedMissing.push(sess);
               }
             }
 
-            console.log('Migrating validated local sessions to Supabase:', deduplicatedMissing.length);
-            const inserts = deduplicatedMissing.map(item => ({
-              user_id: activeUserId,
-              subject_id: item.subjectId && item.subjectId.length === 36 ? item.subjectId : null,
-              duration_seconds: item.durationSeconds,
-              started_at: item.startTime,
-              ended_at: item.endTime,
-              notes: item.notes || null,
-              mode: item.mode || 'stopwatch',
-              client_session_id: item.client_session_id || undefined,
-            }));
-            
-            // Migrate via server validation to enforce 12h/24h caps
-            inserts.forEach(insert => {
-               saveValidatedSession({
-                 started_at: insert.started_at,
-                 ended_at: insert.ended_at,
-                 subject_id: insert.subject_id,
-                 notes: insert.notes,
-                 mode: insert.mode,
-                 client_session_id: insert.client_session_id,
-               }).catch(err => {
-                 console.warn('Error migrating local session via server validation:', err);
-               });
-            });
+            if (deduplicatedMissing.length > 0) {
+              console.log('Migrating validated local sessions to Supabase:', deduplicatedMissing.length);
+              const inserts = deduplicatedMissing.map(item => ({
+                user_id: activeUserId,
+                subject_id: item.subjectId && item.subjectId.length === 36 ? item.subjectId : null,
+                duration_seconds: item.durationSeconds,
+                started_at: item.startTime,
+                ended_at: item.endTime,
+                notes: item.notes || null,
+                mode: item.mode || 'stopwatch',
+                client_session_id: item.client_session_id || item.id || crypto.randomUUID(),
+              }));
+              
+              // Migrate via server validation to enforce 12h/24h caps
+              inserts.forEach(insert => {
+                 saveValidatedSession({
+                   started_at: insert.started_at,
+                   ended_at: insert.ended_at,
+                   subject_id: insert.subject_id,
+                   notes: insert.notes,
+                   mode: insert.mode,
+                   client_session_id: insert.client_session_id,
+                 }).catch(err => {
+                   console.warn('Error migrating local session via server validation:', err);
+                 });
+              });
+            }
           }
 
           persistSessionsToLocalStorage(merged, activeUserId);
@@ -3857,6 +3951,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     if (effectiveMode) {
       setTimerMode(effectiveMode);
     }
+    if (startAsRunning) {
+      rearmTimerInterval();
+    }
     if (subjectIdOrName) {
       const subjectList = Array.isArray(subjects) ? subjects : [];
       const match = subjectList.find(
@@ -3880,6 +3977,10 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       client_session_id: restoredSessionId,
     }).catch(() => {});
   }, [subjects, updateProfile, timerMode, syncActiveSessionToDb]);
+
+  useEffect(() => {
+    restoreTimerSessionRef.current = restoreTimerSession;
+  }, [restoreTimerSession]);
 
   // Instantly add a session and sync metrics, Daily Overview, and Analytics
   const addSession = useCallback((newSession: StudySession) => {

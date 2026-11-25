@@ -258,6 +258,7 @@ export function StudyTimer() {
   }, []);
 
   const isStudyingRef = useRef(isStudying);
+  const restoreSessionRef = useRef<any>(null);
   isStudyingRef.current = isStudying;
   const isRemoteSessionRef = useRef(isRemoteSession);
   isRemoteSessionRef.current = isRemoteSession;
@@ -757,7 +758,9 @@ export function StudyTimer() {
         checkForegroundViolation();
         setTimeout(checkForegroundViolation, 300);
       }
-      // When returning to Study.io (isActive === true), do NOT show any alert modal
+      if (isActive) {
+        restoreSessionRef.current?.();
+      }
     }).then((handle) => {
       appListenerHandle = handle;
     }).catch(() => { });
@@ -776,15 +779,18 @@ export function StudyTimer() {
     if (typeof document === 'undefined') return;
 
     const handleVisibilitySync = async () => {
-      if (document.visibilityState === 'visible' && isStudying && !isPaused) {
-        console.log('[TIMER Background Sync]: App returned to foreground, fetching server time from Supabase/API...');
-        try {
-          const serverTime = await fetchAuthoritativeServerTime();
-          if (syncTimerWithServerTime) {
-            await syncTimerWithServerTime(serverTime);
+      if (document.visibilityState === 'visible') {
+        restoreSessionRef.current?.();
+        if (isStudying && !isPaused) {
+          console.log('[TIMER Background Sync]: App returned to foreground, fetching server time from Supabase/API...');
+          try {
+            const serverTime = await fetchAuthoritativeServerTime();
+            if (syncTimerWithServerTime) {
+              await syncTimerWithServerTime(serverTime);
+            }
+          } catch (syncErr) {
+            console.warn('[TIMER Background Sync]: Error syncing server time:', syncErr);
           }
-        } catch (syncErr) {
-          console.warn('[TIMER Background Sync]: Error syncing server time:', syncErr);
         }
       }
     };
@@ -1721,16 +1727,20 @@ export function StudyTimer() {
 
             const now = getServerNow();
             let currentElapsed = serviceElapsed;
-            if (serviceRunning && serviceStartTime > 0) {
-              const effectiveCreatedAt = serviceStartTime - (serviceElapsed * 1000);
-              const res = computeElapsedSessionSeconds({
-                startedAt: serviceStartTime,
-                serverNow: now,
-                accumulatedMs: serviceElapsed * 1000,
-                sessionCreatedAt: effectiveCreatedAt,
-                status: 'running',
-              });
-              currentElapsed = res.elapsedSeconds;
+            if (serviceRunning) {
+              if (typeof (serviceState as any).baseElapsedSeconds === 'number') {
+                currentElapsed = serviceElapsed;
+              } else if (serviceStartTime > 0) {
+                const effectiveCreatedAt = serviceStartTime - (serviceElapsed * 1000);
+                const res = computeElapsedSessionSeconds({
+                  startedAt: serviceStartTime,
+                  serverNow: now,
+                  accumulatedMs: serviceElapsed * 1000,
+                  sessionCreatedAt: effectiveCreatedAt,
+                  status: 'running',
+                });
+                currentElapsed = res.elapsedSeconds;
+              }
             }
 
             // Check if countdown target was completed while away
@@ -1745,7 +1755,7 @@ export function StudyTimer() {
             }
 
             if (serviceRunning) {
-              const startAnchorMs = now - (currentElapsed * 1000);
+              const startAnchorMs = Date.now() - (currentElapsed * 1000);
               restoreTimerSession(currentElapsed, validatedMode, serviceSubject, true, startAnchorMs);
               return;
             } else if (servicePaused && currentElapsed > 0) {
@@ -1836,9 +1846,11 @@ export function StudyTimer() {
       }
     };
 
+    restoreSessionRef.current = restoreSession;
     restoreSession();
     return () => {
       isCancelled = true;
+      restoreSessionRef.current = null;
     };
   }, [restoreTimerSession]);
 

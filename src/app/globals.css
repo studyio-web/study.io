@@ -1847,5 +1847,40 @@ html.light ::selection,
   }
 }
 
+/* Landing page animations (strictly respecting prefers-reduced-motion) */
+@keyframes landingFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes landingMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-landing-float {
+  animation: landingFloat 6s ease-in-out infinite;
+}
+
+.animate-landing-marquee {
+  animation: landingMarquee 42s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-landing-float,
+  .animate-landing-marquee {
+    animation: none !important;
+  }
+}
+
+
 
 

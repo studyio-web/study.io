@@ -236,7 +236,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (Number(profile?.season_base_rp ?? 0) !== userReset.startingRP) {
         currentProfileRP = calculatedRP;
         needsRepair = true;
-      } else if (Math.abs(currentProfileRP - calculatedRP) > 5 || Number(profile?.total_study_seconds ?? 0) > totalStudySeconds + 3600) {
+      } else if (
+        Math.abs(currentProfileRP - calculatedRP) > 5 ||
+        Number(profile?.total_study_seconds ?? 0) > totalStudySeconds + 3600 ||
+        profile?.rank_badge !== effectiveBadge ||
+        profile?.rank_title !== effectiveRankTitle ||
+        profile?.current_rank !== effectiveRankTitle
+      ) {
         currentProfileRP = calculatedRP; // Reset RP
         needsRepair = true;
       }
@@ -563,7 +569,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (
           lastResetMonth !== currentMonthStr ||
           Number(data.season_base_rp ?? 0) !== newStartingRP ||
-          Number(data.season_rp ?? 0) !== resolvedSeasonRp
+          Number(data.season_rp ?? 0) !== resolvedSeasonRp ||
+          data.rank_badge !== newBadge ||
+          data.rank_title !== resolvedRankTitle ||
+          data.current_rank !== resolvedRankTitle
         ) {
           lastResetMonth = currentMonthStr;
 

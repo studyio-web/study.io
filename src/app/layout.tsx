@@ -29,8 +29,6 @@ const chakraPetch = Chakra_Petch({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: "#050507",
 };
@@ -38,11 +36,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://studyio-web.vercel.app"),
   applicationName: "study.io",
-  title: "study.io - Collaborative Study & Focus Tracker",
-  description: "study.io is a modern full-stack collaborative study application with live virtual study rooms, subject tracking, stopwatch/pomodoro timers, daily planner, and in-depth analytics.",
+  title: "study.io — The Focus App Built for Rank-Chasing Students",
+  description: "Lock down distractions on your phone, track deep work with precision timers, and climb 23 seasonal ranks from Bronze to Grandmaster.",
   openGraph: {
-    title: "study.io - Collaborative Study & Focus Tracker",
-    description: "study.io is a modern full-stack collaborative study application with live virtual study rooms, subject tracking, stopwatch/pomodoro timers, daily planner, and in-depth analytics.",
+    title: "study.io — The Focus App Built for Rank-Chasing Students",
+    description: "Lock down distractions on your phone, track deep work with precision timers, and climb 23 seasonal ranks from Bronze to Grandmaster.",
     url: "https://studyio-web.vercel.app",
     siteName: "study.io",
     locale: "en_US",
@@ -55,6 +53,12 @@ export const metadata: Metadata = {
         alt: "study.io brand logo",
       },
     ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "study.io — The Focus App Built for Rank-Chasing Students",
+    description: "Lock down distractions on your phone, track deep work with precision timers, and climb 23 seasonal ranks from Bronze to Grandmaster.",
+    images: ["/logo.png"],
   },
   manifest: "/manifest.webmanifest",
   icons: {
@@ -126,9 +130,25 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
+          rel="preload"
+          as="image"
+          href="/landing-shots/hero-timer.webp"
+          type="image/webp"
+          fetchPriority="high"
+        />
+        <link
           href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap"
           rel="stylesheet"
+          media="print"
+          // @ts-expect-error - Next.js inline onLoad for non-blocking fonts
+          onLoad="this.media='all'"
         />
+        <noscript>
+          <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap"
+            rel="stylesheet"
+          />
+        </noscript>
         <script
           dangerouslySetInnerHTML={{
             __html: inlineThemeScript,

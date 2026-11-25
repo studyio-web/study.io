@@ -179,30 +179,19 @@ class TimerNotificationPlugin : Plugin() {
     @PluginMethod
     fun getServiceTimerState(call: PluginCall) {
         try {
-            val prefs = context.getSharedPreferences("studyio_timer_prefs", Context.MODE_PRIVATE)
-            val wasRunning = prefs.getBoolean("is_running", false)
-            val isPaused = prefs.getBoolean("is_paused", false)
-            val isCompleted = prefs.getBoolean("is_completed", false)
-            val mode = prefs.getString("mode", "stopwatch") ?: "stopwatch"
-            val phase = prefs.getString("phase", "work") ?: "work"
-            val startTime = prefs.getLong("start_time", 0L)
-            val elapsedSeconds = prefs.getInt("elapsed_seconds", 0)
-            val targetSeconds = prefs.getInt("target_seconds", 0)
-            val subject = prefs.getString("subject", "") ?: ""
-
-            val isServiceActive = (TimerForegroundService.isServiceRunning || wasRunning || isCompleted) && (wasRunning || isPaused || isCompleted)
-
+            val state = TimerForegroundService.getLiveState(context)
             val ret = JSObject().apply {
-                put("isServiceActive", isServiceActive)
-                put("isRunning", wasRunning && !isPaused && !isCompleted)
-                put("isPaused", isPaused)
-                put("isCompleted", isCompleted)
-                put("mode", mode)
-                put("phase", phase)
-                put("startTime", startTime.toDouble())
-                put("elapsedSeconds", elapsedSeconds)
-                put("targetSeconds", targetSeconds)
-                put("subject", subject)
+                put("isServiceActive", state.isActive)
+                put("isRunning", state.isRunning)
+                put("isPaused", state.isPaused)
+                put("isCompleted", state.isCompleted)
+                put("mode", state.mode)
+                put("phase", state.phase)
+                put("startTime", state.startTime.toDouble())
+                put("elapsedSeconds", state.elapsedSeconds)
+                put("baseElapsedSeconds", state.baseElapsedSeconds)
+                put("targetSeconds", state.targetSeconds)
+                put("subject", state.subject)
             }
             call.resolve(ret)
         } catch (e: Exception) {
