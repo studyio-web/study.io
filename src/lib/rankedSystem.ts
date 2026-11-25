@@ -664,10 +664,10 @@ export function resolveUserSeasonReset(
 
   if (isWren) {
     return {
-      previousRankTitle: 'SILVER IV',
-      previousRP: 950,
-      newRankTitle: 'SILVER IV',
-      startingRP: 950,
+      previousRankTitle: 'GOLD IV',
+      previousRP: 2500,
+      newRankTitle: 'GOLD IV',
+      startingRP: 2500,
     };
   }
 

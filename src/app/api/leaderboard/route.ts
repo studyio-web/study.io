@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
       let carryoverRp = Math.min(HARD_RESET_CAP_RP, Math.max(0, Number(p.season_base_rp || 0)));
       const isWren = p.username === 'wren' || p.id === 'e60d0e7a-e6f4-4954-9ba2-4d39c9e8fc32';
       if (isWren) {
-        carryoverRp = 950;
+        carryoverRp = 2500;
       }
       const seasonRp = calculateSeasonRp(carryoverRp, thisMonthSec);
 
