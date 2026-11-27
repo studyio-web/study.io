@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Logo } from '../Logo';
-import { ProCrown } from '../common/ProCrown';
 import { RankCrestBadge } from '../common/RankCrestBadge';
 import { RANK_TIERS } from '../../lib/rankedSystem';
 import { startApkDownload, LATEST_APK_CDN_URL } from '../../lib/apkDownload';
@@ -646,39 +645,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ============================================================ */}
-      {/* 7. PRO SECTION (ONE COMPACT LINE, NO PRICING TABLE)           */}
-      {/* ============================================================ */}
-      <section className="py-12 sm:py-16 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#12131A] border border-white/[0.1] shadow-lg flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-                <ProCrown size={24} variant="gold" />
-              </div>
-              <div>
-                <div className="font-hud font-bold text-lg sm:text-xl text-white tracking-wide flex items-center gap-2.5 justify-center sm:justify-start">
-                  <span>study.io Pro</span>
-                  <span className="text-xs font-mono font-normal text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded">
-                    ₹499/mo · ₹4,999/yr
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-300 mt-1">
-                  Unlimited virtual study rooms, all 8 soundscapes, and advanced analytics.
-                </p>
-              </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              className="min-h-[44px] shrink-0 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0A0A0B] font-hud font-bold text-sm tracking-wider uppercase transition-all shadow-md cursor-pointer active:scale-[0.98]"
-            >
-              Upgrade to Pro
-            </button>
-          </div>
-        </div>
-      </section>
 
       {/* ============================================================ */}
       {/* 8. FAQ ACCORDION (5 SHORT ACCURATE QUESTIONS)                 */}
