@@ -53,14 +53,6 @@ function PhoneFrame({
       <div className="relative w-full h-full rounded-[48px] p-[8px] sm:p-[10px] bg-gradient-to-b from-[#282A34] via-[#14151B] to-[#0A0B0E] border border-white/[0.1] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),0_0_0_1px_rgba(0,0,0,0.8)]">
         {/* Screen container */}
         <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-[#07090E]">
-          {/* Top Speaker / Dynamic Island */}
-          <div
-            aria-hidden="true"
-            className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-4 bg-black rounded-full z-20 pointer-events-none flex items-center justify-end pr-2"
-          >
-            <div className="w-2 h-2 rounded-full bg-[#171922] border border-white/[0.08]" />
-          </div>
-
           {/* Screenshot */}
           <Image
             src={src}
