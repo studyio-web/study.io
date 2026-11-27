@@ -19,6 +19,10 @@ import {
   Flame,
   Volume2,
   Users,
+  Palette,
+  CloudRain,
+  Music,
+  Waves,
 } from 'lucide-react';
 
 export interface LandingPageProps {
@@ -65,6 +69,170 @@ function PhoneFrame({
             className="object-cover object-top select-none pointer-events-none"
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+const SHOWCASE_THEMES = [
+  { id: 'rank', name: 'Rank Colors', accent: '#D4A017', bg: '#050507' },
+  { id: 'midnight', name: 'Midnight', accent: '#5B8CFF', bg: '#090B10' },
+  { id: 'ember', name: 'Ember', accent: '#F0924A', bg: '#0F0B09' },
+  { id: 'ocean', name: 'Ocean', accent: '#4DB6E8', bg: '#060B12' },
+  { id: 'rose', name: 'Rose', accent: '#F0709A', bg: '#0E0A0C' },
+  { id: 'emerald', name: 'Emerald', accent: '#10B981', bg: '#06120D' },
+  { id: 'cyberpunk', name: 'Cyberpunk', accent: '#F43F5E', bg: '#0B0814' },
+  { id: 'goldleaf', name: 'Gold Leaf', accent: '#EAB308', bg: '#120F06', isPro: true },
+];
+
+const SHOWCASE_SOUNDS = [
+  { id: 'rain', name: 'Gentle Rain', desc: 'Calming rooftop rain', level: 75, icon: CloudRain, color: '#38BDF8' },
+  { id: 'fireplace', name: 'Fireplace', desc: 'Warm crackling hearth', level: 50, icon: Flame, color: '#FB923C' },
+  { id: 'piano', name: 'Starlit Piano', desc: 'Reflective acoustic chords', level: 65, icon: Music, color: '#A78BFA' },
+  { id: 'brownnoise', name: 'Brown Noise', desc: 'Deep focus low rumble', level: 35, icon: Waves, color: '#34D399' },
+];
+
+function AtmosphereShowcase() {
+  const [activeThemeId, setActiveThemeId] = useState('rank');
+  const activeTheme = SHOWCASE_THEMES.find(t => t.id === activeThemeId) || SHOWCASE_THEMES[0];
+
+  return (
+    <div className="relative mx-auto w-full max-w-[460px] rounded-3xl border border-white/[0.1] bg-[#0E1017]/95 p-5 sm:p-6 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-md overflow-hidden">
+      {/* Background radial accent glow matching active theme */}
+      <div
+        className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full blur-3xl opacity-20 transition-all duration-500"
+        style={{ backgroundColor: activeTheme.accent }}
+      />
+
+      {/* Top Header */}
+      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3.5 mb-5 relative z-10">
+        <div className="flex items-center gap-2">
+          <Palette className="w-4 h-4 text-amber-400" />
+          <span className="font-hud font-bold text-xs uppercase tracking-wider text-white">
+            Custom Atmosphere
+          </span>
+        </div>
+        <span className="font-mono text-[11px] text-zinc-400">
+          18 Themes · 8 Tracks
+        </span>
+      </div>
+
+      {/* 1. Theme Color Swatches Section */}
+      <div className="mb-5 relative z-10">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="font-hud font-bold text-xs uppercase tracking-wider text-zinc-300">
+            Color Themes
+          </span>
+          <span className="font-mono text-[10px] text-zinc-400">
+            Active: <span style={{ color: activeTheme.accent }} className="font-semibold">{activeTheme.name}</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          {SHOWCASE_THEMES.map((theme) => {
+            const isSelected = theme.id === activeThemeId;
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                onClick={() => setActiveThemeId(theme.id)}
+                className={`group relative p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-white/[0.08] border-white/30 shadow-[0_0_12px_rgba(255,255,255,0.1)]'
+                    : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.05] hover:border-white/15'
+                }`}
+              >
+                <div className="flex items-center gap-1 mb-1.5">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full border border-black/40"
+                    style={{ backgroundColor: theme.accent }}
+                  />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: theme.bg }}
+                  />
+                </div>
+                <div className="font-hud font-semibold text-[11px] text-white truncate leading-tight">
+                  {theme.name}
+                </div>
+                {theme.isPro && (
+                  <span className="absolute top-1 right-1 font-mono text-[8px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1 rounded">
+                    PRO
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 text-right">
+          <span className="font-mono text-[10px] text-zinc-400">
+            + 10 more custom themes in app
+          </span>
+        </div>
+      </div>
+
+      {/* 2. Ambient Soundscapes Section */}
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-hud font-bold text-xs uppercase tracking-wider text-zinc-300">
+              Ambient Audio Mixer
+            </span>
+          </div>
+          <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Offline Loop
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          {SHOWCASE_SOUNDS.map((sound) => {
+            const Icon = sound.icon;
+            return (
+              <div
+                key={sound.id}
+                className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center gap-3"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
+                  style={{
+                    backgroundColor: `${sound.color}15`,
+                    borderColor: `${sound.color}30`,
+                    color: sound.color,
+                  }}
+                >
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-hud font-semibold text-xs text-white truncate">
+                      {sound.name}
+                    </span>
+                    <span className="font-mono text-[10px] text-zinc-400">
+                      {sound.level}%
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${sound.level}%`,
+                        backgroundColor: sound.color,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bottom badge */}
+      <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-400 relative z-10">
+        <span>Zero latency audio loops</span>
+        <span className="text-zinc-300">100% Free · No Ads</span>
       </div>
     </div>
   );
@@ -416,11 +584,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         {/* BLOCK 6: THEMES & SOUNDSCAPES (18 themes, 8 soundscapes) */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="order-last lg:order-first">
-            <PhoneFrame
-              src="/landing-shots/themes-sounds.webp"
-              alt="18 custom color themes and 8 ambient audio soundscapes in study.io"
-              glowColor="rgba(245, 158, 11, 0.18)"
-            />
+            <AtmosphereShowcase />
           </div>
           <div className="text-left lg:pl-6">
             <span className="font-mono text-xs uppercase tracking-[0.22em] text-amber-400 font-semibold block mb-3">
