@@ -22,6 +22,7 @@ import {
   CloudRain,
   Music,
   Waves,
+  RefreshCw,
 } from 'lucide-react';
 
 export interface LandingPageProps {
@@ -442,7 +443,139 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
       </section>
 
       {/* ============================================================ */}
-      {/* 4. BOLD STATEMENT SECTION                                     */}
+      {/* 4. CROSS-PLATFORM (DESK & MOBILE SYNC - PRIMARY ADVANTAGE)   */}
+      {/* ============================================================ */}
+      <section className="relative py-20 sm:py-32 px-4 sm:px-6 max-w-6xl mx-auto overflow-hidden">
+        {/* Ambient radiant aura illuminating the devices */}
+        <div
+          aria-hidden="true"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-gradient-to-tr from-emerald-500/[0.08] via-amber-500/[0.06] to-cyan-500/[0.08] rounded-full blur-[140px] pointer-events-none -z-10"
+        />
+
+        <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
+          {/* Eye-catching glowing pill */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-400 text-xs font-mono tracking-wider uppercase mb-5 sm:mb-6 shadow-[0_0_24px_rgba(16,185,129,0.18)]">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>THE CROSS-PLATFORM ADVANTAGE</span>
+          </div>
+
+          <h2 className="font-hud font-bold text-3xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.08] mb-5">
+            Seamless sync between desk and mobile
+          </h2>
+
+          <p className="text-base sm:text-lg text-white/70 leading-relaxed max-w-2xl mx-auto text-balance">
+            Most focus apps trap you on a single phone screen. study.io delivers a dedicated desktop web app for deep work at your desk, kept in lockstep with your Android app wherever you go.
+          </p>
+        </div>
+
+        {/* Eye-Catching Device Composition: Desktop Window + Overlapping Mobile Phone */}
+        <div className="relative mx-auto max-w-5xl mb-16 sm:mb-20">
+          {/* Main Desktop Browser Window Mockup */}
+          <div className="rounded-2xl sm:rounded-3xl border border-white/[0.12] bg-[#0E1017] shadow-[0_30px_100px_rgba(0,0,0,0.85)] overflow-hidden transition-all">
+            {/* Minimal Dark Browser Bar */}
+            <div className="h-10 sm:h-11 px-4 bg-[#141722] border-b border-white/[0.08] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-500/70" />
+                <div className="w-3 h-3 rounded-full bg-amber-500/70" />
+                <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
+              </div>
+              <div className="px-4 py-1 rounded-md bg-black/50 border border-white/[0.08] text-xs font-mono text-zinc-300 truncate max-w-xs sm:max-w-md flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>https://studyio-web.vercel.app/dashboard</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 font-mono text-[11px] text-zinc-400">
+                <Laptop className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Web App</span>
+              </div>
+            </div>
+
+            {/* Desktop UI Screenshot */}
+            <div className="relative w-full aspect-[16/10] bg-black">
+              <Image
+                src="/landing-shots/desktop-sync.webp"
+                alt="study.io desktop web dashboard with fullscreen focus timer dial and dark hud theme"
+                fill
+                unoptimized
+                loading="lazy"
+                className="object-contain object-top select-none pointer-events-none"
+              />
+            </div>
+          </div>
+
+          {/* Overlapping Phone Mockup (in the foreground) */}
+          <div className="absolute -bottom-8 right-2 sm:-bottom-12 sm:right-6 lg:-bottom-14 lg:right-10 z-20 w-[140px] sm:w-[200px] lg:w-[240px] drop-shadow-[0_25px_60px_rgba(0,0,0,0.95)]">
+            <div className="relative aspect-[390/844] rounded-[24px] sm:rounded-[36px] p-1.5 sm:p-2 bg-[#1A1D28] border border-white/20 shadow-2xl overflow-hidden">
+              <div className="relative w-full h-full rounded-[18px] sm:rounded-[28px] overflow-hidden bg-black">
+                <Image
+                  src="/landing-shots/hero-timer.webp"
+                  alt="study.io Android app timer running in sync with desktop"
+                  fill
+                  unoptimized
+                  loading="lazy"
+                  className="object-cover object-top select-none pointer-events-none"
+                />
+              </div>
+            </div>
+
+            {/* Overlapping Sync Badge */}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 sm:px-3 py-1 rounded-full bg-[#0A0D14]/95 border border-emerald-500/40 shadow-lg flex items-center gap-1.5 whitespace-nowrap z-30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider">
+                In-Sync
+              </span>
+            </div>
+          </div>
+
+          {/* Floating Cloud Sync Pill (Left/Center Top) */}
+          <div className="hidden sm:flex absolute -top-4 left-6 z-20 items-center gap-2.5 px-4 py-2 rounded-2xl bg-[#0D111A]/90 border border-white/[0.12] backdrop-blur-md shadow-xl text-xs font-mono text-zinc-300">
+            <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-[spin_8s_linear_infinite]" />
+            <span>Real-time cross-device sync</span>
+            <span className="text-emerald-400 font-semibold">&lt; 1s latency</span>
+          </div>
+        </div>
+
+        {/* 3 Key Advantage Callout Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-white/15 transition-all">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 mb-4">
+              <Laptop className="w-5 h-5" />
+            </div>
+            <h3 className="font-hud font-bold text-lg text-white mb-2">
+              Full-Screen Desktop Focus
+            </h3>
+            <p className="text-sm text-zinc-300 leading-relaxed font-sans">
+              Keep your monitor free of browser clutter. Clean dark HUD dial, custom keyboard shortcuts, and zero temptation from phone notifications.
+            </p>
+          </div>
+
+          <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-white/15 transition-all">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 mb-4">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <h3 className="font-hud font-bold text-lg text-white mb-2">
+              On-Device Mobile Shield
+            </h3>
+            <p className="text-sm text-zinc-300 leading-relaxed font-sans">
+              Take your study session to the library. On Android, Strict Mode and Device Admin guard system settings to lock away Instagram, YouTube Shorts, and doomscrolling.
+            </p>
+          </div>
+
+          <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-white/15 transition-all">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 mb-4">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <h3 className="font-hud font-bold text-lg text-white mb-2">
+              Instant Cloud Continuity
+            </h3>
+            <p className="text-sm text-zinc-300 leading-relaxed font-sans">
+              Start at your desk, continue on your phone. Every hour of deep focus, daily task completion, and seasonal Rank Point streams across all devices in real time.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================ */}
+      {/* 5. BOLD STATEMENT SECTION                                     */}
       {/* ============================================================ */}
       <section className="py-24 sm:py-36 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
@@ -598,54 +731,6 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
           </div>
         </section>
       </div>
-
-      {/* ============================================================ */}
-      {/* 6. WORKS EVERYWHERE (DESKTOP & MOBILE SYNC)                   */}
-      {/* ============================================================ */}
-      <section className="py-24 sm:py-36 px-4 sm:px-6 max-w-6xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-14 sm:mb-20">
-          <span className="font-mono text-xs uppercase tracking-[0.25em] text-emerald-400 font-semibold block mb-3">
-            CROSS-PLATFORM
-          </span>
-          <h2 className="font-hud font-bold text-3xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.1] mb-4">
-            Seamless sync between desk and mobile
-          </h2>
-          <p className="text-base sm:text-lg text-white/70 leading-relaxed">
-            Start a session at your desk, track deep work during lectures on your phone. Every hour, task, and rank point synchronizes across all your devices in real time.
-          </p>
-        </div>
-
-        {/* Side-by-side or Layered PC Browser and Mobile Mockup */}
-        <div className="relative mx-auto max-w-4xl">
-          {/* Desktop Browser Window Mockup */}
-          <div className="rounded-2xl border border-white/[0.1] bg-[#10121A] shadow-[0_30px_90px_rgba(0,0,0,0.85)] overflow-hidden">
-            {/* Minimal Dark Browser Bar */}
-            <div className="h-10 px-4 bg-[#161822] border-b border-white/[0.08] flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-white/15" />
-                <div className="w-3 h-3 rounded-full bg-white/15" />
-                <div className="w-3 h-3 rounded-full bg-white/15" />
-              </div>
-              <div className="mx-auto px-4 py-1 rounded-md bg-black/40 border border-white/[0.06] text-xs font-mono text-zinc-300 truncate max-w-xs sm:max-w-md">
-                https://studyio-web.vercel.app/dashboard
-              </div>
-            </div>
-            {/* Screenshot of Real Desktop UI */}
-            <div className="relative w-full aspect-[16/9] bg-black">
-              <Image
-                src="/landing-shots/desktop-sync.webp"
-                alt="study.io desktop web dashboard with full timer dial and dark hud theme"
-                fill
-                unoptimized
-                loading="lazy"
-                className="object-contain object-center select-none pointer-events-none"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-
 
       {/* ============================================================ */}
       {/* 8. FAQ ACCORDION (5 SHORT ACCURATE QUESTIONS)                 */}
