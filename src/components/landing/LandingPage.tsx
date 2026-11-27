@@ -110,7 +110,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
           >
             <Logo className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-[0_0_16px_rgba(16,185,129,0.35)]" />
             <span className="font-hud font-bold text-xl sm:text-2xl text-white tracking-wider">
-              study<span className="text-amber-500">.io</span>
+              study.io
             </span>
           </Link>
 
@@ -145,12 +145,6 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         />
 
         <div className="max-w-5xl mx-auto text-center flex flex-col items-center">
-          {/* Small Category Pill */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/[0.08] border border-amber-500/25 text-amber-400 text-xs font-mono tracking-widest uppercase mb-6 sm:mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span>SEASONAL RANKED FOCUS</span>
-          </div>
-
           {/* Big Hero Display Headline (64-80px desktop, 40px mobile) */}
           <h1 className="font-hud font-bold text-[40px] sm:text-6xl md:text-7xl lg:text-[76px] text-white tracking-tight leading-[1.05] max-w-4xl mx-auto text-balance">
             The focus app built for rank-chasing students
@@ -163,11 +157,11 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
 
           {/* Action CTAs */}
           <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
-            {/* Primary Study On Web Button */}
+            {/* Primary Study On Web Button (PC only, hidden on mobile) */}
             <button
               type="button"
               onClick={onOpenAuth}
-              className="min-h-[48px] w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0A0A0B] font-hud font-bold text-base tracking-wider uppercase transition-all shadow-[0_0_28px_rgba(245,158,11,0.28)] hover:shadow-[0_0_36px_rgba(245,158,11,0.42)] flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              className="hidden sm:flex min-h-[48px] w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0A0A0B] font-hud font-bold text-base tracking-wider uppercase transition-all shadow-[0_0_28px_rgba(245,158,11,0.28)] hover:shadow-[0_0_36px_rgba(245,158,11,0.42)] items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
             >
               <span>Study on the web</span>
               <ArrowRight className="w-4 h-4" />
@@ -187,11 +181,11 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
               </span>
             </div>
 
-            {/* Direct Android APK Download */}
+            {/* Direct Android APK Download (Mobile only, hidden on PC) */}
             <button
               type="button"
               onClick={() => startApkDownload()}
-              className="min-h-[48px] w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.12] hover:border-white/20 text-white text-xs sm:text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              className="flex sm:hidden min-h-[48px] w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.12] hover:border-white/20 text-white text-xs sm:text-sm font-medium transition-all items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
             >
               <Download className="w-4 h-4 text-emerald-400" />
               <span>Download APK (105 MB)</span>
@@ -606,19 +600,21 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
           </p>
 
           <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
+            {/* Primary Study On Web Button (PC only, hidden on mobile) */}
             <button
               type="button"
               onClick={onOpenAuth}
-              className="min-h-[48px] w-full sm:w-auto px-8 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0A0A0B] font-hud font-bold text-base tracking-wider uppercase transition-all shadow-[0_0_24px_rgba(245,158,11,0.25)] flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              className="hidden sm:flex min-h-[48px] w-full sm:w-auto px-8 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0A0A0B] font-hud font-bold text-base tracking-wider uppercase transition-all shadow-[0_0_24px_rgba(245,158,11,0.25)] items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
             >
               <span>Study on the web</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
+            {/* Direct Android APK Download (Mobile only, hidden on PC) */}
             <button
               type="button"
               onClick={() => startApkDownload()}
-              className="min-h-[48px] w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.14] text-white text-sm font-semibold font-hud tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              className="flex sm:hidden min-h-[48px] w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.14] text-white text-sm font-semibold font-hud tracking-wider uppercase transition-all items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
             >
               <Download className="w-4 h-4 text-emerald-400" />
               <span>Download Android APK</span>
@@ -638,28 +634,6 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
           </p>
         </div>
 
-        {/* Plain Minimal Footer */}
-        <footer className="mt-20 pt-8 border-t border-white/[0.06] max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
-          <div className="flex items-center gap-2">
-            <Logo className="w-4 h-4" />
-            <span>&copy; {new Date().getFullYear()} study.io. All rights reserved.</span>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <Link href="/privacy" className="hover:text-white transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="/privacy" className="hover:text-white transition-colors">
-              Terms of Service
-            </Link>
-            <a
-              href="mailto:web.study.io@gmail.com"
-              className="hover:text-white transition-colors"
-            >
-              Contact
-            </a>
-          </div>
-        </footer>
         {/* Plain Minimal Footer */}
         <footer className="mt-20 pt-8 border-t border-white/[0.06] max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
           <div className="flex items-center gap-2">
